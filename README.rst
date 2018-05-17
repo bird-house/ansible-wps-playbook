@@ -35,7 +35,7 @@ Deploy a PyWPS Application
 Bootstrap
 ---------
 
-Run bootstrap script (only once) to prepare your system and install Ansible:
+Run bootstrap script (only once) to prepare your system and install Ansible::
 
     $ bash bootstrap.sh
 
@@ -162,7 +162,8 @@ Links
 * https://github.com/geocontainers/
 * http://pywps.readthedocs.io/en/master/deployment.html#deployment-on-nginx-gunicorn
 
-Roles/Recipes from Ansible Galaxy:
+Roles/Recipes from Ansible Galaxy
+---------------------------------
 
 * miniconda: https://galaxy.ansible.com/andrewrothstein/miniconda/
 * nginx: https://galaxy.ansible.com/jdauphant/nginx/
