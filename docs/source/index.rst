@@ -4,9 +4,8 @@ Getting started
 ===============
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
-   .. intro
    preparing
    custom_playbook
    testing
