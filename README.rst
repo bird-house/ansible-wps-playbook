@@ -36,4 +36,4 @@ It will install a PyWPS application on a single host.
 Nginx, Supervisor and miniconda are installed on the system.
 The PyWPS application is fetched from GitHub and dependencies are installed into a Conda environment.
 
-See the ``docs`` subdirectory or `readthedocs <http://http://ansible-wps-playbook.readthedocs.io/en/latest/>`_ for complete documentation.
+See the ``docs`` subdirectory or `readthedocs <http://ansible-wps-playbook.readthedocs.io/en/latest/>`_ for complete documentation.
