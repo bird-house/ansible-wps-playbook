@@ -25,6 +25,7 @@ wps_version: master
 wps_location: "{{ prefix }}/{{ wps_name }}"
 wps_hostname: localhost
 wps_port: 5000
+wps_user: root
 # WPS DB
 wps_log_level: INFO
 wps_database: sqlite://///var/lib/pywps/db/{{ wps_name }}_log.db
