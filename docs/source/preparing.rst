@@ -6,6 +6,10 @@ Deploy a PyWPS Application
     This Ansible playbook currently works only on Debian/Ubuntu.
 
 
+.. contents::
+    :local:
+    :depth: 2
+
 Get the Playbook
 ----------------
 

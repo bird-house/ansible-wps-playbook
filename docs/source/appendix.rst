@@ -1,6 +1,10 @@
 Links
 =====
 
+.. contents::
+    :local:
+    :depth: 2
+
 * https://tdhopper.com/blog/automating-python-with-ansible/
 * https://serversforhackers.com/c/an-ansible-tutorial
 * https://plone-ansible-playbook.readthedocs.io/en/latest/index.html

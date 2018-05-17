@@ -1,6 +1,10 @@
 Ideas
 ======
 
+.. contents::
+    :local:
+    :depth: 2
+
 Deployment Scenarios
 --------------------
 

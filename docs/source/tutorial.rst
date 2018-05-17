@@ -5,6 +5,10 @@ Tutorial: Deploy the Emu PyWPS Application
 
   To test the installation you should try it in a docker container: :ref:`docker`.
 
+.. contents::
+    :local:
+    :depth: 2
+
 Go step by step:
 
 .. code-block:: sh

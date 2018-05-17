@@ -3,6 +3,10 @@
 Try in a Docker container
 =========================
 
+.. contents::
+    :local:
+    :depth: 2
+
 Make sure you are in the ``demo/`` folder.
 
 Start an Ubuntu Docker container and mount local source::
