@@ -1,4 +1,4 @@
 ---
 # Configuration for Emu WPS
 wps_name: emu
-wps_version: demo
+wps_port: 5000
