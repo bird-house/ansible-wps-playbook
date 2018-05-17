@@ -8,5 +8,6 @@ roles/andrewrothstein.unarchive-deps
 
 # temp files
 *.retry
+*.log
 out.xml
 caps.xml
