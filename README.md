@@ -1,10 +1,7 @@
-# Ansible Demo
+# Ansible PyWPS Playbook
 
-This repository contains an example how to use Ansible for a PyWPS service.
+Use Ansible to deploy a full-stack PyWPS service.
 
-The demo is based on this example:
-
-https://tdhopper.com/blog/automating-python-with-ansible/
 
 ## Deployment Scenarios
 
