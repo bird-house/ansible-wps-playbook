@@ -1,3 +1,5 @@
+.. _docker:
+
 Try in a Docker container
 =========================
 
