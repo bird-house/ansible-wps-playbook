@@ -9,8 +9,8 @@ Tutorial
     :local:
     :depth: 2
 
-Deploy the Emu PyWPS Application
-================================
+Deploy Emu PyWPS
+----------------
 
 Go step by step:
 
