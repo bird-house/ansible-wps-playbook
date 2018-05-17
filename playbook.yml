@@ -1,0 +1,20 @@
+---
+# This Ansible playbook is used to deploy a PyWPS application.
+- hosts: localhost
+
+  pre_tasks:
+    - name: Include vars from custom.yml if found
+      include_vars: "{{ item }}"
+      with_first_found:
+       - custom.yml
+       - null.yml
+  roles:
+    - common
+    - role: andrewrothstein.miniconda
+      miniconda_parent_dir: "{{ prefix }}"
+      miniconda_make_sys_default: False
+      tags:
+        miniconda
+    - supervisor
+    - nginx
+    - pywps

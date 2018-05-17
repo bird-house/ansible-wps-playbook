@@ -1,0 +1,78 @@
+---
+- name: Clone WPS.
+  git:
+    repo: "{{ wps_repo }}"
+    version: "{{ wps_version }}"
+    dest: "{{ wps_location }}"
+    update: yes
+  tags:
+    git
+
+- name: Create Conda environment from environment file.
+  command: "{{ conda_location }}/bin/conda env update"
+  args:
+    chdir: "{{ wps_location }}"
+  tags:
+    conda
+
+- name: Install additional Conda packages.
+  command: "{{ conda_location }}/bin/conda install -n {{ wps_name }} gunicorn"
+  tags:
+    conda
+
+- name: Create folders used by PyWPS and set owner
+  file: path={{ item }} state=directory owner=root group=root mode=0755
+  with_items:
+    - "{{ gunicorn_etc_dir }}"
+    - "{{ pywps_etc_dir }}"
+    - /var/lib/pywps/outputs
+    - "/var/lib/pywps/outputs/{{ wps_name }}"
+    - /var/lib/pywps/tmp
+    - "/var/lib/pywps/tmp/{{ wps_name }}"
+    - /var/log/pywps
+    - /var/lib/pywps/db
+  tags:
+    conf
+
+- name: Copy pywps config
+  template:
+    src: ./templates/pywps.cfg.j2
+    dest: "{{ pywps_etc_dir }}/{{ wps_name }}.cfg"
+  tags:
+    conf
+
+- name: Copy gunicorn config
+  template:
+    src: ./templates/gunicorn.py.j2
+    dest: "{{ gunicorn_etc_dir }}/{{ wps_name }}.py"
+  tags:
+    conf
+
+- name: Copy supervisord job file
+  template:
+    src: ./templates/supervisor.conf.j2
+    dest: "{{ supervisord_etc_dir }}/conf.d/{{ wps_name }}.conf"
+    owner: root
+  tags:
+    conf
+
+- name: Copy nginx config to remote
+  template:
+    src: ./templates/nginx.conf.j2
+    dest: "{{ nginx_etc_dir }}/conf.d/{{ wps_name }}.conf"
+  tags:
+    conf
+
+- name: Copy start script to source folder
+  template:
+    src: ./templates/run.sh.j2
+    dest: "{{ wps_location }}/run.sh"
+    owner: root
+  tags:
+    conf
+
+- name: Assure application running at end of playbook
+  command: /bin/true
+  notify: restart pywps
+  tags:
+    conf

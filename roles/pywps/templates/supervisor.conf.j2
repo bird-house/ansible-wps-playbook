@@ -1,0 +1,9 @@
+[program:{{ wps_name }}]
+command=bash run.sh
+autostart=true
+autorestart=false
+directory={{ wps_location }}
+redirect_stderr=true
+stdout_logfile=/var/log/supervisor/{{ wps_name }}.log
+killasgroup=true
+stopasgroup=true

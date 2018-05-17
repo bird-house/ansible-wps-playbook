@@ -1,0 +1,26 @@
+---
+# Variables listed here are applicable to all host groups
+
+prefix: /usr/local
+
+# Conda
+conda_location: "{{ prefix }}/anaconda"
+
+# supervisord
+supervisord_etc_dir: /etc/supervisor
+
+# nginx
+nginx_etc_dir: /etc/nginx
+
+# gunicorn
+gunicorn_etc_dir: /etc/gunicorn
+
+# PyWPS
+pywps_etc_dir: /etc/pywps
+
+# WPS
+wps_name: emu
+wps_repo: https://github.com/bird-house/{{ wps_name }}.git
+wps_version: demo
+wps_location: "{{ prefix }}/{{ wps_name }}"
+wps_port: 5000

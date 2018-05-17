@@ -1,0 +1,3 @@
+---
+- name: restart pywps
+  supervisorctl: name={{ wps_name }} state=restarted

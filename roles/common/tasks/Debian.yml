@@ -1,0 +1,5 @@
+- name: Install common packages on Debian
+  apt: name={{ item }} state=latest
+  with_items:
+    - build-essential
+    - ansible

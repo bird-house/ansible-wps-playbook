@@ -1,0 +1,6 @@
+---
+- name: Install supervisord
+  package: name=supervisor state=latest
+  notify: start supervisord
+  tags:
+    supervisor

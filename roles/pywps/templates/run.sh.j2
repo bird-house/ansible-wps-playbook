@@ -1,0 +1,3 @@
+#!/bin/bash
+source {{ conda_location }}/bin/activate {{ wps_name }}
+gunicorn -c {{ gunicorn_etc_dir}}/{{ wps_name }}.py {{ wps_name }}:application
