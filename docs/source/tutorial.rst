@@ -1,5 +1,5 @@
-Tutorial: Deploy the Emu PyWPS Application
-==========================================
+Tutorial
+========
 
 .. warning::
 
@@ -8,6 +8,9 @@ Tutorial: Deploy the Emu PyWPS Application
 .. contents::
     :local:
     :depth: 2
+
+Deploy the Emu PyWPS Application
+================================
 
 Go step by step:
 

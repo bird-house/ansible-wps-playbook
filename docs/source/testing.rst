@@ -1,11 +1,14 @@
-.. _docker:
-
-Try in a Docker container
-=========================
+Testing
+=======
 
 .. contents::
     :local:
     :depth: 2
+
+.. _docker:
+
+Test Ansible in a Docker container
+----------------------------------
 
 Make sure you are in the ``demo/`` folder.
 
