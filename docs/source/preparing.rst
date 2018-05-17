@@ -6,6 +6,14 @@ Deploy a PyWPS Application
     This Ansible playbook currently works only on Debian/Ubuntu.
 
 
+Get the Playbook
+----------------
+
+Clone this playbook from GitHub::
+
+    $ git clone https://github.com/bird-house/ansible-wps-playbook.git
+    $ cd ansible-wps-playbook
+
 Bootstrap
 ---------
 
