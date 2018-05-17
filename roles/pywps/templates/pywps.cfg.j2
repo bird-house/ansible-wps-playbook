@@ -1,12 +1,12 @@
 [metadata:main]
-identification_title=PyWPS Demo
-identification_abstract=WPS processes for testing and demos.
+identification_title={{ wps_title }}
+identification_abstract={{ wps_abstract }}
 identification_keywords=PyWPS,WPS,OGC,processing,Birdhouse
 identification_keywords_type=theme
 identification_fees=NONE
 identification_accessconstraints=NONE
-provider_name=Birdhouse
-provider_url=http://bird-house.github.io/
+provider_name={{ wps_provider_name }}
+provider_url={{ wps_provider_url }}
 contact_name=Lastname, Firstname
 contact_position=Position Title
 contact_address=Mailing Address
@@ -23,8 +23,8 @@ contact_instructions=During hours of service. Off on weekends.
 contact_role=pointOfContact
 
 [server]
-url=http://localhost:{{ wps_port }}/wps
-outputurl=http://localhost:{{ wps_port }}/outputs/{{ wps_name }}/
+url=http://{{ wps_hostname }}:{{ wps_port }}/wps
+outputurl=http://{{ wps_hostname }}:{{ wps_port }}/outputs/{{ wps_name }}/
 outputpath=/var/lib/pywps/outputs/{{ wps_name }}
 workdir=/var/lib/pywps/tmp/{{ wps_name }}
 maxsingleinputsize=30mb
@@ -33,7 +33,7 @@ maxprocesses=30
 parallelprocesses=10
 
 [logging]
-level=DEBUG
+level={{ wps_log_level }}
 file=/var/log/pywps/{{ wps_name }}.log
-database=sqlite://///var/lib/pywps/db/{{ wps_name }}_log.db
+database={{ wps_database }}
 format=%(asctime)s] [%(levelname)s] %(message)s
