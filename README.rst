@@ -86,7 +86,7 @@ Start an Ubuntu Docker container and mount local source::
 Run the Ansible deployment::
 
     $ ./bootstrap.sh
-    $ ./play.sh
+    $ make play
 
 Check if application is started (supervisor)::
 
