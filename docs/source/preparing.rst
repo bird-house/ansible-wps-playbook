@@ -29,6 +29,10 @@ Run bootstrap script (only once) to prepare your system and install Ansible::
 
     $ bash bootstrap.sh
 
+If you are using Conda you can also install Ansible via Conda::
+
+    $ conda install ansible
+
 Run Ansible
 -----------
 

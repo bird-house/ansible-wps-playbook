@@ -1,12 +1,12 @@
 [metadata:main]
-identification_title={{ wps_title }}
-identification_abstract={{ wps_abstract }}
+identification_title=PyWPS 4.x service {{ wps_name }}
+identification_abstract=Web Processing Service 1.0.0 using PyWPS 4.x for climate science.
 identification_keywords=PyWPS,WPS,OGC,processing,Birdhouse
 identification_keywords_type=theme
 identification_fees=NONE
 identification_accessconstraints=NONE
-provider_name={{ wps_provider_name }}
-provider_url={{ wps_provider_url }}
+provider_name={{ wps_name }}
+provider_url={{ wps_repo }}
 contact_name=Lastname, Firstname
 contact_position=Position Title
 contact_address=Mailing Address
@@ -23,10 +23,10 @@ contact_instructions=During hours of service. Off on weekends.
 contact_role=pointOfContact
 
 [server]
-url=http://{{ wps_hostname }}:{{ wps_port }}/wps
-outputurl=http://{{ wps_hostname }}:{{ wps_port }}/outputs/{{ wps_name }}/
-outputpath=/var/lib/pywps/outputs/{{ wps_name }}
-workdir=/var/lib/pywps/tmp/{{ wps_name }}
+url={{ wps_url }}
+outputurl={{ wps_outputurl }}
+outputpath={{ wps_outputpath }}
+workdir={{ wps_workdir }}
 maxsingleinputsize=30mb
 maxrequestsize=30mb
 maxprocesses=30
@@ -34,6 +34,6 @@ parallelprocesses=10
 
 [logging]
 level={{ wps_log_level }}
-file=/var/log/pywps/{{ wps_name }}.log
+file={{ wps_log_file }}
 database={{ wps_database }}
 format=%(asctime)s] [%(levelname)s] %(message)s

@@ -36,7 +36,7 @@
 
 - name: Copy pywps config
   template:
-    src: ./templates/pywps.cfg.j2
+    src: "{{ wps_config_template }}"
     dest: "{{ pywps_etc_dir }}/{{ wps_name }}.cfg"
   tags:
     conf
