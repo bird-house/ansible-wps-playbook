@@ -21,6 +21,10 @@ Clone this playbook from GitHub::
 Bootstrap
 ---------
 
+.. warning::
+
+    Use a Docker container to try the installation. See the tutorial.
+
 Run bootstrap script (only once) to prepare your system and install Ansible::
 
     $ bash bootstrap.sh
