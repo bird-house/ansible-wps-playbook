@@ -30,6 +30,7 @@ PyWPS Ansible Playbook can completely provision a remote server to run the full 
 * `Conda <https://conda.io/miniconda.html>`_ to manage application dependencies.
 * `Nginx <http://wiki.nginx.org/Main>`_ as Web-Server.
 * `Supervisor <http://supervisord.org/>`_ to start/stop and monitor services.
+* `PostgreSQL <https://www.postgresql.org/>`_ optional database used for job logging.
 * ...
 
 It will install a PyWPS application on a single host.
