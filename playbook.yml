@@ -1,6 +1,8 @@
 ---
 # This Ansible playbook is used to deploy a PyWPS application.
-- hosts: localhost
+- name: Install a PyWPS application
+  hosts: all
+  become: yes
 
   pre_tasks:
     - name: Include vars from custom.yml if found

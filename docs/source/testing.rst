@@ -10,8 +10,6 @@ Testing
 Test Ansible in a Docker container
 ----------------------------------
 
-Make sure you are in the ``demo/`` folder.
-
 Start an Ubuntu Docker container and mount local source::
 
     $ ./run_docker.sh
