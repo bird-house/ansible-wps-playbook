@@ -50,6 +50,8 @@ Try more WPS requests::
       "http://127.0.0.1:5000/wps?service=WPS&request=Execute&version=1.0.0&identifier=hello&DataInputs=name=Spaetzle"
     § less out.xml
 
+.. _vagrant:
+
 Test Ansible with Vagrant
 -------------------------
 
