@@ -1,7 +1,7 @@
 #!/bin/bash
 
 bootstrap() {
-    echo "Bootstrap Ansible and install required system packages ..."
+    echo "Bootstrap Ansible ..."
 
     if [[ $EUID -eq 0 ]]; then
         echo "Enable sudo ..."
@@ -24,7 +24,9 @@ bootstrap() {
     elif [ -f /etc/redhat-release ] ; then
         echo "Install CentOS packages ..."
         sudo yum update -y
-        sudo yum install -y epel-release gcc-c++ make
+        sudo yum install -y epel-release
+        sudo yum install -y gcc-c++ make
+        sudo yum install -y ansible
     elif [ `uname -s` = "Darwin" ] ; then
         echo "Install Homebrew packages ..."
         brew install ansible

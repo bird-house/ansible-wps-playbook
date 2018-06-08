@@ -11,12 +11,21 @@
        - custom.yml
        - null.yml
   roles:
+    - role: geerlingguy.repo-epel
     - common
     - role: andrewrothstein.miniconda
       miniconda_parent_dir: "{{ prefix }}"
       miniconda_make_sys_default: False
       tags:
         miniconda
-    - supervisor
-    - nginx
+    - role: geerlingguy.supervisor
+      supervisor_unix_http_server_enable: true
+      supervisor_password: '123'
+      tags:
+        supervisor
+    - role: geerlingguy.nginx
+      nginx_user: "{{ wps_user }}"
+      nginx_remove_default_vhost: True
+      tags:
+        nginx
     - pywps

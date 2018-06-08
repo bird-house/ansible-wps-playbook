@@ -1,4 +1,16 @@
 ---
 
-# from galaxy
+# miniconda from Ansible Galaxy
 - src: andrewrothstein.miniconda
+
+# Installs the EPEL repository (Extra Packages for Enterprise Linux) for RHEL/CentOS.
+# https://github.com/geerlingguy/ansible-role-repo-epel
+- src: geerlingguy.repo-epel
+
+# supervisor form Ansible Galaxy
+- src: geerlingguy.supervisor
+#- src: https://github.com/geerlingguy/ansible-role-supervisor.git
+#  version: origin/master
+
+# nginx form Ansible Galaxy
+- src: geerlingguy.nginx

@@ -49,3 +49,70 @@ Try more WPS requests::
     $ curl -s -o out.xml \
       "http://127.0.0.1:5000/wps?service=WPS&request=Execute&version=1.0.0&identifier=hello&DataInputs=name=Spaetzle"
     § less out.xml
+
+Test Ansible with Vagrant
+-------------------------
+
+Get Ready
++++++++++
+
+You need to install Vagrant. See the following links for details:
+
+* https://docs.ansible.com/ansible/latest/scenario_guides/guide_vagrant.html
+* https://www.vagrantup.com/intro/getting-started/index.html
+* https://blog.scriptmyjob.com/creating-an-ansible-testing-environment-using-vagrant-on-macos/
+
+In short, you can install Vagrant on macOS with `Homebrew <https://brew.sh/>`_
+(and `Homebrew Cask <https://caskroom.github.io/>`_)::
+
+  $ brew cask install virtualbox
+  $ brew cask install vagrant
+
+You need Ansible locally installed::
+
+  $ ./bootstrap.sh  # Linux
+  OR
+  $ brew install ansible # macOS
+
+Install Ansible roles::
+
+  $ ansible-galaxy install -p roles -r requirements.yml --ignore-errors
+
+Run Vagrant
++++++++++++
+
+Initial setup::
+
+  $ vagrant up
+
+Provision with ansible again::
+
+  $ vagrant provision
+
+Login with SSH::
+
+  $ vagrant ssh
+
+Run Ansible manually::
+
+  $ ansible-playbook -i .vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory playbook.yml
+
+Remove VMs::
+
+  $ vagrant destroy -f
+
+Try WPS requests
+++++++++++++++++
+
+Run a WPS GetCapabilites request::
+
+    $ curl -s -o caps.xml \
+      "http://192.168.128.100:5000/wps?service=WPS&request=GetCapabilities"
+    $ less caps.xml
+
+Try other OS
+++++++++++++
+
+Configure ``Vagrantfile`` with another `Bento Box <https://app.vagrantup.com/bento>`_::
+
+  wps.vm.box = "bento/ubuntu-18.04"

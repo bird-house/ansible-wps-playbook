@@ -6,12 +6,6 @@ prefix: /usr/local
 # Conda
 conda_location: "{{ prefix }}/anaconda"
 
-# supervisord
-supervisord_etc_dir: /etc/supervisor
-
-# nginx
-nginx_etc_dir: /etc/nginx
-
 # gunicorn
 gunicorn_etc_dir: /etc/gunicorn
 
