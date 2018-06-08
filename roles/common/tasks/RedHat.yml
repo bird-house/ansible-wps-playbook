@@ -3,5 +3,6 @@
   with_items:
     - gcc-c++
     - make
+    - libselinux-python
     - initscripts
-    - ansible
+    - python-meld3

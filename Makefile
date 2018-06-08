@@ -24,7 +24,12 @@ roles:
 
 .PHONY: play
 play: roles
-	echo "Installing PyWPS application with Ansible ..."
+	echo "Installing PyWPS application with Ansible [skip optional tasks] ..."
+	ansible-playbook -c local --skip-tags=optional playbook.yml
+
+.PHONY: play_all
+play: roles
+	echo "Installing PyWPS application with Ansible [all tasks] ..."
 	ansible-playbook -c local playbook.yml
 
 .PHONY: clean

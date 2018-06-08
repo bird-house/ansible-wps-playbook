@@ -18,7 +18,11 @@ Vagrant.configure("2") do |config|
 
   config.vm.define "wps" do |wps|
     # wps.vm.box = "bento/ubuntu-18.04"
+    # wps.vm.box = "bento/ubuntu-16.04"
+    # wps.vm.box = "bento/debian-9"
     wps.vm.box = "bento/centos-7"
+    # wps.vm.box = "bento/centos-6"
+    # wps.vm.box = "bento/fedora-27"
     wps.vm.hostname = "wps.local"
     wps.vm.network "private_network", ip: "192.168.128.100"
     wps.vm.provision 'ansible' do |ansible|
