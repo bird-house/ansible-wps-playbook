@@ -12,6 +12,7 @@
        - null.yml
   roles:
     - role: geerlingguy.repo-epel
+      when: ansible_os_family == "RedHat"
     - common
     - role: andrewrothstein.miniconda
       miniconda_parent_dir: "{{ prefix }}"

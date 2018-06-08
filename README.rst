@@ -6,6 +6,10 @@ PyWPS Ansible Playbook
    :target: http://ansible-wps-playbook.readthedocs.org/en/latest/?badge=latest
    :alt: Documentation Status
 
+.. image:: https://travis-ci.org/bird-house/ansible-wps-playbook.svg?branch=master
+   :target: https://travis-ci.org/bird-house/ansible-wps-playbook
+   :alt: Travis Build
+
 .. image:: https://img.shields.io/github/license/bird-house/ansible-wps-playbook.svg
     :target: https://github.com/bird-house/ansible-wps-playbook/blob/master/LICENSE.txt
     :alt: GitHub license

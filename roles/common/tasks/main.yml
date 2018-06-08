@@ -11,3 +11,5 @@
     - wget
     - curl
     - git
+  tags:
+    - common
