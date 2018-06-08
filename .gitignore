@@ -2,12 +2,15 @@
 custom.yml
 
 # external roles from ansible-galaxy
-roles/andrewrothstein.bash
-roles/andrewrothstein.miniconda
-roles/andrewrothstein.unarchive-deps
+roles/andrewrothstein.*
+roles/geerlingguy.*
+roles/ansible-role-supervisor
 
 # temp files
 *.retry
 *.log
 out.xml
 caps.xml
+
+# Vagrant
+.vagrant

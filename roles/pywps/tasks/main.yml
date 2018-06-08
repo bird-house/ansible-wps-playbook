@@ -51,7 +51,7 @@
 - name: Copy supervisord job file
   template:
     src: ./templates/supervisor.conf.j2
-    dest: "{{ supervisord_etc_dir }}/conf.d/{{ wps_name }}.conf"
+    dest: "{{ supervisor_config_path }}/conf.d/{{ wps_name }}.conf"
     owner: root
   tags:
     conf
@@ -59,7 +59,7 @@
 - name: Copy nginx config to remote
   template:
     src: ./templates/nginx.conf.j2
-    dest: "{{ nginx_etc_dir }}/conf.d/{{ wps_name }}.conf"
+    dest: "{{ nginx_conf_path }}/{{ wps_name }}.conf"
   tags:
     conf
 
@@ -71,8 +71,8 @@
   tags:
     conf
 
-- name: Assure application running at end of playbook
-  command: /bin/true
-  notify: restart pywps
-  tags:
-    conf
+# - name: Assure application running at end of playbook
+#   command: /bin/true
+#   notify: restart pywps
+#   tags:
+#     conf
