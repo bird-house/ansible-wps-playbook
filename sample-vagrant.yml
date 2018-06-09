@@ -1,0 +1,7 @@
+---
+# Configuration for Emu WPS
+wps_name: emu
+wps_version: master
+wps_hostname: 192.168.128.100
+wps_port: 5000
+# wps_config_template: "{{ wps_location }}/{{ wps_name }}/templates/pywps.cfg"
