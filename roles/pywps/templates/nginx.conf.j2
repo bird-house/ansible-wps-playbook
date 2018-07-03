@@ -5,9 +5,8 @@ upstream {{ wps_name }} {
 }
 
 server {
-    listen {{ wps_port }} default_server;
-    listen [::]:{{ wps_port }} default_server;
-    server_name _;
+    listen {{ wps_port }};
+    server_name {{ wps_hostname }};
 
     # better to redirect / to wps application
     location / {
