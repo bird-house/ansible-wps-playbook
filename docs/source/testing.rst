@@ -83,6 +83,10 @@ Install Ansible roles::
 Run Vagrant
 +++++++++++
 
+Use WPS config for Vagrant VM::
+
+  $ ln -s sample-vagrant.yml custom.yml
+
 Initial setup::
 
   $ vagrant up

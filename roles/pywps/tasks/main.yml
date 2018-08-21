@@ -80,8 +80,9 @@
     - pywps
     - conf
 
-# - name: Assure application running at end of playbook
-#   command: /bin/true
-#   notify: restart pywps
-#   tags:
-#     conf
+- name: Assure application running at end of playbook
+  command: /bin/true
+  notify: restart pywps
+  tags:
+    - pywps
+    - conf

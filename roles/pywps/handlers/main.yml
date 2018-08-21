@@ -1,3 +1,7 @@
 ---
 - name: restart pywps
-  supervisorctl: name={{ wps_name }} state=restarted
+  supervisorctl:
+    name: "{{ wps_name }}"
+    state: restarted
+    username: "{{ supervisor_user }}"
+    password: "{{ supervisor_password }}"
