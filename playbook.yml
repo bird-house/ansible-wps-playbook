@@ -20,8 +20,6 @@
       tags:
         miniconda
     - role: geerlingguy.supervisor
-      supervisor_unix_http_server_enable: true
-      supervisor_password: '123'
       tags:
         supervisor
     - role: geerlingguy.nginx
