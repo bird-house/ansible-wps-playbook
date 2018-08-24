@@ -5,3 +5,8 @@
     state: restarted
     username: "{{ supervisor_user }}"
     password: "{{ supervisor_password }}"
+
+- name: restart nginx
+  service:
+    name: nginx
+    state: restarted
