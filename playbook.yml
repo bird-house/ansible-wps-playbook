@@ -20,6 +20,7 @@
       tags:
         miniconda
     - role: geerlingguy.supervisor
+      supervisor_user: root
       tags:
         supervisor
     - role: geerlingguy.nginx

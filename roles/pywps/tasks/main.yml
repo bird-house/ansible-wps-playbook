@@ -24,16 +24,24 @@
     - conda
 
 - name: Create folders used by PyWPS and set owner
-  file: path={{ item }} state=directory owner=root group=root mode=0755
+  file: path={{ item }} state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
   with_items:
     - "{{ gunicorn_etc_dir }}"
     - "{{ pywps_etc_dir }}"
-    - /var/lib/pywps/outputs
     - "/var/lib/pywps/outputs/{{ wps_name }}"
-    - /var/lib/pywps/tmp
     - "/var/lib/pywps/tmp/{{ wps_name }}"
     - /var/log/pywps
     - /var/lib/pywps/db
+    - /var/run/pywps
+  tags:
+    - pywps
+    - conf
+
+- name: Update file permissions
+  file: path={{ item }} state=file owner={{ wps_user }} group={{ wps_group }} mode=0644
+  with_items:
+    - "/var/log/pywps/{{ wps_name }}.log"
+    - "/var/lib/pywps/db/{{ wps_name }}_log.db"
   tags:
     - pywps
     - conf
