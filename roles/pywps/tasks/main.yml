@@ -38,7 +38,7 @@
     - conf
 
 - name: Update file permissions
-  file: path={{ item }} state=file owner={{ wps_user }} group={{ wps_group }} mode=0644
+  file: path={{ item }} state=touch owner={{ wps_user }} group={{ wps_group }} mode=0644
   with_items:
     - "/var/log/pywps/{{ wps_name }}.log"
     - "/var/lib/pywps/db/{{ wps_name }}_log.db"
