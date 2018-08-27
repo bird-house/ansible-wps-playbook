@@ -13,3 +13,17 @@
     - git
   tags:
     - common
+
+- name: Add WPS group
+  group:
+    name: "{{ wps_group }}"
+    state: present
+
+- name: Add WPS user
+  user:
+    name: "{{ wps_user }}"
+    groups: "{{ wps_group }}"
+    system: yes
+    shell: /sbin/nologin
+    createhome: no
+    home: /var/lib/pywps

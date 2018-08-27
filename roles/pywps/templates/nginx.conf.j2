@@ -1,7 +1,7 @@
 # pywps web processing service
 upstream {{ wps_name }} {
     # socket connection
-    server unix:///var/run/{{ wps_name }}.socket fail_timeout=0;
+    server unix:///var/run/pywps/{{ wps_name }}.socket fail_timeout=0;
 }
 
 server {

@@ -14,7 +14,8 @@ pywps_etc_dir: /etc/pywps
 
 # WPS
 wps_name: emu
-wps_user: root
+wps_user: wps
+wps_group: "{{ wps_user }}"
 wps_repo: https://github.com/bird-house/{{ wps_name }}.git
 wps_version: master
 wps_location: "{{ prefix }}/{{ wps_name }}"
