@@ -24,7 +24,7 @@ Go step by step:
   $ bash bootstrap.sh
 
   # configure Emu and edit as needed
-  $ cp sample-emu.yml custom.yml
+  $ cp etc/sample-emu.yml custom.yml
   $ vim custom.yml
 
   # run Ansible

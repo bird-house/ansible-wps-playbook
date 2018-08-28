@@ -1,5 +1,6 @@
 # custom configuration
 custom.yml
+etc/custom*.yml
 
 # external roles from ansible-galaxy
 roles/andrewrothstein.*
