@@ -28,7 +28,7 @@ play: roles
 	ansible-playbook -c local --skip-tags=optional playbook.yml
 
 .PHONY: play_all
-play: roles
+play_all: roles
 	echo "Installing PyWPS application with Ansible [all tasks] ..."
 	ansible-playbook -c local playbook.yml
 
@@ -36,4 +36,4 @@ play: roles
 clean:
 	@echo "Cleaning ..."
 	@git diff --quiet HEAD || echo "There are uncommited changes! Not doing 'git clean' ..."
-	@-git clean -dfx -e *.bak -e custom.cfg
+	@-git clean -dfx -e *.bak -e custom.yml -e etc/custom*.yml
