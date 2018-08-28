@@ -5,6 +5,8 @@ prefix: /usr/local
 
 # Conda
 conda_location: "{{ prefix }}/anaconda"
+conda_envs_dir: "{{ conda_location }}/envs"
+conda_env_prefix: "{{ conda_envs_dir}}/{{ wps_name }}"
 
 # gunicorn
 gunicorn_etc_dir: /etc/gunicorn
