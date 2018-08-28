@@ -5,6 +5,7 @@
     version: "{{ wps_version }}"
     dest: "{{ wps_location }}"
     update: yes
+    force: yes
   tags:
     - pywps
     - git
