@@ -2,6 +2,7 @@
 # Variables listed here are applicable to all host groups
 
 prefix: /usr/local
+src_dir: "{{ prefix }}/src"
 
 # Conda
 conda_location: "{{ prefix }}/anaconda"
@@ -20,7 +21,7 @@ wps_user: wps
 wps_group: "{{ wps_user }}"
 wps_repo: https://github.com/bird-house/{{ wps_name }}.git
 wps_version: master
-wps_location: "{{ prefix }}/{{ wps_name }}"
+wps_location: "{{ src_dir }}/{{ wps_name }}"
 wps_config_template: ./templates/pywps.cfg
 wps_hostname: localhost
 wps_port: 5000
