@@ -14,3 +14,6 @@
 
 # nginx form Ansible Galaxy
 - src: geerlingguy.nginx
+
+# postgres from Ansible Galaxy
+- src: geerlingguy.postgresql

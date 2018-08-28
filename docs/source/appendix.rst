@@ -18,3 +18,4 @@ Roles/Recipes from Ansible Galaxy
 * miniconda: https://galaxy.ansible.com/andrewrothstein/miniconda/
 * nginx: https://galaxy.ansible.com/jdauphant/nginx/
 * supervisor: https://galaxy.ansible.com/geerlingguy/supervisor
+* postgresql: https://galaxy.ansible.com/geerlingguy/postgresql
