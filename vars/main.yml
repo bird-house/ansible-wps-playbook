@@ -1,0 +1,5 @@
+postgresql_databases:
+  - name:  "{{ db_name }}"
+postgresql_users:
+  - name: "{{ db_user }}"
+    password: "{{ db_password }}"

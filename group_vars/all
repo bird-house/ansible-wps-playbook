@@ -12,6 +12,11 @@ conda_env_prefix: "{{ conda_envs_dir}}/{{ wps_name }}"
 # gunicorn
 gunicorn_etc_dir: /etc/gunicorn
 
+# postgres
+db_name: pywps_db
+db_user: wps
+db_password: wps
+
 # PyWPS
 pywps_etc_dir: /etc/pywps
 
@@ -36,4 +41,4 @@ wps_parallelprocesses: 10
 # WPS logging
 wps_log_level: INFO
 wps_log_file: /var/log/pywps/{{ wps_name }}.log
-wps_database: sqlite://///var/lib/pywps/db/{{ wps_name }}_log.db
+wps_database: postgresql+psycopg2://{{ db_user }}:{{ db_password }}@localhost:5432/{{ db_name }}
