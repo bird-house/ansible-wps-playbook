@@ -10,7 +10,7 @@
     - git
 
 - name: Create Conda environment from environment file.
-  command: "{{ conda_location }}/bin/conda env update"
+  command: "{{ conda_location }}/bin/conda env update -p {{ conda_env_prefix }}"
   args:
     chdir: "{{ wps_location }}"
   tags:
@@ -18,7 +18,7 @@
     - conda
 
 - name: Install additional Conda packages.
-  command: "{{ conda_location }}/bin/conda install -n {{ wps_name }} gunicorn"
+  command: "{{ conda_location }}/bin/conda install -p {{ conda_env_prefix }} gunicorn"
   tags:
     - pywps
     - conda
