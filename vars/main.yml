@@ -1,3 +1,10 @@
+# supervisor
+supervisor_user: root
+supervisor_password: 'test'
+supervisor_unix_http_server_enable: true
+supervisor_inet_http_server_enable: false
+supervisor_inet_http_server_port: '*:9001'
+# postgres
 postgresql_databases:
   - name:  "{{ db_name }}"
 postgresql_users:

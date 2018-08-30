@@ -3,8 +3,10 @@
   supervisorctl:
     name: "{{ wps_name }}"
     state: restarted
+    # config: "{{ supervisor_config_path}}/supervisord.conf"
     username: "{{ supervisor_user }}"
     password: "{{ supervisor_password }}"
+    # server_url: http://localhost:9001
 
 - name: restart nginx
   service:

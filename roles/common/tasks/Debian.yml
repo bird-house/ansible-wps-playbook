@@ -2,3 +2,8 @@
   apt: name={{ item }} state=latest
   with_items:
     - build-essential
+
+- name: Remove unwanted packages on Debian
+  apt: name={{ item }} state=absent
+  with_items:
+    - supervisor

@@ -6,3 +6,8 @@
     - libselinux-python
     - initscripts
     - python-meld3
+
+- name: Remove unwanted packages on RedHat
+  yum: name={{ item }} state=absent
+  with_items:
+    - supervisor
