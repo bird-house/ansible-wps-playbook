@@ -6,6 +6,7 @@
     dest: "{{ wps_location }}"
     update: yes
     force: yes
+  register: git
   tags:
     - pywps
     - git
@@ -14,12 +15,15 @@
   command: "{{ conda_location }}/bin/conda env update -p {{ conda_env_prefix }}"
   args:
     chdir: "{{ wps_location }}"
+  when: git.changed
+  register: conda
   tags:
     - pywps
     - conda
 
 - name: Install additional Conda packages.
   command: "{{ conda_location }}/bin/conda install -p {{ conda_env_prefix }} gunicorn psycopg2"
+  when: conda.changed
   tags:
     - pywps
     - conda
