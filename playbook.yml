@@ -18,17 +18,15 @@
       when: ansible_os_family == "RedHat"
     - common
     - role: andrewrothstein.miniconda
-      miniconda_parent_dir: "{{ prefix }}"
-      miniconda_make_sys_default: False
       tags:
-        miniconda
+        conda
     - role: geerlingguy.supervisor
       tags:
         supervisor
     - role: geerlingguy.nginx
-      nginx_user: "{{ wps_user }}"
-      nginx_remove_default_vhost: True
       tags:
         nginx
     - role: geerlingguy.postgresql
+      tags:
+        db
     - pywps
