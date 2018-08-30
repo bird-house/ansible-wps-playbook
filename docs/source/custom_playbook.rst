@@ -17,3 +17,15 @@ You can also add your custom configurtions to the ``etc/`` folder::
 
   $ vim etc/custom-emu.yml
   $ ln -s etc/custom-emu.yml custom.yml
+
+Use external Postgresql Database
+--------------------------------
+
+By default the playbook will install a postgresql database. If you want to use an
+existing database you can skip the installation by setting the variable::
+
+  db_install_postgresql: false
+
+You need to configure then the database connection string to external database::
+
+  wps_database: "postgresql+psycopg2://db_user:db_password@db_host:5432/pywps_db"

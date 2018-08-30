@@ -13,6 +13,8 @@ nginx_remove_default_vhost: True
 # postgres
 postgresql_databases:
   - name:  "{{ db_name }}"
+    login_host: "{{ db_host }}"
+    port: "{{ db_port }}"
 postgresql_users:
   - name: "{{ db_user }}"
     password: "{{ db_password }}"

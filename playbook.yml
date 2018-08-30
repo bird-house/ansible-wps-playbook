@@ -27,6 +27,7 @@
       tags:
         nginx
     - role: geerlingguy.postgresql
+      when: db_install_postgresql
       tags:
         db
     - pywps
