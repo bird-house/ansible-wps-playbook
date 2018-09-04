@@ -9,6 +9,12 @@ Deploy a PyWPS Application
 
     You can safely try the installation using Vagrant_ or Docker. See :ref:`testing`.
 
+.. warning::
+
+    If your system has already a Supervisor_ installation please remove it manually.
+    Ansible will install a new Supervisor service and the installation might not work properly
+    with left-overs of a previous installation. The will be fixed in a later release.
+
 Get the Playbook
 ----------------
 
