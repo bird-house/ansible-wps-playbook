@@ -1,6 +1,6 @@
 ---
 wps_hostname: localhost
-# Configuration for Emu WPS
+# Configuration for Emu and Hummingbird WPS
 wps_services:
   - name: emu
     hostname: "{{ wps_hostname }}"

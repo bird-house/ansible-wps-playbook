@@ -122,7 +122,7 @@ Run the Ansible deployment:
     $ ./bootstrap.sh
     $ make play
 
-Check if application is started (supervisor):
+Check if application is started (Supervisor_):
 
 .. code-block:: sh
 
