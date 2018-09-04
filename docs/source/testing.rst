@@ -1,3 +1,5 @@
+.. _testing:
+
 Testing
 =======
 
@@ -5,105 +7,76 @@ Testing
     :local:
     :depth: 2
 
-.. _docker:
-
-Test Ansible in a Docker container
-----------------------------------
-
-Start an Ubuntu Docker container and mount local source::
-
-    $ ./run_docker.sh
-
-Run the Ansible deployment::
-
-    $ ./bootstrap.sh
-    $ make play
-
-Check if application is started (supervisor)::
-
-    $ supervisorctl status
-
-Check also nginx ... might not start automatically in docker::
-
-     $ service nginx status
-     $ service nginx start # if not already started
-
-Run a WPS GetCapabilites request::
-
-    $ curl -s -o caps.xml \
-      "http://127.0.0.1:5000/wps?service=WPS&request=GetCapabilities"
-    $ less caps.xml
-
-Check log files::
-
-    $ supervisorctl tail -f emu
-
-Try more WPS requests::
-
-    # show description of "hello" process
-    $ curl -s -o out.xml \
-      "http://127.0.0.1:5000/wps?service=WPS&request=DescribeProcess&version=1.0.0&identifier=hello"
-    $ less out.xml
-
-    # execute "hello" process
-    $ curl -s -o out.xml \
-      "http://127.0.0.1:5000/wps?service=WPS&request=Execute&version=1.0.0&identifier=hello&DataInputs=name=Spaetzle"
-    § less out.xml
-
-.. _vagrant:
-
 Test Ansible with Vagrant
 -------------------------
 
 Get Ready
 +++++++++
 
-You need to install Vagrant. See the following links for details:
+You need to install Vagrant_. See the following links for details:
 
 * https://docs.ansible.com/ansible/latest/scenario_guides/guide_vagrant.html
 * https://www.vagrantup.com/intro/getting-started/index.html
 * https://blog.scriptmyjob.com/creating-an-ansible-testing-environment-using-vagrant-on-macos/
 
 In short, you can install Vagrant on macOS with `Homebrew <https://brew.sh/>`_
-(and `Homebrew Cask <https://caskroom.github.io/>`_)::
+(and `Homebrew Cask <https://caskroom.github.io/>`_):
+
+.. code-block:: sh
 
   $ brew cask install virtualbox
   $ brew cask install vagrant
 
-You need Ansible locally installed::
+You need Ansible locally installed:
 
-  $ ./bootstrap.sh  # Linux
+.. code-block:: sh
+
+  $ ./bootstrap.sh  # Linux and macOS
   OR
-  $ brew install ansible # macOS
+  $ brew install ansible # macOS only
 
-Install Ansible roles::
+Install Ansible roles:
+
+.. code-block:: sh
 
   $ ansible-galaxy install -p roles -r requirements.yml --ignore-errors
 
 Run Vagrant
 +++++++++++
 
-Use WPS config for Vagrant VM::
+Use WPS config for Vagrant VM:
+
+.. code-block:: sh
 
   $ ln -s etc/sample-vagrant.yml custom.yml
 
-Initial setup::
+Initial setup:
+
+.. code-block:: sh
 
   $ vagrant up
 
-Provision with ansible again::
+Provision with ansible again:
+
+.. code-block:: sh
 
   $ vagrant provision
 
-Login with SSH::
+Login with SSH:
+
+.. code-block:: sh
 
   $ vagrant ssh
 
-Run Ansible manually::
+Run Ansible manually:
+
+.. code-block:: sh
 
   $ ansible-playbook -i .vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory playbook.yml
 
-Remove VMs::
+Remove VMs:
+
+.. code-block:: sh
 
   $ vagrant destroy -f
 
@@ -122,3 +95,66 @@ Try other OS
 Configure ``Vagrantfile`` with another `Bento Box <https://app.vagrantup.com/bento>`_::
 
   wps.vm.box = "bento/ubuntu-18.04"
+
+
+Test Ansible in a Docker container
+----------------------------------
+
+.. warning:: The Nignx and Supervisor services are not automatically started in Docker.
+  You need to do this manually. This will be fixed in a later release.
+
+Start an Ubuntu Docker container with mounted local source:
+
+.. code-block:: sh
+
+    $ ./run_docker.sh
+
+Update the configuration:
+
+.. code-block:: sh
+
+    $ ln -s etc/sample-emu.yml custom.yml
+
+Run the Ansible deployment:
+
+.. code-block:: sh
+
+    $ ./bootstrap.sh
+    $ make play
+
+Check if application is started (supervisor):
+
+.. code-block:: sh
+
+    $ service supervisord status
+
+Check also nginx ... might not start automatically in Docker:
+
+.. code-block:: sh
+
+     $ service nginx status
+     $ service nginx start # if not already started
+
+Run a WPS GetCapabilites request::
+
+    $ curl -s -o caps.xml \
+      "http://127.0.0.1:5000/wps?service=WPS&request=GetCapabilities"
+    $ less caps.xml
+
+Check log files:
+
+.. code-block:: sh
+
+    $ supervisorctl tail -f emu
+
+Try more WPS requests::
+
+    # show description of "hello" process
+    $ curl -s -o out.xml \
+      "http://127.0.0.1:5000/wps?service=WPS&request=DescribeProcess&version=1.0.0&identifier=hello"
+    $ less out.xml
+
+    # execute "hello" process
+    $ curl -s -o out.xml \
+      "http://127.0.0.1:5000/wps?service=WPS&request=Execute&version=1.0.0&identifier=hello&DataInputs=name=Spaetzle"
+    § less out.xml

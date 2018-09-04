@@ -1,20 +1,22 @@
 ---
 - name: Clone WPS.
   git:
-    repo: "{{ wps_repo }}"
-    version: "{{ wps_version }}"
-    dest: "{{ wps_location }}"
+    repo: "{{ item.repo | default('https://github.com/bird-house/'+item.name+'.git') }}"
+    version: "{{ item.version | default('master') }}"
+    dest: "{{ src_dir }}/{{ item.name }}"
     update: yes
     force: yes
+  with_items: "{{ wps_services }}"
   register: git
   tags:
     - pywps
     - git
 
 - name: Create Conda environment from environment file.
-  command: "{{ conda_location }}/bin/conda env update -p {{ conda_env_prefix }}"
+  command: "{{ conda_location }}/bin/conda env update -p {{ conda_envs_dir}}/{{ item.name }}"
   args:
-    chdir: "{{ wps_location }}"
+    chdir: "{{ src_dir }}/{{ item.name }}"
+  with_items: "{{ wps_services }}"
   when: git.changed
   register: conda
   tags:
@@ -22,7 +24,8 @@
     - conda
 
 - name: Install additional Conda packages.
-  command: "{{ conda_location }}/bin/conda install -p {{ conda_env_prefix }} gunicorn psycopg2"
+  command: "{{ conda_location }}/bin/conda install -p {{ conda_envs_dir}}/{{ item.name }} gunicorn psycopg2"
+  with_items: "{{ wps_services }}"
   when: conda.changed
   tags:
     - pywps
@@ -31,28 +34,44 @@
 - name: Create folders used by PyWPS and set owner
   file: path={{ item }} state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
   with_items:
-    - "{{ gunicorn_etc_dir }}"
-    - "{{ pywps_etc_dir }}"
-    - "/var/lib/pywps/outputs/{{ wps_name }}"
-    - "/var/lib/pywps/tmp/{{ wps_name }}"
+    - /etc/gunicorn
+    - /etc/pywps
     - /var/log/pywps
     - /var/run/pywps
   tags:
     - pywps
     - conf
 
-- name: Update file permissions
-  file: path={{ item }} state=touch owner={{ wps_user }} group={{ wps_group }} mode=0644
+- name: Create output folders used by PyWPS and set owner
+  file: path="/var/lib/pywps/outputs/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
   with_items:
-    - "/var/log/pywps/{{ wps_name }}.log"
+    - "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf
+
+- name: Create temp folders used by PyWPS and set owner
+  file: path="/var/lib/pywps/tmp/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
+  with_items:
+    - "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf
+
+- name: Update log file permissions
+  file: path="/var/log/pywps/{{ item.name }}.log" state=touch owner={{ wps_user }} group={{ wps_group }} mode=0644
+  with_items:
+    - "{{ wps_services }}"
   tags:
     - pywps
     - conf
 
 - name: Copy pywps config
   template:
-    src: "{{ wps_config_template }}"
-    dest: "{{ pywps_etc_dir }}/{{ wps_name }}.cfg"
+    src: "{{ item.config_template | default('./templates/pywps.cfg') }}"
+    dest: "/etc/pywps/{{ item.name }}.cfg"
+  with_items:
+    - "{{ wps_services }}"
   tags:
     - pywps
     - conf
@@ -60,7 +79,9 @@
 - name: Copy gunicorn config
   template:
     src: ./templates/gunicorn.py.j2
-    dest: "{{ gunicorn_etc_dir }}/{{ wps_name }}.py"
+    dest: "/etc/gunicorn/{{ item.name }}.py"
+  with_items:
+    - "{{ wps_services }}"
   tags:
     - pywps
     - conf
@@ -68,8 +89,10 @@
 - name: Copy supervisord job file
   template:
     src: ./templates/supervisor.conf.j2
-    dest: "{{ supervisor_config_path }}/conf.d/{{ wps_name }}.conf"
+    dest: "{{ supervisor_config_path }}/conf.d/{{ item.name }}.conf"
     owner: root
+  with_items:
+    - "{{ wps_services }}"
   tags:
     - pywps
     - conf
@@ -77,7 +100,9 @@
 - name: Copy nginx config to remote
   template:
     src: ./templates/nginx.conf.j2
-    dest: "{{ nginx_conf_path }}/{{ wps_name }}.conf"
+    dest: "{{ nginx_conf_path }}/{{ item.name }}.conf"
+  with_items:
+    - "{{ wps_services }}"
   tags:
     - pywps
     - conf
@@ -85,8 +110,10 @@
 - name: Copy start script to source folder
   template:
     src: ./templates/run.sh.j2
-    dest: "{{ wps_location }}/run.sh"
+    dest: "{{ src_dir }}/{{ item.name }}/run.sh"
     owner: root
+  with_items:
+    - "{{ wps_services }}"
   tags:
     - pywps
     - conf

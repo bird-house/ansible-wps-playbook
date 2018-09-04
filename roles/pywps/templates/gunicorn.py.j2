@@ -1,14 +1,14 @@
-bind = 'unix:///var/run/pywps/{{ wps_name }}.socket'
+bind = 'unix:///var/run/pywps/{{ item.name }}.socket'
 workers = 3
 worker_class = 'sync'
 
 # environment
 raw_env = [
-  "PYWPS_CFG={{ pywps_etc_dir }}/{{ wps_name }}.cfg",
+  "PYWPS_CFG=/etc/pywps/{{ item.name }}.cfg",
 ]
 
 # logging
 debug = True
 errorlog = '-'
-loglevel = 'DEBUG'
+loglevel = 'INFO'
 accesslog = '-'

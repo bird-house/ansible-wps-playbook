@@ -1,7 +1,10 @@
 ---
-wps_hostname: 192.168.128.100
+wps_hostname: localhost
 # Configuration for Emu WPS
 wps_services:
   - name: emu
     hostname: "{{ wps_hostname }}"
     port: 5000
+  - name: hummingbird
+    hostname: "{{ wps_hostname }}"
+    port: 5001

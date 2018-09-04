@@ -1,19 +1,20 @@
 Deploy a PyWPS Application
 ==========================
 
-.. warning::
-
-    This Ansible playbook currently works only on Debian/Ubuntu.
-
-
 .. contents::
     :local:
     :depth: 2
 
+.. note::
+
+    You can safely try the installation using Vagrant_ or Docker. See :ref:`testing`.
+
 Get the Playbook
 ----------------
 
-Clone this playbook from GitHub::
+Clone this playbook from GitHub:
+
+.. code-block:: sh
 
     $ git clone https://github.com/bird-house/ansible-wps-playbook.git
     $ cd ansible-wps-playbook
@@ -21,29 +22,41 @@ Clone this playbook from GitHub::
 Bootstrap
 ---------
 
-.. warning::
+Run bootstrap script (only once) to prepare your system and install Ansible_:
 
-    Use a Docker container to try the installation. See the tutorial.
-
-Run bootstrap script (only once) to prepare your system and install Ansible::
+.. code-block:: sh
 
     $ bash bootstrap.sh
 
-If you are using Conda you can also install Ansible via Conda::
+.. note:: If you are using Conda_ you can also install Ansible via Conda::
 
     $ conda install ansible
+
+Edit Configuration
+------------------
+
+Configure your PyWPS installation. See :ref:`Configuration`:
+
+.. code-block:: sh
+
+  $ cp -s etc/sample-emu.yml custom.yml
+  $ vim custom.yml
 
 Run Ansible
 -----------
 
-Fetch required roles/recipes from ansible-galaxy::
+Fetch required roles/recipes from ansible-galaxy:
+
+.. code-block:: sh
 
     $ ansible-galaxy -p roles -r requirements.yml install
 
-Run playbook::
+Run playbook:
+
+.. code-block:: sh
 
     $ ansible-playbook -c local playbook.yml
 
-Or use the shortcut to run both::
+.. note:: You can also use the shortcut to run both::
 
     $ make play

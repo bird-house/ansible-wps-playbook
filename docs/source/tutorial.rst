@@ -3,7 +3,7 @@ Tutorial
 
 .. warning::
 
-  To test the installation you should try it in a docker container: :ref:`docker`.
+  To test the installation you should try it with Vagrant or Docker container. See testing.
 
 .. contents::
     :local:

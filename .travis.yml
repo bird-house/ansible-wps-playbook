@@ -8,6 +8,9 @@ env:
   #- distro: debian9
 
 script:
+  # copy test config
+  - cp ${PWD}/etc/sample-emu.yml ${PWD}/custom.yml
+  
   # Configure test script so we can run extra tests after playbook is run.
   - export container_id=$(date +%s)
   - export cleanup=false

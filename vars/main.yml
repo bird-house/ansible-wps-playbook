@@ -1,6 +1,9 @@
 # miniconda
 miniconda_parent_dir: "{{ prefix }}"
 miniconda_make_sys_default: False
+# conda
+conda_location: "{{ prefix }}/anaconda"
+conda_envs_dir: "{{ conda_location }}/envs"
 # supervisor
 supervisor_user: root
 supervisor_password: 'test'

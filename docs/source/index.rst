@@ -7,11 +7,6 @@ Getting started
    :maxdepth: 2
 
    preparing
-   custom_playbook
+   configuration
    testing
-   tutorial
-   design
    appendix
-
-.. _PyWPS: http://pywps.org/
-.. _Emu: https://github.com/bird-house/emu

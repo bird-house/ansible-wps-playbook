@@ -164,6 +164,17 @@ texinfo_documents = [
      'Miscellaneous'),
 ]
 
+# Link references always present on RST page.
+rst_epilog = """
+.. _Birdhouse: http://bird-house.github.io/
+.. _PyWPS: http://pywps.org/
+.. _Emu: http://emu.readthedocs.io/en/latest/
+.. _Ansible: https://www.ansible.com/
+.. _Vagrant: https://www.vagrantup.com/
+.. _Conda: https://conda.io/miniconda.html
+.. _PostgreSQL: https://www.postgresql.org/
+"""
+
 
 # -- Extension configuration -------------------------------------------------
 

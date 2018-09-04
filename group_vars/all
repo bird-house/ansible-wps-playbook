@@ -4,44 +4,28 @@
 prefix: /usr/local
 src_dir: "{{ prefix }}/src"
 
-# Conda
-conda_location: "{{ prefix }}/anaconda"
-conda_envs_dir: "{{ conda_location }}/envs"
-conda_env_prefix: "{{ conda_envs_dir}}/{{ wps_name }}"
-
-# gunicorn
-gunicorn_etc_dir: /etc/gunicorn
-
 # postgres
 db_install_postgresql: true
-db_name: "pywps_{{ wps_name }}"
+db_name: pywps
 db_host: localhost
 db_port: 5432
 db_user: pywps
-db_password: wps
-
-# PyWPS
-pywps_etc_dir: /etc/pywps
+db_password: pywps
+db_connect: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}"
 
 # WPS
-wps_name: emu
 wps_user: wps
 wps_group: "{{ wps_user }}"
-wps_repo: https://github.com/bird-house/{{ wps_name }}.git
-wps_version: master
-wps_location: "{{ src_dir }}/{{ wps_name }}"
-wps_config_template: ./templates/pywps.cfg
-wps_hostname: localhost
-wps_port: 5000
-wps_url: http://{{ wps_hostname }}:{{ wps_port }}/wps
-wps_outputurl: http://{{ wps_hostname }}:{{ wps_port }}/outputs/{{ wps_name }}
-wps_outputpath: /var/lib/pywps/outputs/{{ wps_name }}
-wps_workdir: /var/lib/pywps/tmp/{{ wps_name }}
-wps_maxsingleinputsize: 200mb
-wps_maxrequestsize: 200mb
-wps_maxprocesses: 30
-wps_parallelprocesses: 10
-# WPS logging
-wps_log_level: INFO
-wps_log_file: /var/log/pywps/{{ wps_name }}.log
-wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}"
+wps_database: "{{ db_connect }}"
+wps_services: []
+  # - name: emu
+  #   repo: https://github.com/bird-house/emu.git
+  #   version: master
+  #   hostname: localhost
+  #   port: 5000
+  #   config_template: ./templates/pywps.cfg
+  #   maxsingleinputsize: 200mb
+  #   maxrequestsize: 200mb
+  #   maxprocesses: 30
+  #   parallelprocesses: 4
+  #   log_level: INFO
