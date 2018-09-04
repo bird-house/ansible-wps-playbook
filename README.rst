@@ -20,21 +20,21 @@ PyWPS Ansible Playbook
 
 .. admonition:: Description
 
-  Use Ansible to deploy a full-stack `PyWPS`_ service.
+  Use Ansible_ to deploy a full-stack PyWPS_ service.
 
 .. warning::
 
-  This playbook is under development and currently only used to deploy an `Emu`_ PyWPS application.
+  This playbook is under development and is currently only used to deploy PyWPS applications from Birdhouse_ like Emu_.
 
 Introduction
 ============
 
-PyWPS Ansible Playbook can completely provision a remote server to run the full stack of `PyWPS`_, including:
+PyWPS Ansible Playbook can completely provision a remote server to run the full stack of PyWPS_, including:
 
-* `Conda <https://conda.io/miniconda.html>`_ to manage application dependencies.
+* Conda_ to manage application dependencies.
 * `Nginx <http://wiki.nginx.org/Main>`_ as Web-Server.
 * `Supervisor <http://supervisord.org/>`_ to start/stop and monitor services.
-* `PostgreSQL <https://www.postgresql.org/>`_ optional database used for job logging.
+* PostgreSQL_ optional database used for job logging.
 * ...
 
 It will install a PyWPS application on a single host.
@@ -42,3 +42,11 @@ Nginx, Supervisor and miniconda are installed on the system.
 The PyWPS application is fetched from GitHub and dependencies are installed into a Conda environment.
 
 See the ``docs`` subdirectory or `readthedocs <http://ansible-wps-playbook.readthedocs.io/en/latest/>`_ for complete documentation.
+
+.. _Birdhouse: http://bird-house.github.io/
+.. _PyWPS: http://pywps.org/
+.. _Emu: http://emu.readthedocs.io/en/latest/
+.. _Ansible: https://www.ansible.com/
+.. _Vagrant: https://www.vagrantup.com/
+.. _Conda: https://conda.io/miniconda.html
+.. _PostgreSQL: https://www.postgresql.org/
