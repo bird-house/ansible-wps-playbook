@@ -10,8 +10,8 @@ Testing
 Test Ansible with Vagrant
 -------------------------
 
-Get Ready
-+++++++++
+Install Vagrant
++++++++++++++++
 
 You need to install Vagrant_. See the following links for details:
 
@@ -44,7 +44,7 @@ Install Ansible roles:
 Run Vagrant
 +++++++++++
 
-Use WPS config for Vagrant VM:
+Use Vagrant config:
 
 .. code-block:: sh
 
@@ -56,7 +56,7 @@ Initial setup:
 
   $ vagrant up
 
-Provision with ansible again:
+Provision with Ansible again:
 
 .. code-block:: sh
 

@@ -45,7 +45,7 @@ Configure your PyWPS installation. See :ref:`Configuration`:
 
 .. code-block:: sh
 
-  $ cp -s etc/sample-emu.yml custom.yml
+  $ cp etc/sample-emu.yml custom.yml
   $ vim custom.yml
 
 Run Ansible
