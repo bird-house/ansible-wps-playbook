@@ -9,4 +9,5 @@ Getting started
    preparing
    configuration
    testing
+   changes
    appendix
