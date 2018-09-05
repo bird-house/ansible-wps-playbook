@@ -35,7 +35,6 @@ PyWPS Ansible Playbook can completely provision a remote server to run the full 
 * `Nginx <http://wiki.nginx.org/Main>`_ as Web-Server.
 * `Supervisor <http://supervisord.org/>`_ to start/stop and monitor services.
 * PostgreSQL_ optional database used for job logging.
-* ...
 
 It will install a PyWPS application on a single host.
 Nginx, Supervisor and miniconda are installed on the system.
