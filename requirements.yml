@@ -9,6 +9,7 @@
 
 # supervisor form Ansible Galaxy
 - src: geerlingguy.supervisor
+  version: 2.0.2
 #- src: https://github.com/geerlingguy/ansible-role-supervisor.git
 #  version: origin/master
 
