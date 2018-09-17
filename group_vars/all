@@ -6,6 +6,7 @@ src_dir: "{{ prefix }}/src"
 
 # postgres
 db_install_postgresql: true
+db_install_sqlite: false
 db_name: pywps
 db_host: localhost
 db_port: 5432
@@ -29,3 +30,4 @@ wps_services: []
   #   maxprocesses: 30
   #   parallelprocesses: 4
   #   log_level: INFO
+  #   database: {{ wps_database }}

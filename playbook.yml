@@ -26,7 +26,7 @@
     - role: geerlingguy.nginx
       tags:
         nginx
-    - role: geerlingguy.postgresql
+    - role: ANXS.postgresql
       when: db_install_postgresql
       tags:
         db

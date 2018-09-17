@@ -5,6 +5,7 @@ etc/custom*.yml
 # external roles from ansible-galaxy
 roles/andrewrothstein.*
 roles/geerlingguy.*
+roles/ANXS.*
 roles/ansible-role-supervisor
 
 # temp files
