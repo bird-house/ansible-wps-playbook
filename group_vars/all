@@ -31,3 +31,4 @@ wps_services: []
   #   parallelprocesses: 4
   #   log_level: INFO
   #   database: {{ wps_database }}
+  #   outputurl: http://localhost:5000/outputs/emu
