@@ -1,0 +1,11 @@
+---
+# Use sqlite db
+db_install_postgresql: false
+db_install_sqlite: true
+# Configuration for Emu WPS
+wps_services:
+  - name: emu
+    # repo: https://github.com/bird-house/emu.git
+    # version: master
+    hostname: localhost
+    port: 5000
