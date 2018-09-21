@@ -1,21 +1,44 @@
 ---
 
-# miniconda from Ansible Galaxy
-- src: andrewrothstein.miniconda
+# miniconda
+# ---------
+# - src: andrewrothstein.miniconda
+- src: https://github.com/andrewrothstein/ansible-miniconda/archive/v5.2.1.tar.gz
+  name: andrewrothstein.miniconda
+# - src: andrewrothstein.bash
+- src: https://github.com/andrewrothstein/ansible-bash/archive/v1.1.1.tar.gz
+  name: andrewrothstein.bash
+# - src: andrewrothstein.unarchive-deps
+- src: https://github.com/andrewrothstein/ansible-unarchive-deps/archive/v1.0.10.tar.gz
+  name: andrewrothstein.unarchive-deps
 
+# epel
+# ----
 # Installs the EPEL repository (Extra Packages for Enterprise Linux) for RHEL/CentOS.
-# https://github.com/geerlingguy/ansible-role-repo-epel
-- src: geerlingguy.repo-epel
+# - src: geerlingguy.repo-epel
+- src: https://github.com/geerlingguy/ansible-role-repo-epel/archive/1.2.3.tar.gz
+  name: geerlingguy.repo-epel
 
-# supervisor form Ansible Galaxy
-- src: geerlingguy.supervisor
-  version: 2.0.2
-#- src: https://github.com/geerlingguy/ansible-role-supervisor.git
-#  version: origin/master
+# pip
+# ---
+# - src: geerlingguy.pip
+# - src: https://github.com/geerlingguy/ansible-role-pip/archive/1.2.2.tar.gz
+#   name: geerlingguy.pip
 
-# nginx form Ansible Galaxy
-- src: geerlingguy.nginx
+# supervisor
+# ----------
+# - src: geerlingguy.supervisor
+- src: https://github.com/geerlingguy/ansible-role-supervisor/archive/2.0.2.tar.gz
+  name: geerlingguy.supervisor
 
-# postgres from Ansible Galaxy
-# - src: geerlingguy.postgresql
-- src: ANXS.postgresql
+# nginx
+# -----
+# - src: geerlingguy.nginx
+- src: https://github.com/geerlingguy/ansible-role-nginx/archive/2.6.0.tar.gz
+  name: geerlingguy.nginx
+
+# postgresql
+# ----------
+# - src: ANXS.postgresql
+- src: https://github.com/ANXS/postgresql/archive/v1.10.1.tar.gz
+  name: ANXS.postgresql
