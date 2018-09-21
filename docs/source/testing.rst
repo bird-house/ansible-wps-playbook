@@ -99,7 +99,7 @@ Configure ``Vagrantfile`` with another `Bento Box <https://app.vagrantup.com/ben
 Alternative: use Vagrant without provisioning
 ---------------------------------------------
 
-Use Vagrant without privisioning and just to setup a new VM::
+Use Vagrant without provisioning and just to setup a new VM::
 
   $ vagrant destroy -f  # remove previous VM
   $ vagrant up --no-provision  # setup new VM
