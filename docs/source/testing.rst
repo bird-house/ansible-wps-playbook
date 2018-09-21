@@ -96,6 +96,24 @@ Configure ``Vagrantfile`` with another `Bento Box <https://app.vagrantup.com/ben
 
   wps.vm.box = "bento/ubuntu-18.04"
 
+Alternative: use Vagrant without provisioning
+---------------------------------------------
+
+Use Vagrant without privisioning and just to setup a new VM::
+
+  $ vagrant destroy -f  # remove previous VM
+  $ vagrant up --no-provision  # setup new VM
+  $ vagrant ssh  # ssh into VM
+
+Run the installation manually now::
+
+  vagrant> sudo yum install git
+  vagrant> git clone https://github.com/bird-house/ansible-wps-playbook.git
+  vagrant> cd ansible-wps-playbook
+  vagrant> ./bootstrap.sh
+  vagrant> ln -s etc/sample-vagrant.yml custom.yml
+  vagrant> ansible-galaxy install -r requirements.yml
+  vagrant> ansible-playbook -c local playbook.yml
 
 Test Ansible in a Docker container
 ----------------------------------

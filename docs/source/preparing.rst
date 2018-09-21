@@ -60,6 +60,11 @@ Configure your PyWPS installation. See :ref:`Configuration`:
 Run Ansible
 -----------
 
+.. warning::
+
+  Make sure your ansible directory is not world-readable, otherwise the `ansible.cfg` file will not be read.
+  See `Ansible Documentation <https://docs.ansible.com/ansible/devel/reference_appendices/config.html#cfg-in-world-writable-dir>`_.
+
 Fetch required roles/recipes from ansible-galaxy:
 
 .. code-block:: sh
