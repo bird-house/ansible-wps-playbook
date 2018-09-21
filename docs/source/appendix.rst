@@ -12,7 +12,7 @@ Roles/Recipes from Ansible Galaxy
 Used roles:
 
 * miniconda: https://galaxy.ansible.com/andrewrothstein/miniconda/
-* nginx: https://galaxy.ansible.com/jdauphant/nginx/
+* nginx: https://galaxy.ansible.com/geerlingguy/nginx
 * supervisor: https://galaxy.ansible.com/geerlingguy/supervisor
 * postgresql: https://galaxy.ansible.com/anxs/postgresql
 
