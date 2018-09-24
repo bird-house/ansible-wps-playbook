@@ -39,7 +39,10 @@ Install multiple PyWPS applications
 -----------------------------------
 
 You can install several PyWPS applications with a single Ansible run.
-See ``etc/custom-multiple.yml`` configuration as example.
+See ``etc/sample-multiple.yml`` configuration as example.
+
+You can also configure a shared file-server for outputs.
+See ``etc/sample-multiple-with-shared-fileserver.yml``.
 
 Extend PyWPS configuration
 --------------------------

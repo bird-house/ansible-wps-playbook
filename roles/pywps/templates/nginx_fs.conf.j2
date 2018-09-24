@@ -1,0 +1,17 @@
+server {
+    listen {{ fs_port }};
+    server_name {{ fs_host | default('localhost') }};
+
+    # better to redirect / to outputs
+    location / {
+      return 301 /outputs;
+    }
+
+    # PyWPS Outputs
+    location /outputs
+    {
+        alias /var/lib/pywps/outputs;
+        autoindex off;
+    }
+
+}

@@ -19,7 +19,7 @@ port=${port:-"5000"}
 
 ## Override distro with argument
 if [ $# -gt 0 ]; then
-    $distro=$1
+    distro=$1
 fi
 
 ## Set up vars for Docker setup.

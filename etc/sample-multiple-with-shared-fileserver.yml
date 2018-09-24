@@ -1,0 +1,14 @@
+---
+server_name: localhost
+# Fileserver for WPS outputs
+fs_enabled: true
+fs_host: "{{ server_name }}"
+fs_port: 6000
+# Configuration for Emu and Hummingbird WPS
+wps_services:
+  - name: emu
+    hostname: "{{ server_name }}"
+    port: 5000
+  - name: hummingbird
+    hostname: "{{ server_name }}"
+    port: 5001

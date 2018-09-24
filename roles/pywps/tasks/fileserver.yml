@@ -1,0 +1,8 @@
+---
+- name: Copy nginx fileserver config to remote
+  template:
+    src: ./templates/nginx_fs.conf.j2
+    dest: "{{ nginx_conf_path }}/fileserver.conf"
+  tags:
+    - pywps
+    - conf
