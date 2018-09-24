@@ -1,0 +1,16 @@
+---
+- name: Create sqlite db folders used by PyWPS and set owner
+  file: path={{ item }} state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
+  with_items:
+    - /var/lib/pywps/db
+  tags:
+    - pywps
+    - conf
+
+- name: Update sqlite db file permissions
+  file: path="/var/lib/pywps/db/{{ item.name }}_log.db" state=touch owner={{ wps_user }} group={{ wps_group }} mode=0644
+  with_items:
+    - "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf

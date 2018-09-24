@@ -1,7 +1,11 @@
 ---
-wps_hostname: 192.168.128.100
+server_name: 192.168.128.100
+# Fileserver for WPS outputs
+fs_enabled: false
+fs_host: "{{ server_name }}"
+fs_port: 6000
 # Configuration for Emu WPS
 wps_services:
   - name: emu
-    hostname: "{{ wps_hostname }}"
+    hostname: "{{ server_name }}"
     port: 5000

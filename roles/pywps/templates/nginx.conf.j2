@@ -26,11 +26,13 @@ server {
         proxy_read_timeout      30s;
     }
 
+    {% if not fs_enabled %}
     # PyWPS Outputs
     location /outputs
     {
         alias /var/lib/pywps/outputs;
         autoindex off;
     }
+    {% endif %}
 
 }

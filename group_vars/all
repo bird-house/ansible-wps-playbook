@@ -3,6 +3,7 @@
 
 prefix: /usr/local
 src_dir: "{{ prefix }}/src"
+server_name: localhost
 
 # postgres
 db_install_postgresql: true
@@ -13,6 +14,11 @@ db_port: 5432
 db_user: pywps
 db_password: pywps
 db_connect: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}"
+
+# nginx fileserver
+fs_enabled: false
+fs_host: localhost
+fs_port: 6000
 
 # WPS
 wps_user: wps
@@ -30,5 +36,5 @@ wps_services: []
   #   maxprocesses: 30
   #   parallelprocesses: 4
   #   log_level: INFO
-  #   database: {{ wps_database }}
+  #   database: "{{ wps_database }}"
   #   outputurl: http://localhost:5000/outputs/emu
