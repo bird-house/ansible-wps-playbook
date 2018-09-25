@@ -1,0 +1,8 @@
+- name: Download esgf-ca-bundle.crt
+  get_url:
+    url: "{{ ssl_certs_cacert_url }}"
+    dest:  "{{ ssl_certs_cacert_path }}"
+    mode: 0440
+  tags:
+    nginx
+  when: wps_enable_https

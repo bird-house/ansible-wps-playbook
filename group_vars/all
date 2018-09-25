@@ -24,6 +24,7 @@ fs_port: 6000
 wps_user: wps
 wps_group: "{{ wps_user }}"
 wps_database: "{{ db_connect }}"
+wps_enable_https: false
 wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git

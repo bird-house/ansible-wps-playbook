@@ -24,3 +24,9 @@ postgresql_users:
 postgresql_listen_addresses:
   - "{{ db_host }}"
 postgresql_port: "{{ db_port }}"
+# ssl-certs
+ssl_certs_path_owner: "{{ wps_user }}"
+ssl_certs_path_group: "{{ wps_group }}"
+ssl_certs_cacert_path: "{{ ssl_certs_path }}/cacert.crt"
+ssl_certs_verify_client: "optional"
+ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"

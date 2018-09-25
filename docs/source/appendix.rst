@@ -1,3 +1,12 @@
+Ansible Hints
+=============
+
+Show local variables and facts:
+
+.. code-block:: sh
+
+  $ ansible -m setup -c local localhost
+
 Links
 =====
 

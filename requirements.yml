@@ -42,3 +42,9 @@
 # - src: ANXS.postgresql
 - src: https://github.com/ANXS/postgresql/archive/v1.10.1.tar.gz
   name: ANXS.postgresql
+
+# ssl-certs
+# ---------
+# - src: jdauphant.ssl-certs
+- src: https://github.com/jdauphant/ansible-role-ssl-certs/archive/v1.7.tar.gz
+  name: jdauphant.ssl-certs

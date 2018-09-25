@@ -23,6 +23,11 @@
     - role: geerlingguy.supervisor
       tags:
         supervisor
+    - role: jdauphant.ssl-certs
+      tags:
+        nginx
+      when: wps_enable_https
+    - certs
     - role: geerlingguy.nginx
       tags:
         nginx
