@@ -1,5 +1,5 @@
 ---
-server_name: 192.168.128.100
+server_name: localhost
 wps_enable_https: true
 # Fileserver for WPS outputs
 fs_enabled: false

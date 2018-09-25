@@ -7,6 +7,7 @@ roles/andrewrothstein.*
 roles/geerlingguy.*
 roles/ANXS.*
 roles/ansible-role-supervisor
+roles/jdauphant.ssl-certs
 
 # temp files
 *.retry

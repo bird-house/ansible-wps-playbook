@@ -6,6 +6,7 @@
     - libselinux-python
     - initscripts
     - python-meld3
+    - openssl-devel
 
 - name: Remove unwanted packages on RedHat
   yum: name={{ item }} state=absent

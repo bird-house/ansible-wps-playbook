@@ -2,6 +2,7 @@
   apt: name={{ item }} state=latest
   with_items:
     - build-essential
+    - libssl-dev
 
 - name: Remove unwanted packages on Debian
   apt: name={{ item }} state=absent
