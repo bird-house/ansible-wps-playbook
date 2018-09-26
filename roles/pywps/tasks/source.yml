@@ -1,0 +1,13 @@
+---
+- name: Clone WPS.
+  git:
+    repo: "{{ item.repo | default('https://github.com/bird-house/'+item.name+'.git') }}"
+    version: "{{ item.version | default('master') }}"
+    dest: "{{ src_dir }}/{{ item.name }}"
+    update: yes
+    force: yes
+  with_items: "{{ wps_services }}"
+  register: git
+  tags:
+    - pywps
+    - git
