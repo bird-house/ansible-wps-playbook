@@ -20,12 +20,12 @@ bootstrap:
 .PHONY: roles
 roles:
 	@echo "Installing required Ansible roles from ansible-galaxy ..."
-	ansible-galaxy install -p roles -r requirements.yml --ignore-errors
+	ansible-galaxy install -p roles -r requirements.yml
 
 .PHONY: play
 play: roles
 	echo "Installing PyWPS application with Ansible [skip optional tasks] ..."
-	ansible-playbook -c local --skip-tags=optional playbook.yml
+	ansible-playbook -c local playbook.yml
 
 .PHONY: play_all
 play_all: roles

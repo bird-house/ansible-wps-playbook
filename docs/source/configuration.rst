@@ -44,6 +44,35 @@ See ``etc/sample-multiple.yml`` configuration as example.
 You can also configure a shared file-server for outputs.
 See ``etc/sample-multiple-with-shared-fileserver.yml``.
 
+Use HTTPS with Nginx
+--------------------
+
+You can enable HTTPS for the Nginx service by setting the variable::
+
+  wps_enable_https: true
+
+See ``etc/sample-certs.yml`` configuration as example.
+
+By default it generates a *self-signed* certificate automatically.
+
+You can also provide your own certificate by setting the following variables::
+
+  ssl_certs_local_privkey_path: '/path/to/example.com.key'
+  ssl_certs_local_cert_path: '/path/to/example.com.pem'
+
+Read the `ssl-certs role <https://galaxy.ansible.com/jdauphant/ssl-certs>`_ documentation for details.
+
+Use HTTPS with client certificate validation
+--------------------------------------------
+
+When HTTPS is enabled (see above) then *optional* client certificate validation for ESGF certificates
+is also activated.
+
+Edit the following variables to change the behaviour::
+
+  ssl_certs_verify_client: "optional"
+  ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"
+
 Extend PyWPS configuration
 --------------------------
 

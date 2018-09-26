@@ -1,0 +1,19 @@
+---
+- name: Create Conda environment from environment file.
+  command: "{{ conda_location }}/bin/conda env update -p {{ conda_envs_dir}}/{{ item.name }}"
+  args:
+    chdir: "{{ src_dir }}/{{ item.name }}"
+  with_items: "{{ wps_services }}"
+  when: git.changed
+  register: conda
+  tags:
+    - pywps
+    - conda
+
+- name: Install additional Conda packages.
+  command: "{{ conda_location }}/bin/conda install -p {{ conda_envs_dir}}/{{ item.name }} gunicorn psycopg2"
+  with_items: "{{ wps_services }}"
+  when: conda.changed
+  tags:
+    - pywps
+    - conda
