@@ -10,3 +10,4 @@ wps_services:
   - name: emu
     hostname: "{{ server_name }}"
     port: 5000
+    sethomedir: true
