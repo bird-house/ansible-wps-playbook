@@ -1,10 +1,16 @@
 - name: Install common packages on Debian
-  apt: name={{ item }} state=latest
-  with_items:
-    - build-essential
-    - libssl-dev
+  apt:
+    name: "{{ packages }}"
+    state: latest
+  vars:
+    packages:
+      - build-essential
+      - libssl-dev
 
 - name: Remove unwanted packages on Debian
-  apt: name={{ item }} state=absent
-  with_items:
-    - supervisor
+  apt:
+    name: "{{ packages }}"
+    state: absent
+  vars:
+    packages:
+      - supervisor
