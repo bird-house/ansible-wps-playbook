@@ -1,14 +1,20 @@
 - name: Install common packages on RedHat
-  yum: name={{ item }} state=latest
-  with_items:
-    - gcc-c++
-    - make
-    - libselinux-python
-    - initscripts
-    - python-meld3
-    - openssl-devel
+  yum:
+    name: "{{ packages }}"
+    state: latest
+  vars:
+    packages:
+      - gcc-c++
+      - make
+      - libselinux-python
+      - initscripts
+      - python-meld3
+      - openssl-devel
 
 - name: Remove unwanted packages on RedHat
-  yum: name={{ item }} state=absent
-  with_items:
-    - supervisor
+  yum:
+    name: "{{ packages }}"
+    state: absent
+  vars:
+    packages:
+      - supervisor
