@@ -37,6 +37,10 @@ Run bootstrap script (only once) to prepare your system and install Ansible_:
 
     $ conda install ansible
 
+.. note:: You can install Ansible also using pip::
+
+    $ pip install ansible
+
 Edit Configuration
 ------------------
 
