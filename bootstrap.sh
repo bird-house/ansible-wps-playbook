@@ -1,5 +1,13 @@
 #!/bin/bash
 
+upgrade_redhat_6() {
+  echo "Upgrade Ansbile on RedHat 6"
+  sudo yum install python27
+  curl "https://bootstrap.pypa.io/get-pip.py" -o "/tmp/get-pip.py"
+  sudo python2.7 /tmp/get-pip.py
+  sudo pip install ansible
+}
+
 bootstrap() {
     echo "Bootstrap Ansible ..."
 
@@ -22,7 +30,7 @@ bootstrap() {
         sudo apt-get install -y ansible
         # sudo apt-get install -y vim-common # anaconda needs xxd
     elif [ -f /etc/redhat-release ] ; then
-        echo "Install CentOS packages ..."
+        echo "Install RedHat/CentOS packages ..."
         sudo yum update -y
         sudo yum install -y epel-release
         sudo yum install -y gcc-c++ make
