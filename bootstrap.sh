@@ -27,7 +27,7 @@ bootstrap() {
         sudo yum install -y epel-release
         sudo yum install -y gcc-c++ make
         sudo yum install -y ansible
-        major_release=$(cat /etc/centos-release | tr -dc '0-9.'|cut -d \. -f1)
+        major_release=$(cat /etc/redhat-release | tr -dc '0-9.'|cut -d \. -f1)
         if [ $major_release = "6" ] ; then
           # needed for galaxy usage with python 2.6 on CentOS 6
           sudo yum install -y python-urllib3 pyOpenSSL python2-ndg_httpsclient python-pyasn1
