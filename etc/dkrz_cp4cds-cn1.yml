@@ -1,6 +1,8 @@
 ---
 # config for cp4cds-cn1.dkrz.de
 wps_hostname: cp4cds-cn1.dkrz.de
+wps_user: wps
+wps_group: wps
 wps_services:
   - name: c4cds
     repo: https://github.com/cp4cds/c4cds-wps.git
