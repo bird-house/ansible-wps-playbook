@@ -1,6 +1,19 @@
 Changes
 *******
 
+0.2.0 (2018-12-06)
+==================
+
+Washington Release.
+
+Changes:
+
+* Fixed RedHad/CentOS 6 issues (#50, #49).
+* Fixed CentOS 7 issue (#46).
+* Support HTTPS (#30, #45).
+* Fixed firewall issue (#39).
+* Support output file-service used by multiple WPS (#37).
+
 0.1.1 (2018-09-19)
 ==================
 
