@@ -1,80 +1,110 @@
-Deploy a PyWPS Application
-==========================
+.. _requirements:
+
+Requirements
+============
 
 .. contents::
     :local:
     :depth: 2
 
-.. warning::
+Target Server
+-------------
 
-    This Ansible script has been tested on CentOS 6/7 and Ubuntu 18.04.
+Supported platforms
+~~~~~~~~~~~~~~~~~~~
 
-.. note::
+At the moment, we are testing with CentOS 6/7 and Ubuntu 18.04.
 
-    You can safely try the installation using Vagrant_ or Docker. See :ref:`testing`.
+SSH access; sudo
+~~~~~~~~~~~~~~~~
 
+Beyond the basic platform, the only requirements are that you have ``ssh`` access
+to the remote server with full ``sudo`` rights.
 
-Get the Playbook
-----------------
+For local testing via virtual machine, any machine that supports VirtualBox/Vagrant
+should be adequate.
 
-Clone this playbook from GitHub:
-
-.. code-block:: sh
-
-    $ git clone https://github.com/bird-house/ansible-wps-playbook.git
-    $ cd ansible-wps-playbook
-
-Bootstrap
----------
-
-Run bootstrap script (only once) to prepare your system and install Ansible_:
-
-.. code-block:: sh
-
-    $ bash bootstrap.sh
-
-.. note:: If you are using Conda_ you can also install Ansible via Conda::
-
-    $ conda install ansible
-
-.. note:: You can install Ansible also using pip::
-
-    $ pip install ansible
-
-Edit Configuration
-------------------
-
-Configure your PyWPS installation. See :ref:`Configuration`:
-
-.. code-block:: sh
-
-  $ cp etc/sample-emu.yml custom.yml
-  $ vim custom.yml
-
-Run Ansible
+Local setup
 -----------
 
+.. note::
+  You will need Ansible only on your client which you use for running the Ansible scripts.
+  The server can be installed remotely.
+
+On your local machine (the one from which you're controlling the remote server),
+you will need a recent copy of Ansible (`>=2.7`). `docs.ansible.com`_
+has thorough installation instructions.
+
 .. warning::
+  Don't us your OS package manager to install Ansible; you may get an unusably out-of-date version.
 
-    If your system has already a Supervisor_ or a PostgreSQL_ installation, please remove them manually.
+You will also nearly certainly want `git`, both for cloning the playbook and for version-controlling your own work.
 
-.. warning::
+To clone the playbook, use the command:
 
-  Make sure your Ansible directory is not world-readable, otherwise the `ansible.cfg` file will not be read.
-  See `Ansible Documentation <https://docs.ansible.com/ansible/devel/reference_appendices/config.html#cfg-in-world-writable-dir>`_.
+.. code-block:: console
 
-Fetch required roles/recipes from ansible-galaxy:
+    $ git clone https://github.com/bird-house/ansible-wps-playbook.git
 
-.. code-block:: sh
 
-    $ ansible-galaxy -p roles -r requirements.yml install
+Quick setup
+-----------
 
-Run playbook:
+In the following we give some installation examples.
 
-.. code-block:: sh
+MacOS
+~~~~~
 
-    $ ansible-playbook -c local playbook.yml
+Use brew_ to install Ansible:
 
-.. note:: You can also use the shortcut to run both::
+.. code-block:: console
 
-    $ make play
+  $ brew install git
+  $ brew install ansible
+  # check version
+  $ ansible --version
+  ansible 2.7.2
+
+Conda
+~~~~~
+
+You can use Conda_ to install Ansible. Conda is available for Linux, MacOS and Windows.
+
+.. code-block:: console
+
+  $ conda install -c conda-forge ansible
+  # check ansible version
+  $ ansible --version
+  ansible 2.7.2
+
+If you don't have Conda installed, the fastest way is to install Miniconda_, preferably the Python 3.x version.
+
+Ansible role requirements
+-------------------------
+
+We have a several Ansible role dependencies which you may fulfill via Ansible Galaxy with the command:
+
+.. code-block:: console
+
+    $ ansible-galaxy -r requirements.yml -p roles install
+
+This should be executed in your playbook directory.
+Downloaded requirements will be dropped into the ``roles`` directory there.
+
+Remote setup
+------------
+
+Ansible requires that the target server have a recent Python 2.x on the server.
+Newer platforms (like Ubuntu Xenial and later) may not have this activated on pristine new machines.
+
+If you get connection errors from Ansible, check the remote machine to make sure Python 2.7 is available.
+`which python2.7` will let you know.
+If it's missing, use your package manager to install it.
+
+On Ubuntu Xenial (16.0.4 LTS), `sudo apt-get install -y python` will do the trick.
+
+
+.. _`docs.ansible.com`: http://docs.ansible.com/intro_installation.html
+.. _brew: https://brew.sh/
+.. _Conda: https://conda.io/docs/user-guide/install/index.html
+.. _Miniconda: https://conda.io/miniconda.html
