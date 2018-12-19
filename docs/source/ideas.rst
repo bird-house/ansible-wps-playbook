@@ -26,8 +26,7 @@ A PyWPS service may be used in the following deployment scenarios:
   - can also be used as development environment.
 * production installation on a cluster system
   - needs installation of slurm/grid-engine
-  - see ansible slurm/grid-engine examples:
-    https://github.com/bird-house/birdhouse-ansible
+  - see ansible slurm/grid-engine examples: https://github.com/bird-house/birdhouse-ansible
 * docker container for testing and demo
   - We currently have a single container with PyWPS, Nginx, Supervisor
   - Container orchestration people don't like this :)

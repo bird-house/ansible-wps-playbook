@@ -171,7 +171,6 @@ rst_epilog = """
 .. _Emu: http://emu.readthedocs.io/en/latest/
 .. _Ansible: https://www.ansible.com/
 .. _Vagrant: https://www.vagrantup.com/
-.. _Conda: https://conda.io/miniconda.html
 .. _PostgreSQL: https://www.postgresql.org/
 .. _Supervisor: http://supervisord.org/
 """
