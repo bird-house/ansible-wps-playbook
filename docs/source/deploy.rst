@@ -41,8 +41,8 @@ Configure your PyWPS installation. See :ref:`Configuration`:
   $ cp etc/sample-emu.yml custom.yml
   $ vim custom.yml
 
-Run Ansible locally
--------------------
+Running your playbook locally
+-----------------------------
 
 .. warning::
 
