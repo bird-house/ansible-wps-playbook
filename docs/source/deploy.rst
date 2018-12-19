@@ -12,7 +12,7 @@ Deploy a PyWPS Application
 Prepare
 -------
 
-You need a recent Ansible_ version (`>=2.7`):
+You need a recent Ansible_ version (`>=2.7`) on your local client:
 
 .. code-block:: console
 
@@ -31,18 +31,18 @@ Clone this playbook from GitHub:
     $ git clone https://github.com/bird-house/ansible-wps-playbook.git
     $ cd ansible-wps-playbook
 
-Edit Configuration
-------------------
+Customize Configuration
+-----------------------
 
 Configure your PyWPS installation. See :ref:`Configuration`:
 
-.. code-block:: sh
+.. code-block:: console
 
   $ cp etc/sample-emu.yml custom.yml
   $ vim custom.yml
 
-Run Ansible
------------
+Run Ansible locally
+-------------------
 
 .. warning::
 
@@ -53,15 +53,15 @@ Run Ansible
   Make sure your Ansible directory is not world-readable, otherwise the `ansible.cfg` file will not be read.
   See `Ansible Documentation <https://docs.ansible.com/ansible/devel/reference_appendices/config.html#cfg-in-world-writable-dir>`_.
 
-Fetch required roles/recipes from ansible-galaxy:
+If not already done (see :ref:`requirements`), fetch required roles/recipes from ansible-galaxy:
 
-.. code-block:: sh
+.. code-block:: console
 
     $ ansible-galaxy -p roles -r requirements.yml install
 
 Run playbook:
 
-.. code-block:: sh
+.. code-block:: console
 
     $ ansible-playbook -c local playbook.yml
 

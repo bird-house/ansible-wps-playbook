@@ -10,6 +10,5 @@ Getting started
    deploy
    configuration
    testing
-   ideas
    changes
    appendix
