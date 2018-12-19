@@ -7,6 +7,8 @@ Getting started
    :maxdepth: 2
 
    preparing
+   deploy
+   live
    configuration
    testing
    changes
