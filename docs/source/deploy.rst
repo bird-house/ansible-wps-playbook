@@ -13,6 +13,17 @@ Deploy a PyWPS Application
 
     You can safely try the installation using Vagrant_ or Docker. See :ref:`testing`.
 
+Prepare
+-------
+
+You need a recent Ansible_ version (`>=2.7`):
+
+.. code-block:: sh
+
+  $ ansible --version
+  ansible 2.7.2
+
+If you don't have Ansible installed, then follow these instructions: :ref:`installation`.
 
 Get the Playbook
 ----------------

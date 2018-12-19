@@ -1,3 +1,5 @@
+.. _installation:
+
 Install Ansible
 ===============
 
@@ -6,7 +8,7 @@ Install Ansible
     :depth: 2
 
 .. warning::
-  You need to install a recent Ansible_ version (``>=2.7``).
+  You need to install a recent Ansible_ version (`>=2.7`).
 
 .. note::
   You will need Ansible only on your client which you use for running the Ansible scripts.
