@@ -8,6 +8,7 @@ Getting started
 
    preparing
    deploy
+   live
    configuration
    testing
    changes

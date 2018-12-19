@@ -53,13 +53,13 @@ Run Ansible locally
   Make sure your Ansible directory is not world-readable, otherwise the `ansible.cfg` file will not be read.
   See `Ansible Documentation <https://docs.ansible.com/ansible/devel/reference_appendices/config.html#cfg-in-world-writable-dir>`_.
 
-If not already done (see :ref:`requirements`), fetch required roles/recipes from ansible-galaxy:
+If not already done (see :ref:`requirements`), fetch required roles/recipes from `ansible-galaxy`:
 
 .. code-block:: console
 
     $ ansible-galaxy -p roles -r requirements.yml install
 
-Run playbook:
+Run your playbook locally:
 
 .. code-block:: console
 
@@ -68,3 +68,5 @@ Run playbook:
 .. note:: You can also use the shortcut to run both::
 
     $ make play
+
+For remote deployment follow the instructions in the next section :ref:`live`.
