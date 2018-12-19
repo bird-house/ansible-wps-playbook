@@ -31,7 +31,7 @@ You need Ansible locally installed:
 
 .. code-block:: sh
 
-  $ ./bootstrap.sh  # Linux and macOS
+  $ conda install -c conda-forge ansible
   OR
   $ brew install ansible # macOS only
 

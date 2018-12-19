@@ -10,7 +10,6 @@ Getting started
    deploy
    configuration
    testing
-   tutorial
    ideas
    changes
    appendix

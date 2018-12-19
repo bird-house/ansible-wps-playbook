@@ -5,10 +5,6 @@ Deploy a PyWPS Application
     :local:
     :depth: 2
 
-.. warning::
-
-    This Ansible script has been tested on CentOS 6/7 and Ubuntu 18.04.
-
 .. note::
 
     You can safely try the installation using Vagrant_ or Docker. See :ref:`testing`.
@@ -18,19 +14,19 @@ Prepare
 
 You need a recent Ansible_ version (`>=2.7`):
 
-.. code-block:: sh
+.. code-block:: console
 
   $ ansible --version
   ansible 2.7.2
 
-If you don't have Ansible installed, then follow these instructions: :ref:`installation`.
+If you don't have Ansible installed, then follow these instructions: :ref:`requirements`.
 
 Get the Playbook
 ----------------
 
 Clone this playbook from GitHub:
 
-.. code-block:: sh
+.. code-block:: console
 
     $ git clone https://github.com/bird-house/ansible-wps-playbook.git
     $ cd ansible-wps-playbook
