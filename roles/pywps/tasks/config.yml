@@ -1,7 +1,7 @@
 ---
 - name: Copy pywps config
   template:
-    src: "{{ item.config_template | default('./templates/pywps.cfg') }}"
+    src: ./templates/pywps.cfg.j2
     dest: "/etc/pywps/{{ item.name }}.cfg"
   with_items:
     - "{{ wps_services }}"
