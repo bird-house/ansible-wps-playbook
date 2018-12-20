@@ -31,7 +31,6 @@ wps_services: []
   #   version: master
   #   hostname: localhost
   #   port: 5000
-  #   config_template: ./templates/pywps.cfg
   #   maxsingleinputsize: 200mb
   #   maxrequestsize: 200mb
   #   maxprocesses: 30
@@ -39,3 +38,6 @@ wps_services: []
   #   log_level: INFO
   #   database: "{{ wps_database }}"
   #   outputurl: http://localhost:5000/outputs/emu
+  #   extra_config: |
+  #     [data]
+  #     cache_path = /tmp
