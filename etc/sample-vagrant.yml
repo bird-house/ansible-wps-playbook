@@ -10,3 +10,6 @@ wps_services:
   - name: emu
     hostname: "{{ server_name }}"
     port: 5000
+    extra_config: |
+      [data]
+      cache_path = /tmp/cache

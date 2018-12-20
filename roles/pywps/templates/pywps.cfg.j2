@@ -29,3 +29,7 @@ database = sqlite:////var/lib/pywps/db/{{ item.name }}_log.db
 database = {{ item.database | default(wps_database) }}
 {% endif %}
 format = %(asctime)s] [%(levelname)s] %(message)s
+
+{% if item.extra_config is defined %}
+{{ item.extra_config }}
+{% endif %}
