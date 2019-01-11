@@ -27,3 +27,4 @@
     shell: /sbin/nologin
     createhome: no
     home: /var/lib/pywps
+  when: wps_add_user
