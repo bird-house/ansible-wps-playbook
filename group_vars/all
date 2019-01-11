@@ -21,6 +21,7 @@ fs_host: localhost
 fs_port: 6000
 
 # WPS
+wps_add_user: true
 wps_user: wps
 wps_group: "{{ wps_user }}"
 wps_database: "{{ db_connect }}"
