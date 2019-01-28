@@ -1,15 +1,16 @@
 ---
-wps_hostname: cp4cds-cn1.somewhere.org
-wps_lb_hostname: compute.mips.copernicus-climate.eu
+wps_hostname: compute.mips.copernicus-climate.eu
+wps_output_hostname: cp4cds-cn1.somewhere.org
 wps_user: wps
 wps_group: wps
+wps_port: 80
 wps_services:
   - name: c4cds
     repo: https://github.com/cp4cds/c4cds-wps.git
     version: master
-    hostname: "{{ wps_lb_hostname }}"
-    port: 80
-    outputurl: "http://{{ wps_hostname }}:80/outputs/c4cds"
+    hostname: "{{ wps_hostname }}"
+    port: "{{ wps_port }}"
+    outputurl: "http://{{ wps_output_hostname }}:{{ wps_port }}/outputs/c4cds"
     extra_config: |
       [data]
       c3s_cmip5_archive_root: /data/C3SCMIP5/data/c3s-cmip5/output1
