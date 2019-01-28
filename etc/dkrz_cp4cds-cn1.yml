@@ -1,14 +1,17 @@
 ---
 # config for cp4cds-cn1.dkrz.de
 wps_hostname: cp4cds-cn1.dkrz.de
+wps_lb_hostname: compute.mips.copernicus-climate.eu
 wps_user: wps
 wps_group: wps
 wps_services:
   - name: c4cds
     repo: https://github.com/cp4cds/c4cds-wps.git
     version: master
-    hostname: "{{ wps_hostname }}"
+    hostname: "{{ wps_lb_hostname }}"
     port: 80
-    config_template: "{{ src_dir }}/c4cds/c4cds/templates/pywps_ansible.cfg"
-    c3s_cmip5_archive_root: /mnt/lustre02/work/ik1017/C3SCMIP5/data/c3s-cmip5/output1
-    cordex_archive_root: /mnt/lustre01/work/kd0956/CORDEX/data/cordex/output
+    outputurl: "http://{{ wps_hostname }}:80/outputs/c4cds"
+    extra_config: |
+      [data]
+      c3s_cmip5_archive_root: /mnt/lustre02/work/ik1017/C3SCMIP5/data/c3s-cmip5/output1
+      cordex_archive_root: /mnt/lustre01/work/kd0956/CORDEX/data/cordex/output
