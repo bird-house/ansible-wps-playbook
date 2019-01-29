@@ -4,7 +4,7 @@ wps_enable_https: true
 # Fileserver for WPS outputs
 fs_enabled: false
 fs_host: "{{ server_name }}"
-fs_port: 6000
+fs_port: 5001
 # Configuration for Emu WPS
 wps_services:
   - name: emu

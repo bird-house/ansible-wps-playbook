@@ -91,3 +91,12 @@ You can extend the `pywps.cfg` configuration with the `extra_config` option. Her
       extra_config: |
         [data]
         cache_path = /tmp/cache
+
+Use WPS with load-balancer configuration
+----------------------------------------
+
+When you use a load-balancing configuration for your WPS service, your service needs
+to use the external hostname used in the load-balancer. The WPS output service still
+needs to use the internal hostname for the output URL.
+
+Please see: ``etc/sample-cp4cds_load-balancer.yml``.

@@ -30,7 +30,8 @@ wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git
   #   version: master
-  #   hostname: localhost
+  #   hostname: "{{ server_name }}"
+  #   output_hostname: "{{ server_name }}"
   #   port: 5000
   #   maxsingleinputsize: 200mb
   #   maxrequestsize: 200mb
@@ -38,7 +39,7 @@ wps_services: []
   #   parallelprocesses: 4
   #   log_level: INFO
   #   database: "{{ wps_database }}"
-  #   outputurl: http://localhost:5000/outputs/emu
+  #   # outputurl: http://somewhere.earth/outputs # optional
   #   extra_config: |
   #     [data]
   #     cache_path = /tmp

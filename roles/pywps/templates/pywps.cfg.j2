@@ -6,10 +6,15 @@
 {% endif %}
 url = {{ _protocol }}://{{ item.hostname | default('localhost') }}:{{ item.port }}/wps
 {% if fs_enabled %}
-{% set _outputurl = 'http://{0}:{1}/outputs/{2}'.format(fs_host, fs_port, item.name) %}
+{% set _fs_host = fs_host %}
+{% set _fs_port = fs_port %}
+{% set _fs_protocol = 'http' %}
 {% else %}
-{% set _outputurl = '{0}://{1}:{2}/outputs/{3}'.format(_protocol, item.hostname, item.port, item.name) %}
+{% set _fs_host = item.fs_hostname | default(item.hostname) %}
+{% set _fs_port = item.port %}
+{% set _fs_protocol = _protocol %}
 {% endif %}
+{% set _outputurl = '{0}://{1}:{2}/outputs/{3}'.format(_fs_protocol, _fs_host, _fs_port, item.name) %}
 outputurl = {{ item.outputurl | default(_outputurl) }}
 allowedinputpaths = /
 maxsingleinputsize = {{ item.maxsingleinputsize | default('200mb') }}
