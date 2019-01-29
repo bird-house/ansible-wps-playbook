@@ -1,14 +1,15 @@
 ---
 server_name: 192.168.128.100
-wps_enable_https: true
-# Fileserver for WPS outputs
+wps_enable_https: false
+# Enable separate Fileserver for WPS outputs
 fs_enabled: false
-fs_host: "{{ server_name }}"
-fs_port: 6000
+# fs_host: "{{ server_name }}"
+# fs_port: 5001
 # Configuration for Emu WPS
 wps_services:
   - name: emu
     hostname: "{{ server_name }}"
+    fs_hostname: "{{ server_name }}"
     port: 5000
     extra_config: |
       [data]
