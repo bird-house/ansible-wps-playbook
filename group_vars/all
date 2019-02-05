@@ -23,7 +23,10 @@ fs_port: 6000
 # WPS
 wps_add_user: true
 wps_user: wps
+# wps_uid: 1000
+wps_user_home: /var/lib/pywps
 wps_group: "{{ wps_user }}"
+# wps_gid: 1000
 wps_database: "{{ db_connect }}"
 wps_enable_https: false
 wps_services: []

@@ -1,8 +1,12 @@
 ---
 wps_external_hostname: compute.mips.copernicus-climate.eu
 wps_internal_hostname: cp4cds-cn1.somewhere.org
+wps_add_user: true
 wps_user: wps
+# wps_uid: 1000
+# wps_user_home: /var/lib/pywps
 wps_group: wps
+# wps_gid: 1000
 wps_port: 80
 wps_services:
   - name: c4cds

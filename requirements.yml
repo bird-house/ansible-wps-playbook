@@ -34,7 +34,7 @@
 # nginx
 # -----
 # - src: geerlingguy.nginx
-- src: https://github.com/geerlingguy/ansible-role-nginx/archive/2.6.0.tar.gz
+- src: https://github.com/geerlingguy/ansible-role-nginx/archive/2.6.2.tar.gz
   name: geerlingguy.nginx
 
 # postgresql
