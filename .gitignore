@@ -8,6 +8,7 @@ roles/geerlingguy.*
 roles/ANXS.*
 roles/ansible-role-supervisor
 roles/jdauphant.ssl-certs
+roles/nginxinc.nginx
 
 # temp files
 *.retry
