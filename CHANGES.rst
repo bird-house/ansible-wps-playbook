@@ -1,6 +1,18 @@
 Changes
 *******
 
+0.2.1 (2019-02-05)
+==================
+
+Changes:
+
+* Configure wps user with optional UID/GID (#56).
+* Support for load-balancing configuration (#68).
+* Added a flag `wps_add_user` to skip task "wps add user" (#64, #66).
+* Using `extra_config` to extend the pywps configuration (#60, #62).
+* Updated docs (#59).
+* Several bug-fixes (#61, #65)
+
 0.2.0 (2018-12-06)
 ==================
 
