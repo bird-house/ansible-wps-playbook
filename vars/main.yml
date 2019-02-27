@@ -4,6 +4,8 @@ miniconda_make_sys_default: False
 # conda
 conda_location: "{{ prefix }}/anaconda"
 conda_envs_dir: "{{ conda_location }}/envs"
+conda_env_use_spec: false
+conda_env_spec_file: spec-file.txt
 # supervisor
 supervisor_user: root
 supervisor_password: 'test'

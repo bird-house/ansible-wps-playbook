@@ -4,7 +4,7 @@
   args:
     chdir: "{{ src_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
-  when: git.changed
+  when: not conda_env_use_spec and git.changed
   register: conda
   tags:
     - pywps
@@ -13,7 +13,18 @@
 - name: Install additional Conda packages.
   command: "{{ conda_location }}/bin/conda install -y -p {{ conda_envs_dir}}/{{ item.name }} gunicorn psycopg2"
   with_items: "{{ wps_services }}"
-  when: conda.changed
+  when: not conda_env_use_spec and conda.changed
+  tags:
+    - pywps
+    - conda
+
+- name: Create Conda environment form spec-file.txt file.
+  command: "{{ conda_location }}/bin/conda create --file {{ conda_env_spec_file }} -p {{ conda_envs_dir}}/{{ item.name }}"
+  args:
+    chdir: "{{ src_dir }}/{{ item.name }}"
+  with_items: "{{ wps_services }}"
+  when: conda_env_use_spec and git.changed
+  register: conda
   tags:
     - pywps
     - conda
