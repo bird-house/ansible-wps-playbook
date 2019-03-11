@@ -5,6 +5,8 @@ wps_enable_https: false
 fs_enabled: false
 # fs_host: "{{ server_name }}"
 # fs_port: 5001
+# Conda spec
+conda_env_use_spec: true
 # Configuration for Emu WPS
 wps_services:
   - name: emu
