@@ -34,7 +34,10 @@ You can set the following option in your ``custom.yml``::
 
 See an example in ``etc/sample-emu-with-conda-spec.yml``.
 
-.. warning:: Conda spec files will work only on a specifc OS, in our case Linux.
+.. warning:: This is option is currently enabled for `all` configured WPS services.
+
+.. note:: Conda spec files will work only on a specifc OS, in our case Linux.
+
 
 .. _`environments`: https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#building-identical-conda-environments
 

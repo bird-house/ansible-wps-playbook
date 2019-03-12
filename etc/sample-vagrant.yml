@@ -6,7 +6,7 @@ fs_enabled: false
 # fs_host: "{{ server_name }}"
 # fs_port: 5001
 # Conda spec
-conda_env_use_spec: true
+# conda_env_use_spec: false
 # Configuration for Emu WPS
 wps_services:
   - name: emu
