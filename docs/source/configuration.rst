@@ -23,6 +23,22 @@ You can also add your custom configurations to the ``etc/`` folder to stay away 
   $ vim etc/custom-emu.yml
   $ ln -s etc/custom-emu.yml custom.yml
 
+Use Conda to build identical environments
+-----------------------------------------
+
+You can use Conda specification files to build identical environments_.
+The WPS service needs to have a specification file, ``spec-file.txt``, in its top level folder.
+You can set the following option in your ``custom.yml``::
+
+  conda_env_use_spec: true
+
+See an example in ``etc/sample-emu-with-conda-spec.yml``.
+
+.. warning:: Conda spec files will work only on a specifc OS, in our case Linux.
+
+.. _`environments`: https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#building-identical-conda-environments
+
+
 Use external PostgreSQL Database
 --------------------------------
 
