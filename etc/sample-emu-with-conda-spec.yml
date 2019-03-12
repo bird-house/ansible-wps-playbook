@@ -1,0 +1,10 @@
+---
+# Conda spec
+conda_env_use_spec: true
+# Configuration for Emu WPS
+wps_services:
+  - name: emu
+    # repo: https://github.com/bird-house/emu.git
+    # version: master
+    hostname: localhost
+    port: 5000
