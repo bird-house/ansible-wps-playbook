@@ -32,7 +32,6 @@ Used roles:
 * supervisor: https://galaxy.ansible.com/geerlingguy/supervisor
 * postgresql: https://galaxy.ansible.com/anxs/postgresql
 * ssl-certs: https://galaxy.ansible.com/jdauphant/ssl-certs
-* mongodb: https://galaxy.ansible.com/undergreen/mongodb
 
 Alternative roles:
 
