@@ -1,0 +1,94 @@
+###
+# app configuration
+# https://docs.pylonsproject.org/projects/pyramid/en/latest/narr/environment.html
+###
+
+[app:main]
+use = egg:pyramid_twitcher
+
+pyramid.reload_templates = false
+pyramid.debug_authorization = false
+pyramid.debug_notfound = false
+pyramid.debug_routematch = false
+pyramid.default_locale_name = en
+
+{% if db_install_sqlite %}
+sqlalchemy.url = sqlite:////var/lib/twitcher/twitcher.sqlite
+{% else %}
+sqlalchemy.url = {{ twitcher_database }}
+{% endif %}
+
+retry.attempts = 3
+
+# twitcher
+{% if twitcher_enable_https %}
+twitcher.url = https://{{ twitcher_hostname }}:{{ twitcher_port }}
+{% else %}
+twitcher.url = http://{{ twitcher_hostname }}:{{ twitcher_port }}
+{% endif %}
+twitcher.rcpinterface = true
+twitcher.username =
+twitcher.password =
+twitcher.ows_security = true
+twitcher.ows_proxy = true
+twitcher.ows_proxy_delegate = false
+twitcher.ows_proxy_protected_path = /ows
+
+###
+# wsgi server configuration
+###
+
+[alembic]
+# path to migration scripts
+script_location = twitcher/alembic
+file_template = %%(year)d%%(month).2d%%(day).2d_%%(rev)s
+# file_template = %%(rev)s_%%(slug)s
+
+[server:main]
+use = egg:gunicorn#main
+bind = unix:/var/run/twitcher.sock
+workers = 3
+preload = true
+reload = true
+accesslog = -
+loglevel = warning
+
+###
+# logging configuration
+# https://docs.pylonsproject.org/projects/pyramid/en/latest/narr/logging.html
+###
+
+[loggers]
+keys = root, twitcher, sqlalchemy
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = INFO
+handlers = console
+
+[logger_twitcher]
+level = DEBUG
+handlers =
+qualname = twitcher
+
+[logger_sqlalchemy]
+level = WARN
+handlers =
+qualname = sqlalchemy.engine
+# "level = INFO" logs SQL queries.
+# "level = DEBUG" logs SQL queries and results.
+# "level = WARN" logs neither.  (Recommended for production systems.)
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(asctime)s %(levelname)-5.5s [%(name)s:%(lineno)s][%(threadName)s] %(message)s

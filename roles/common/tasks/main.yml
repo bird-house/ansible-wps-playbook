@@ -14,19 +14,19 @@
   tags:
     - common
 
-- name: Add WPS group
+- name: Add service group
   group:
-    name: "{{ wps_group }}"
-    gid: "{{ wps_gid | default(omit) }}"
+    name: "{{ service_group }}"
+    gid: "{{ service_gid | default(omit) }}"
     state: present
 
-- name: Add WPS user
+- name: Add service user
   user:
-    name: "{{ wps_user }}"
-    uid: "{{ wps_uid | default(omit) }}"
-    groups: "{{ wps_group }}"
+    name: "{{ service_user }}"
+    uid: "{{ service_uid | default(omit) }}"
+    groups: "{{ service_group }}"
     system: yes
     shell: /sbin/nologin
     createhome: no
-    home: "{{ wps_user_home }}"
-  when: wps_add_user
+    home: "{{ service_user_home }}"
+  when: service_add_user

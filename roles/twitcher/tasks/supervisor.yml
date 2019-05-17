@@ -1,0 +1,9 @@
+---
+- name: Copy supervisord job file
+  template:
+    src: ./templates/supervisor.conf.j2
+    dest: "{{ supervisor_config_path }}/conf.d/twitcher.conf"
+    owner: root
+  tags:
+    - twitcher
+    - conf

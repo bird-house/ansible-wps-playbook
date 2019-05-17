@@ -1,0 +1,8 @@
+---
+- name: Copy twitcher config
+  template:
+    src: ./templates/twitcher.ini.j2
+    dest: "{{ twitcher_ini }}"
+  tags:
+    - twitcher
+    - conf

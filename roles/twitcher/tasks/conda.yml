@@ -1,0 +1,23 @@
+---
+- name: Create Conda environment from environment file.
+  command: "{{ conda_bin }} env update -p {{ conda_envs_dir}}/twitcher"
+  args:
+    chdir: "{{ src_dir }}/twitcher"
+  register: conda_env_twitcher
+  tags:
+    - twitcher
+    - conda
+
+- name: Install additional Conda packages.
+  command: "{{ conda_bin }} install -y -p {{ conda_envs_dir}}/twitcher gunicorn psycopg2"
+  when: conda_env_twitcher.changed
+  tags:
+    - twitcher
+    - conda
+
+- name: Install twitcher with pip
+  command: "{{ conda_envs_dir }}/twitcher/bin/pip install -e {{ src_dir }}/twitcher"
+  register: conda
+  tags:
+    - twitcher
+    - conda

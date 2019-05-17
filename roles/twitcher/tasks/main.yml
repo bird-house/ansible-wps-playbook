@@ -1,0 +1,43 @@
+---
+- include: source.yml
+  when: twitcher_enabled
+
+- include: conda.yml
+  when: twitcher_enabled
+
+- include: folders.yml
+  when: twitcher_enabled
+
+- include: config.yml
+  when: twitcher_enabled
+
+- include: db.yml
+  when: twitcher_enabled
+
+- include: sqlite.yml
+  when: twitcher_enabled and db_install_sqlite
+
+- include: supervisor.yml
+  when: twitcher_enabled
+
+- include: nginx.yml
+  when: twitcher_enabled
+
+- name: Assure Twitcher running at end of playbook
+  command: /bin/true
+  notify:
+    - restart twitcher
+  tags:
+    - twitcher
+    - conda
+    - conf
+  when: twitcher_enabled
+
+- name: Assure nginx running at end of playbook
+  command: /bin/true
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - conf
+  when: twitcher_enabled

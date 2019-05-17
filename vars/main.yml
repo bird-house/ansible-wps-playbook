@@ -3,6 +3,7 @@ miniconda_parent_dir: "{{ prefix }}"
 miniconda_make_sys_default: False
 # conda
 conda_location: "{{ prefix }}/anaconda"
+conda_bin: "{{ conda_location }}/bin/conda"
 conda_envs_dir: "{{ conda_location }}/envs"
 conda_env_use_spec: false
 conda_env_spec_file: spec-file.txt
@@ -15,11 +16,12 @@ supervisor_unix_http_server_enable: true
 supervisor_inet_http_server_enable: false
 supervisor_inet_http_server_port: '*:9001'
 # nginx
-nginx_user: "{{ wps_user }} {{ wps_group }}"
+nginx_user: "{{ service_user }} {{ service_group }}"
 nginx_remove_default_vhost: True
 # postgres
 postgresql_databases:
-  - name:  "{{ db_name }}"
+  - name:  "pywps"
+  - name: "twitcher"
 postgresql_users:
   - name: "{{ db_user }}"
     pass: "{{ db_password }}"
@@ -27,8 +29,29 @@ postgresql_listen_addresses:
   - "{{ db_host }}"
 postgresql_port: "{{ db_port }}"
 # ssl-certs
-ssl_certs_path_owner: "{{ wps_user }}"
-ssl_certs_path_group: "{{ wps_group }}"
+ssl_certs_path_owner: "{{ service_user }}"
+ssl_certs_path_group: "{{ service_group }}"
 ssl_certs_cacert_path: "{{ ssl_certs_path }}/cacert.crt"
 ssl_certs_verify_client: "optional"
 ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"
+# pywps
+wps_user: "{{ service_user }}"
+wps_group: "{{ service_group }}"
+wps_enable_https: "{{ service_enable_https }}"
+# twitcher
+twitcher_version: "master"
+twitcher_user: "{{ service_user }}"
+twitcher_group: "{{ service_group }}"
+twitcher_hostname: "{{ server_name }}"
+twitcher_port: 8000
+twitcher_enable_https: "{{ service_enable_https }}"
+twitcher_ini: "/etc/twitcher.ini"
+twitcher_rpcinterface: true
+twitcher_username: ''
+twitcher_password: ''
+twitcher_ows_security: true
+twitcher_ows_proxy: true
+twitcher_ows_proxy_delegate: false
+twitcher_ows_proxy_url: true
+twitcher_ows_proxy_protected_path: "/ows"
+twitcher_ssl_verify_client: "optional"
