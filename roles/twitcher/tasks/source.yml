@@ -1,0 +1,12 @@
+---
+- name: Clone Twitcher.
+  git:
+    repo: "https://github.com/bird-house/twitcher"
+    version: "{{ twitcher_version }}"
+    dest: "{{ src_dir }}/twitcher"
+    update: yes
+    force: yes
+  register: git
+  tags:
+    - twitcher
+    - git

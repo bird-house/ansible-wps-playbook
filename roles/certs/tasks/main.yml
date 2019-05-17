@@ -5,4 +5,4 @@
     mode: 0440
   tags:
     nginx
-  when: wps_enable_https
+  when: service_enable_https

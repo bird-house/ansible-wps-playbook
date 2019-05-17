@@ -1,0 +1,6 @@
+---
+- name: Update sqlite db file permissions
+  file: path="/var/lib/twitcher/twitcher.sqlite" state=touch owner={{ twitcher_user }} group={{ twitcher_group }} mode=0644
+  tags:
+    - twitcher
+    - conf

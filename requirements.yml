@@ -2,20 +2,20 @@
 
 # miniconda
 # ---------
-# - src: andrewrothstein.miniconda
-- src: https://github.com/andrewrothstein/ansible-miniconda/archive/v5.2.1.tar.gz
+#- src: andrewrothstein.miniconda
+- src: https://github.com/andrewrothstein/ansible-miniconda/archive/v5.2.4.tar.gz
   name: andrewrothstein.miniconda
-# - src: andrewrothstein.bash
-- src: https://github.com/andrewrothstein/ansible-bash/archive/v1.1.1.tar.gz
+#- src: andrewrothstein.bash
+- src: https://github.com/andrewrothstein/ansible-bash/archive/v1.1.2.tar.gz
   name: andrewrothstein.bash
-# - src: andrewrothstein.unarchive-deps
-- src: https://github.com/andrewrothstein/ansible-unarchive-deps/archive/v1.0.10.tar.gz
+#- src: andrewrothstein.unarchive-deps
+- src: https://github.com/andrewrothstein/ansible-unarchive-deps/archive/v1.0.11.tar.gz
   name: andrewrothstein.unarchive-deps
 
 # epel
 # ----
 # Installs the EPEL repository (Extra Packages for Enterprise Linux) for RHEL/CentOS.
-# - src: geerlingguy.repo-epel
+#- src: geerlingguy.repo-epel
 - src: https://github.com/geerlingguy/ansible-role-repo-epel/archive/1.2.3.tar.gz
   name: geerlingguy.repo-epel
 
@@ -27,24 +27,24 @@
 
 # supervisor
 # ----------
-# - src: geerlingguy.supervisor
+#- src: geerlingguy.supervisor
 - src: https://github.com/geerlingguy/ansible-role-supervisor/archive/2.0.2.tar.gz
   name: geerlingguy.supervisor
 
 # nginx
 # -----
-# - src: geerlingguy.nginx
+#- src: geerlingguy.nginx
 - src: https://github.com/geerlingguy/ansible-role-nginx/archive/2.6.2.tar.gz
   name: geerlingguy.nginx
 
 # postgresql
 # ----------
-# - src: ANXS.postgresql
+#- src: ANXS.postgresql
 - src: https://github.com/ANXS/postgresql/archive/v1.10.1.tar.gz
   name: ANXS.postgresql
 
 # ssl-certs
 # ---------
-# - src: jdauphant.ssl-certs
-- src: https://github.com/jdauphant/ansible-role-ssl-certs/archive/v1.7.tar.gz
+#- src: jdauphant.ssl-certs
+- src: https://github.com/jdauphant/ansible-role-ssl-certs/archive/v1.7.1.tar.gz
   name: jdauphant.ssl-certs
