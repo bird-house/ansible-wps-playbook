@@ -46,7 +46,7 @@ file_template = %%(year)d%%(month).2d%%(day).2d_%%(rev)s
 
 [server:main]
 use = egg:gunicorn#main
-bind = unix:/var/run/twitcher.sock
+bind = {{ twitcher_bind }}
 workers = 3
 preload = true
 reload = true

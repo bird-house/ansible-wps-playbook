@@ -5,7 +5,6 @@
     - /etc/gunicorn
     - /etc/pywps
     - /var/log/pywps
-    - /var/run/pywps
     - /var/lib/pywps/db
   tags:
     - pywps

@@ -1,4 +1,4 @@
-bind = 'unix:///var/run/pywps/{{ item.name }}.socket'
+bind = 'unix:///var/lib/pywps/{{ item.name }}.sock'
 workers = 3
 worker_class = 'sync'
 
@@ -8,7 +8,7 @@ raw_env = [
 ]
 
 # logging
-debug = True
+accesslog = '-'
 errorlog = '-'
 loglevel = 'INFO'
-accesslog = '-'
+capture_output = True

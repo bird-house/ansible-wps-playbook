@@ -55,3 +55,4 @@ twitcher_ows_proxy_delegate: false
 twitcher_ows_proxy_url: true
 twitcher_ows_proxy_protected_path: "/ows"
 twitcher_ssl_verify_client: "optional"
+twitcher_bind: "unix:/var/lib/twitcher/twitcher.sock"
