@@ -1,6 +1,6 @@
 # Twitcher: a pyramid app for ows proxy
 upstream twitcher {
-    server unix:/var/run/twitcher.sock fail_timeout=0;
+    server {{ twitcher_bind }} fail_timeout=0;
 }
 
 # https server
