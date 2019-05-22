@@ -4,6 +4,7 @@
   with_items:
     - /etc/gunicorn
     - /etc/pywps
+    - "{{ wps_run_dir }}"
     - /var/log/pywps
     - /var/lib/pywps/db
   tags:
