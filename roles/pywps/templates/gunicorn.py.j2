@@ -1,4 +1,4 @@
-bind = 'unix:///var/lib/pywps/{{ item.name }}.sock'
+bind = 'unix://{{ wps_run_dir }}/{{ item.name }}.sock'
 workers = 3
 worker_class = 'sync'
 

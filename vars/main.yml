@@ -39,6 +39,7 @@ ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/ce
 wps_user: "{{ service_user }}"
 wps_group: "{{ service_group }}"
 wps_enable_https: "{{ service_enable_https }}"
+wps_run_dir: /run/pywps
 # twitcher
 twitcher_version: "master"
 twitcher_user: "{{ service_user }}"
@@ -56,4 +57,5 @@ twitcher_ows_proxy_delegate: false
 twitcher_ows_proxy_url: true
 twitcher_ows_proxy_protected_path: "/ows"
 twitcher_ssl_verify_client: "optional"
-twitcher_bind: "unix:/var/lib/twitcher/twitcher.sock"
+twitcher_run_dir: /run/twitcher
+twitcher_bind: "unix:{{ twitcher_run_dir }}/twitcher.sock"

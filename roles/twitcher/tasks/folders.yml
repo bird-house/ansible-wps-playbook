@@ -2,6 +2,7 @@
 - name: Create folders used by twitcher and set owner
   file: path={{ item }} state=directory owner={{ twitcher_user }} group={{ twitcher_group }} mode=0755
   with_items:
+    - "{{ twitcher_run_dir }}"
     - /var/lib/twitcher
   tags:
     - twitcher
