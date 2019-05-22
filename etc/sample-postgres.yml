@@ -1,0 +1,16 @@
+---
+# Use postgres db
+db_install_postgresql: true
+db_install_sqlite: false
+# optional: set db user
+db_user: dbuser
+db_password: dbuser
+# or use only db connect parameter
+wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/pywps"
+# Configuration for Emu WPS
+wps_services:
+  - name: emu
+    # repo: https://github.com/bird-house/emu.git
+    # version: master
+    hostname: localhost
+    port: 5000
