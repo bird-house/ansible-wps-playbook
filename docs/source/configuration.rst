@@ -23,6 +23,7 @@ You can also add your custom configurations to the ``etc/`` folder to stay away 
   $ vim etc/custom-emu.yml
   $ ln -s etc/custom-emu.yml custom.yml
 
+
 Use Conda to build identical environments
 -----------------------------------------
 
@@ -42,17 +43,44 @@ See an example in ``etc/sample-emu-with-conda-spec.yml``.
 .. _`environments`: https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#building-identical-conda-environments
 
 
+Use sqlite Database
+-------------------
+
+You can use a SQLite_ database with the following settings::
+
+  db_install_postgresql: false
+  db_install_sqlite: true
+
+See an example in ``etc/sample-sqlite.yml``.
+
+Use PostgreSQL Database installed by playbook
+---------------------------------------------
+
+By default the playbook will install a PostgreSQL_ database.
+You can customize the installation. For example you can configure a database user::
+
+  db_user: dbuser
+  db_password: dbuser
+
+See an example in ``etc/sample-postgres.yml``.
+
+.. warning::
+
+  When you change the database user for an existing database
+  the table owners will not be updated.
+
 Use external PostgreSQL Database
 --------------------------------
 
-By default the playbook will install a PostgreSQL_ database. If you want to use an
-existing database you can skip the installation by setting the variable::
+If you want to use an existing database you can skip the database installation by setting the variable::
 
   db_install_postgresql: false
 
 You need to configure then the database connection string to your external database::
 
   wps_database: "postgresql+psycopg2://user:password@host:5432/pywps"
+
+See an example in ``etc/sample-postgres.yml``.
 
 Install multiple PyWPS applications
 -----------------------------------

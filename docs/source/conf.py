@@ -172,6 +172,7 @@ rst_epilog = """
 .. _Ansible: https://www.ansible.com/
 .. _Vagrant: https://www.vagrantup.com/
 .. _PostgreSQL: https://www.postgresql.org/
+.. _SQLite: https://sqlite.org/index.html
 .. _Supervisor: http://supervisord.org/
 """
 
