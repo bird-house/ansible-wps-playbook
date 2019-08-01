@@ -16,7 +16,7 @@ wps_services:
     port: 5000
     outputurl: "https://{{ server_name }}/outputs/emu"
 # twitcher
-twitcher_version: "dev-oauth"
+twitcher_version: "master"
 twitcher_enabled: true
 twitcher_hostname: "{{ server_name }}"
 twitcher_port: 443
