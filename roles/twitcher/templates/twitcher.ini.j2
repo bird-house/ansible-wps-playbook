@@ -26,13 +26,20 @@ twitcher.url = https://{{ twitcher_hostname }}:{{ twitcher_port }}
 {% else %}
 twitcher.url = http://{{ twitcher_hostname }}:{{ twitcher_port }}
 {% endif %}
-twitcher.rcpinterface = true
-twitcher.username =
-twitcher.password =
-twitcher.ows_security = true
-twitcher.ows_proxy = true
-twitcher.ows_proxy_delegate = false
-twitcher.ows_proxy_protected_path = /ows
+twitcher.adapter = default
+twitcher.username = {{ twitcher_username }}
+twitcher.password = {{ twitcher_password }}
+twitcher.ows_proxy = {{ twitcher_ows_proxy }}
+twitcher.ows_proxy_protected_path = {{ twitcher_ows_proxy_protected_path }}
+# available types: default, random_token, signed_token, custom_token
+twitcher.token.type = {{ twitcher_token_type }}
+# run "make gencert"
+twitcher.token.keyfile = {{ twitcher_token_keyfile }}
+twitcher.token.certfile = {{ twitcher_token_certfile }}
+twitcher.token.expires_in = {{ twitcher_token_expires_in }}
+twitcher.token.issuer = {{ twitcher_token_issuer }}
+# run "make gensecret"
+twitcher.token.secret = {{ twitcher_token_secret }}
 
 ###
 # wsgi server configuration

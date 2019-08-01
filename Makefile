@@ -22,13 +22,13 @@ roles:
 	@echo "Installing required Ansible roles from ansible-galaxy ..."
 	ansible-galaxy install -p roles -r requirements.yml
 
+.PHONY: quick
+quick: roles
+	echo "Installing PyWPS application with Ansible [skip conda tasks] ..."
+	ansible-playbook -c local --skip conda playbook.yml
+
 .PHONY: play
 play: roles
-	echo "Installing PyWPS application with Ansible [skip optional tasks] ..."
-	ansible-playbook -c local playbook.yml
-
-.PHONY: play_all
-play_all: roles
 	echo "Installing PyWPS application with Ansible [all tasks] ..."
 	ansible-playbook -c local playbook.yml
 

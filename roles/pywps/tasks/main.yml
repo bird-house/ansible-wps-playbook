@@ -19,7 +19,6 @@
     - restart pywps
   tags:
     - pywps
-    - conda
     - conf
 
 - name: Assure nginx running at end of playbook

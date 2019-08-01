@@ -8,6 +8,7 @@ service_add_user: true
 service_user: wps
 # service_uid: 500
 service_group: "{{ service_user }}"
+service_groups: "{{ service_group }}"
 # service_gid: 100
 service_user_home: /var/lib/pywps
 # https
@@ -49,3 +50,4 @@ wps_services: []
 # twitcher
 twitcher_enabled: false
 twitcher_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/twitcher"
+twitcher_output_url: "http://{{ fs_host }}:{{ fs_port }}/outputs"

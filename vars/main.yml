@@ -17,7 +17,7 @@ supervisor_inet_http_server_enable: false
 supervisor_inet_http_server_port: '*:9001'
 # nginx
 nginx_user: "{{ service_user }} {{ service_group }}"
-nginx_remove_default_vhost: True
+nginx_remove_default_vhost: true
 # postgres
 postgresql_databases:
   - name:  "pywps"
@@ -38,7 +38,7 @@ ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/ce
 # pywps
 wps_user: "{{ service_user }}"
 wps_group: "{{ service_group }}"
-wps_enable_https: "{{ service_enable_https }}"
+wps_enable_https: false
 wps_run_dir: /run/pywps
 # twitcher
 twitcher_version: "master"
@@ -46,16 +46,18 @@ twitcher_user: "{{ service_user }}"
 twitcher_group: "{{ service_group }}"
 twitcher_hostname: "{{ server_name }}"
 twitcher_port: 8000
-twitcher_enable_https: "{{ service_enable_https }}"
+twitcher_enable_https: true
 twitcher_ini: "/etc/twitcher.ini"
-twitcher_rpcinterface: true
-twitcher_username: ''
-twitcher_password: ''
-twitcher_ows_security: true
+twitcher_username: 'demo'
+twitcher_password: 'demo'
 twitcher_ows_proxy: true
-twitcher_ows_proxy_delegate: false
-twitcher_ows_proxy_url: true
 twitcher_ows_proxy_protected_path: "/ows"
+twitcher_token_type: 'random_token'
+twitcher_token_keyfile: 'key.pem'
+twitcher_token_certfile: 'cert.pem'
+twitcher_token_expires_in: 3600
+twitcher_token_issuer: 'twitcher'
+twitcher_token_secret: '8aa3d8b07a374d3eb0c47c7464da7cb5'
 twitcher_ssl_verify_client: "optional"
 twitcher_run_dir: /run/twitcher
 twitcher_bind: "unix:{{ twitcher_run_dir }}/twitcher.sock"
