@@ -1,3 +1,4 @@
 #!/bin/bash
+{% set _app = item.app | default(item.name+":application") %}
 source {{ conda_location }}/bin/activate {{ item.name }}
-gunicorn -c /etc/gunicorn/{{ item.name }}.py {{ item.name }}:application
+gunicorn -c /etc/gunicorn/{{ item.name }}.py {{ _app }}

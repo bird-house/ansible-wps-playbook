@@ -43,4 +43,9 @@ server
         proxy_redirect          off;
     }
 
+    location /outputs
+    {
+        proxy_pass              {{ twitcher_output_url }};
+    }
+
 }

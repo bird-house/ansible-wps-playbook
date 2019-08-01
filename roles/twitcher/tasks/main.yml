@@ -29,7 +29,6 @@
     - restart twitcher
   tags:
     - twitcher
-    - conda
     - conf
   when: twitcher_enabled
 

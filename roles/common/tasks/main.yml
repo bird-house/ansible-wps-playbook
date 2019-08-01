@@ -24,7 +24,8 @@
   user:
     name: "{{ service_user }}"
     uid: "{{ service_uid | default(omit) }}"
-    groups: "{{ service_group }}"
+    group: "{{ service_group }}"
+    groups: "{{ service_groups }}"
     system: yes
     shell: /sbin/nologin
     createhome: no
