@@ -1,6 +1,18 @@
 Changes
 *******
 
+0.2.2 (2019-09-27)
+==================
+
+Bucharest Release.
+
+Changes:
+
+* Initial twitcher support (#82, #76).
+* Updated docs for DB config (#79).
+* Support conda spec (#74).
+* Fixes (#80, #81).
+
 0.2.1 (2019-02-05)
 ==================
 
