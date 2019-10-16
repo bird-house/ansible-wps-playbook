@@ -1,4 +1,6 @@
 ---
+db_install_postgresql: false
+db_install_sqlite: true
 # Configuration for Emu WPS
 wps_services:
   - name: emu
