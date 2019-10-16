@@ -1,11 +1,10 @@
 ---
 server_name: 192.168.128.100
-service_enable_https: false
 db_install_postgresql: true
 db_install_sqlite: false
 #db_user: dbuser
 #db_password: dbuser
-# wps_enable_https: false
+wps_enable_https: false
 # Enable separate Fileserver for WPS outputs
 # fs_enabled: false
 # fs_host: "{{ server_name }}"
@@ -18,9 +17,7 @@ wps_services:
     hostname: "{{ server_name }}"
     fs_hostname: "{{ server_name }}"
     port: 5000
-    extra_config: |
-      [data]
-      cache_path = /tmp/cache
 # twitcher
 twitcher_enabled: false
-#twitcher_enable_https: false
+twitcher_enable_https: false
+ssl_certs_enable_verify_client: false

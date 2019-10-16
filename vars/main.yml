@@ -35,6 +35,7 @@ ssl_certs_path_group: "{{ service_group }}"
 ssl_certs_cacert_path: "{{ ssl_certs_path }}/cacert.crt"
 ssl_certs_verify_client: "optional"
 ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"
+ssl_certs_enable_verify_client: false
 # pywps
 wps_user: "{{ service_user }}"
 wps_group: "{{ service_group }}"
@@ -58,6 +59,5 @@ twitcher_token_certfile: 'cert.pem'
 twitcher_token_expires_in: 3600
 twitcher_token_issuer: 'twitcher'
 twitcher_token_secret: '8aa3d8b07a374d3eb0c47c7464da7cb5'
-twitcher_ssl_verify_client: "optional"
 twitcher_run_dir: /run/twitcher
 twitcher_bind: "unix:{{ twitcher_run_dir }}/twitcher.sock"
