@@ -14,10 +14,6 @@ server {
     {% if wps_enable_https %}
     ssl_certificate        {{ ssl_certs_cert_path }};
     ssl_certificate_key    {{ ssl_certs_privkey_path }};
-    #ssl_crl               ca.crl;
-    ssl_client_certificate {{ ssl_certs_cacert_path }};
-    ssl_verify_client      {{ ssl_certs_verify_client }};
-    ssl_verify_depth       2;
     {% endif %}
 
     # better to redirect / to wps application

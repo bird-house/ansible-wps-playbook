@@ -26,8 +26,6 @@
     - role: jdauphant.ssl-certs
       tags:
         nginx
-      when: service_enable_https
-    - certs
     - role: geerlingguy.nginx
       tags:
         nginx

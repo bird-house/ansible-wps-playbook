@@ -117,8 +117,14 @@ is also activated.
 
 Edit the following variables to change the behaviour::
 
+  ssl_certs_enable_verify_client: true
   ssl_certs_verify_client: "optional"
   ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"
+
+This behaviour is only available for twitcher::
+
+  twitcher_enabled: true
+  twitcher_enable_https: true
 
 Extend PyWPS configuration
 --------------------------

@@ -5,4 +5,4 @@
     mode: 0440
   tags:
     nginx
-  when: service_enable_https
+  when: twitcher_enable_https and ssl_certs_enable_verify_client

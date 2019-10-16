@@ -20,6 +20,9 @@
 - include: supervisor.yml
   when: twitcher_enabled
 
+- include: certs.yml
+  when: twitcher_enabled
+
 - include: nginx.yml
   when: twitcher_enabled
 

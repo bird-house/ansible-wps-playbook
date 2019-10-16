@@ -20,10 +20,11 @@ server
     ssl_ciphers         HIGH:!aNULL:!MD5;
     ssl_session_cache   shared:SSL:1m;
     ssl_session_timeout 1m;
-    #ssl_crl               ca.crl;
+    {% if ssl_certs_enable_verify_client %}
     ssl_client_certificate {{ ssl_certs_cacert_path }};
     ssl_verify_client      {{ ssl_certs_verify_client }};
-    ssl_verify_depth       2;
+    ssl_verify_depth       3;
+    {% endif %}
     {% endif %}
 
     # app
