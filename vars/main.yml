@@ -25,7 +25,7 @@ postgresql_databases:
 postgresql_users:
   - name: "{{ db_user }}"
     pass: "{{ db_password }}"
-    encrypted: no  # encryption necessary for postgres>=10.0.
+    encrypted: yes  # encryption necessary for postgres>=10.0.
 postgresql_listen_addresses:
   - "{{ db_host }}"
 postgresql_port: "{{ db_port }}"

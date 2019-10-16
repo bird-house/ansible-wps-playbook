@@ -1,8 +1,8 @@
 ---
 server_name: 192.168.128.100
 service_enable_https: false
-db_install_postgresql: false
-db_install_sqlite: true
+db_install_postgresql: true
+db_install_sqlite: false
 #db_user: dbuser
 #db_password: dbuser
 # wps_enable_https: false
