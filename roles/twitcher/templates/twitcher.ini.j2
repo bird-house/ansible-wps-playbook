@@ -31,7 +31,7 @@ twitcher.username = {{ twitcher_username }}
 twitcher.password = {{ twitcher_password }}
 twitcher.ows_proxy = {{ twitcher_ows_proxy }}
 twitcher.ows_proxy_protected_path = {{ twitcher_ows_proxy_protected_path }}
-# available types: default, random_token, signed_token, custom_token
+# available types: random_token, signed_token, custom_token, keycloak_token
 twitcher.token.type = {{ twitcher_token_type }}
 # run "make gencert"
 twitcher.token.keyfile = {{ twitcher_token_keyfile }}
@@ -40,6 +40,10 @@ twitcher.token.expires_in = {{ twitcher_token_expires_in }}
 twitcher.token.issuer = {{ twitcher_token_issuer }}
 # run "make gensecret"
 twitcher.token.secret = {{ twitcher_token_secret }}
+
+# keycloak
+keycloak.url = {{ keycloak_url }}
+keycloak.token.secret = {{ keycloak_token_secret }}
 
 ###
 # wsgi server configuration

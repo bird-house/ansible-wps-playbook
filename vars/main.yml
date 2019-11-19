@@ -61,3 +61,6 @@ twitcher_token_issuer: 'twitcher'
 twitcher_token_secret: '8aa3d8b07a374d3eb0c47c7464da7cb5'
 twitcher_run_dir: /run/twitcher
 twitcher_bind: "unix:{{ twitcher_run_dir }}/twitcher.sock"
+# twitcher keycloak
+keycloak_url: "http://localhost:8080"
+keycloak_token_secret: "public_key_from_keycloak"

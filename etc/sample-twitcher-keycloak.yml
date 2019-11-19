@@ -1,0 +1,13 @@
+---
+server_name: 192.168.128.100
+db_install_postgresql: true
+db_install_sqlite: false
+# twitcher
+twitcher_version: "master"
+twitcher_enabled: true
+twitcher_hostname: "{{ server_name }}"
+twitcher_port: 443
+twitcher_enable_https: true
+twitcher_token_type: 'keycloak_token'
+keycloak_url: 'http://localhost:8080'
+keycloak_token_secret: 'public_key_from_keycloak'
