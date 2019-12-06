@@ -1,7 +1,7 @@
 # miniconda
 miniconda_parent_dir: "{{ prefix }}"
 miniconda_make_sys_default: False
-miniconda_ver: '4.6.14'
+# miniconda_ver: '4.7.12.1'
 # conda
 conda_location: "{{ prefix }}/anaconda"
 conda_bin: "{{ conda_location }}/bin/conda"
