@@ -17,7 +17,3 @@ wps_services:
     hostname: "{{ server_name }}"
     fs_hostname: "{{ server_name }}"
     port: 5000
-# twitcher
-twitcher_enabled: false
-twitcher_enable_https: false
-ssl_certs_enable_verify_client: false

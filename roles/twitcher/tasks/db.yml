@@ -1,8 +1,0 @@
----
-- name: Migrate database.
-  command: "{{ conda_envs_dir }}/twitcher/bin/alembic -c {{ twitcher_ini }} upgrade head"
-  args:
-    chdir: "{{ src_dir }}/twitcher"
-  register: twitcher_db
-  tags:
-    - twitcher

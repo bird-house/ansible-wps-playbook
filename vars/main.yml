@@ -22,7 +22,6 @@ nginx_remove_default_vhost: true
 # postgres
 postgresql_databases:
   - name:  "pywps"
-  - name: "twitcher"
 postgresql_users:
   - name: "{{ db_user }}"
     pass: "{{ db_password }}"
@@ -42,26 +41,3 @@ wps_user: "{{ service_user }}"
 wps_group: "{{ service_group }}"
 wps_enable_https: false
 wps_run_dir: /run/pywps
-# twitcher
-twitcher_version: "master"
-twitcher_user: "{{ service_user }}"
-twitcher_group: "{{ service_group }}"
-twitcher_hostname: "{{ server_name }}"
-twitcher_port: 8000
-twitcher_enable_https: true
-twitcher_ini: "/etc/twitcher.ini"
-twitcher_username: 'demo'
-twitcher_password: 'demo'
-twitcher_ows_proxy: true
-twitcher_ows_proxy_protected_path: "/ows"
-twitcher_token_type: 'random_token'
-twitcher_token_keyfile: 'key.pem'
-twitcher_token_certfile: 'cert.pem'
-twitcher_token_expires_in: 3600
-twitcher_token_issuer: 'twitcher'
-twitcher_token_secret: '8aa3d8b07a374d3eb0c47c7464da7cb5'
-twitcher_run_dir: /run/twitcher
-twitcher_bind: "unix:{{ twitcher_run_dir }}/twitcher.sock"
-# twitcher keycloak
-keycloak_url: "http://localhost:8080"
-keycloak_token_secret: "public_key_from_keycloak"

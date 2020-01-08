@@ -1,8 +1,0 @@
-- name: Download esgf-ca-bundle.crt
-  get_url:
-    url: "{{ ssl_certs_cacert_url }}"
-    dest:  "{{ ssl_certs_cacert_path }}"
-    mode: 0440
-  tags:
-    nginx
-  when: twitcher_enable_https and ssl_certs_enable_verify_client

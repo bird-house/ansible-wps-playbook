@@ -44,8 +44,3 @@ wps_services: []
   #   extra_config: |
   #     [data]
   #     cache_path = /tmp
-
-# twitcher
-twitcher_enabled: false
-twitcher_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/twitcher"
-twitcher_output_url: "http://{{ fs_host }}:{{ fs_port }}/outputs"
