@@ -1,6 +1,16 @@
 Changes
 *******
 
+0.2.3 (2020-01-08)
+==================
+
+Changes:
+
+* Added Keycloak support for Twitcher (#87).
+* Fixed SSL client verification (#86).
+* Fixed postgres user config (#85).
+* Don't pin roles version (#84).
+
 0.2.2 (2019-09-27)
 ==================
 
