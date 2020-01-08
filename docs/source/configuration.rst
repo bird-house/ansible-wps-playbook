@@ -109,23 +109,6 @@ You can also provide your own certificate by setting the following variables::
 
 Read the `ssl-certs role <https://galaxy.ansible.com/jdauphant/ssl-certs>`_ documentation for details.
 
-Use HTTPS with client certificate validation
---------------------------------------------
-
-When HTTPS is enabled (see above) then *optional* client certificate validation for ESGF certificates
-is also activated.
-
-Edit the following variables to change the behaviour::
-
-  ssl_certs_enable_verify_client: true
-  ssl_certs_verify_client: "optional"
-  ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"
-
-This behaviour is only available for twitcher::
-
-  twitcher_enabled: true
-  twitcher_enable_https: true
-
 Extend PyWPS configuration
 --------------------------
 

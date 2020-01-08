@@ -1,8 +1,0 @@
----
-- name: Copy nginx config to remote
-  template:
-    src: ./templates/nginx.conf.j2
-    dest: "{{ nginx_conf_path }}/twitcher.conf"
-  tags:
-    - twitcher
-    - conf
