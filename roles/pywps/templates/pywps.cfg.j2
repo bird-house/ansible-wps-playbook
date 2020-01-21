@@ -1,4 +1,5 @@
 [server]
+processes = {{ item.name }}.processes.processes
 {% if wps_enable_https %}
 {% set _protocol = 'https' %}
 {% else %}
