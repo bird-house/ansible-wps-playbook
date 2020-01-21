@@ -1,0 +1,6 @@
+---
+- name: Migrate database.
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pywps -c /etc/pywps/{{ item.name }}.cfg migrate"
+  with_items: "{{ wps_services }}"
+  tags:
+    - pywps

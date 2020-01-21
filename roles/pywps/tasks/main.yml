@@ -10,6 +10,8 @@
 
 - include: config.yml
 
+- include: db.yml
+
 - include: fileserver.yml
   when: fs_enabled
 
