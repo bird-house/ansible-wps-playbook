@@ -8,3 +8,14 @@ redirect_stderr=true
 stdout_logfile=/var/log/supervisor/{{ item.name }}.log
 killasgroup=false
 stopasgroup=false
+
+[program:{{ item.name }}_queue]
+user={{ wps_user }}
+command={{ conda_envs_dir}}/{{ item.name }}/bin/pywps -c /etc/pywps/{{ item.name }}.cfg jobqueue
+autostart=true
+autorestart=false
+directory={{ src_dir }}/{{ item.name }}
+redirect_stderr=true
+stdout_logfile=/var/log/supervisor/{{ item.name }}_queue.log
+killasgroup=false
+stopasgroup=false

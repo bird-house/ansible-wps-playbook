@@ -1,0 +1,8 @@
+---
+- name: Install app.
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/python setup.py install"
+  args:
+    chdir: "{{ src_dir }}/{{ item.name }}"
+  with_items: "{{ wps_services }}"
+  tags:
+    - pywps

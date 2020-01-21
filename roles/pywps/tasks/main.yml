@@ -3,6 +3,8 @@
 
 - include: conda.yml
 
+- include: install.yml
+
 - include: folders.yml
 
 - include: sqlite.yml
