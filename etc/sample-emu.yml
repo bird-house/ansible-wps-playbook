@@ -4,7 +4,7 @@ db_install_sqlite: false
 # Configuration for Emu WPS
 wps_services:
   - name: emu
-    # repo: https://github.com/bird-house/emu.git
-    # version: master
+    repo: https://github.com/bird-house/emu.git
+    version: watchdog
     hostname: localhost
     port: 5000

@@ -14,6 +14,8 @@ wps_enable_https: false
 # Configuration for Emu WPS
 wps_services:
   - name: emu
+    repo: https://github.com/bird-house/emu.git
+    version: watchdog
     hostname: "{{ server_name }}"
     fs_hostname: "{{ server_name }}"
     port: 5000
