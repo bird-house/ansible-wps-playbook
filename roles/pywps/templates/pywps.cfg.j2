@@ -41,4 +41,4 @@ format = %(asctime)s] [%(levelname)s] %(message)s
 {% endif %}
 
 [jobqueue]
-pause = 5
+pause = {{ item.jobqueue_pause | default('30') }}
