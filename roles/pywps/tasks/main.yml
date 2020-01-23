@@ -1,4 +1,6 @@
 ---
+- include: locales.yml
+
 - include: source.yml
 
 - include: conda.yml
