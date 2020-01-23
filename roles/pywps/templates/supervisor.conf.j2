@@ -11,7 +11,8 @@ stopasgroup=false
 
 [program:{{ item.name }}_queue]
 user={{ wps_user }}
-command={{ conda_envs_dir}}/{{ item.name }}/bin/pywps -c /etc/pywps/{{ item.name }}.cfg jobqueue
+environment=PYWPS_CFG="/etc/pywps/{{ item.name }}.cfg"
+command={{ conda_envs_dir}}/{{ item.name }}/bin/pywps jobqueue
 autostart=true
 autorestart=false
 directory={{ src_dir }}/{{ item.name }}
