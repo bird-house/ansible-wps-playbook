@@ -1,6 +1,7 @@
+{% set _app = item.app | default(item.name+":application") %}
 [program:{{ item.name }}]
 user={{ wps_user }}
-command=bash run.sh
+command={{ conda_envs_dir}}/{{ item.name }}/bin/gunicorn -c /etc/gunicorn/{{ item.name }}.py {{ _app }}
 autostart=true
 autorestart=false
 directory={{ src_dir }}/{{ item.name }}

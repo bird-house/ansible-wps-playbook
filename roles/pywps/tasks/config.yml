@@ -47,14 +47,3 @@
   tags:
     - pywps
     - conf
-
-- name: Copy start script to source folder
-  template:
-    src: ./templates/run.sh.j2
-    dest: "{{ src_dir }}/{{ item.name }}/run.sh"
-    owner: root
-  with_items:
-    - "{{ wps_services }}"
-  tags:
-    - pywps
-    - conf
