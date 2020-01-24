@@ -2,6 +2,7 @@
 server_name: 192.168.128.100
 db_install_postgresql: true
 db_install_sqlite: false
+db_force_migrate: true
 #db_user: dbuser
 #db_password: dbuser
 wps_enable_https: false

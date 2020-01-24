@@ -1,6 +1,11 @@
 ---
+- set_fact:
+    migrate_options: '--force'
+  when: db_force_migrate
+
+
 - name: Migrate database.
-  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pywps -c /etc/pywps/{{ item.name }}.cfg migrate"
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pywps -c /etc/pywps/{{ item.name }}.cfg migrate {{ migrate_options | default('') }}"
   with_items: "{{ wps_services }}"
   tags:
     - pywps
