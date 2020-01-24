@@ -1,5 +1,5 @@
 ---
-- include: locales.yml
+#- include: locales.yml
 
 - include: source.yml
 
