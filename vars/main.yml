@@ -19,6 +19,11 @@ supervisor_inet_http_server_port: '*:9001'
 # nginx
 nginx_user: "{{ service_user }} {{ service_group }}"
 nginx_remove_default_vhost: true
+nginx_extra_http_options: |
+  types {
+    application/x-netcdf    nc;
+    application/ncML+xml    ncml;
+  }
 # postgres
 postgresql_databases:
   - name:  "pywps"
