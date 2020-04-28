@@ -1,0 +1,20 @@
+---
+server_name: 192.168.128.100
+# server_name: localhost
+db_install_postgresql: false
+db_install_sqlite: true
+#db_user: dbuser
+#db_password: dbuser
+wps_enable_https: false
+wps_services:
+  - name: rook
+    repo: https://github.com/roocs/rook.git
+    hostname: "{{ server_name }}"
+    fs_hostname: "{{ server_name }}"
+    port: 5000
+    maxprocesses: 100
+    parallelprocesses: 10
+    extra_config: |
+      [data]
+      cmip5_archive_root: /data/demo/mini-esgf-data/test_data/badc/cmip5/data
+      cordex_archive_root: /data
