@@ -11,7 +11,7 @@
     - conda
 
 - name: Install additional Conda packages.
-  command: "{{ conda_bin }} install -y -p {{ conda_envs_dir}}/{{ item.name }} gunicorn psycopg2"
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2"
   with_items: "{{ wps_services }}"
   when: conda_env.changed
   tags:
