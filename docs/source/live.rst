@@ -13,7 +13,7 @@ Create a file with a name like ``myhost.cfg`` that follows the pattern:
 
 .. code-block:: ini
 
-    wpstest.demo ansible_ssh_user=wps ansible_ssh_host=192.168.1.100 ansible_ssh_port=5555
+    wps.demo ansible_ssh_user=vagrant ansible_ssh_host=192.168.128.100 ansible_ssh_port=22
 
 You may leave off the ``ansible_ssh_host`` setting if the hostname is real.
 However, when doing early provisioning, it's often not available.
@@ -26,7 +26,7 @@ Running your playbook
 
 .. code-block:: console
 
-    $ ansible-playbook --ask-sudo-pass -i myhost.cfg playbook.yml
+    $ ansible-playbook --ask-become-pass -i myhost.cfg playbook.yml
 
-The ``--ask-sudo-pass`` option instructs Ansible to ask for your user password when it uses sudo for provisioning.
+The ``--ask-become-pass`` option instructs Ansible to ask for your user password when it uses sudo for provisioning.
 It's not required if the remote user has password-less sudo rights.
