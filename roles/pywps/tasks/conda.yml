@@ -10,8 +10,18 @@
     - pywps
     - conda
 
+- name: Install WPS package.
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install ."
+  args:
+    chdir: "{{ src_dir }}/{{ item.name }}"
+  with_items: "{{ wps_services }}"
+  when: conda_env.changed
+  tags:
+    - pywps
+    - conda
+
 - name: Install additional Conda packages.
-  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2-binary"
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2-binary drmaa dill"
   with_items: "{{ wps_services }}"
   when: conda_env.changed
   tags:

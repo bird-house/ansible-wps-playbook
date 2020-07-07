@@ -25,6 +25,9 @@ outputpath= /var/lib/pywps/outputs/{{ item.name }}
 workdir=/var/lib/pywps/tmp/{{ item.name }}
 sethomedir={{ item.sethomedir | default('false') }}
 
+[processing]
+mode={{ item.mode | default('default')}}
+
 [logging]
 level = {{ item.log_level | default('INFO') }}
 file = /var/log/pywps/{{ item.name }}.log
