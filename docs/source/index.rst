@@ -11,5 +11,6 @@ Getting started
    live
    configuration
    testing
+   examples
    changes
    appendix

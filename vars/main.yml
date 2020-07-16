@@ -32,7 +32,9 @@ postgresql_users:
     pass: "{{ db_password }}"
     encrypted: yes  # encryption necessary for postgres>=10.0.
 postgresql_listen_addresses:
-  - "{{ db_host }}"
+  - "*"
+postgresql_pg_hba_md5_hosts: []
+postgresql_pg_hba_trust_hosts: []
 postgresql_port: "{{ db_port }}"
 # ssl-certs
 ssl_certs_path_owner: "{{ service_user }}"

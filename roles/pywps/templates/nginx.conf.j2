@@ -41,7 +41,7 @@ server {
     # PyWPS Outputs
     location /outputs
     {
-        alias /var/lib/pywps/outputs;
+        alias {{ wps_basedir }}/outputs;
         autoindex off;
     }
     {% endif %}
