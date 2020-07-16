@@ -12,6 +12,8 @@ env:
 script:
   # copy test config
   - cp ${PWD}/etc/sample-emu.yml ${PWD}/custom.yml
+  # copy test playbook
+  - cp ${PWD}/tests/playbook.yml ${PWD}/playbook.yml
 
   # Configure test script so we can run extra tests after playbook is run.
   - export container_id=$(date +%s)

@@ -29,6 +29,10 @@ Vagrant.configure("2") do |config|
       ansible.playbook = 'playbook.yml'
       ansible.verbose = "v"
       ansible.host_key_checking = false
+      ansible.groups = {
+        "web" => ["wps"],
+        "worker"  => []
+      }
     end
   end
 end

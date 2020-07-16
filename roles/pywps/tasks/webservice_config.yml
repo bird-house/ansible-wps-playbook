@@ -1,0 +1,42 @@
+---
+- name: Copy gunicorn config
+  template:
+    src: ./templates/gunicorn.py.j2
+    dest: "/etc/gunicorn/{{ item.name }}.py"
+  with_items:
+    - "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf
+
+- name: Copy supervisord job file
+  template:
+    src: ./templates/supervisor.conf.j2
+    dest: "{{ supervisor_config_path }}/conf.d/{{ item.name }}.conf"
+    owner: root
+  with_items:
+    - "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf
+
+- name: Copy nginx config to remote
+  template:
+    src: ./templates/nginx.conf.j2
+    dest: "{{ nginx_conf_path }}/{{ item.name }}.conf"
+  with_items:
+    - "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf
+
+- name: Copy start script to source folder
+  template:
+    src: ./templates/run.sh.j2
+    dest: "{{ src_dir }}/{{ item.name }}/run.sh"
+    owner: root
+  with_items:
+    - "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf

@@ -21,8 +21,8 @@ maxsingleinputsize = {{ item.maxsingleinputsize | default('200mb') }}
 maxrequestsize = {{ item.maxrequestsize | default('200mb') }}
 maxprocesses = {{ item.maxprocesses | default('30') }}
 parallelprocesses = {{ item.parallelprocesses | default('4') }}
-outputpath= /var/lib/pywps/outputs/{{ item.name }}
-workdir=/var/lib/pywps/tmp/{{ item.name }}
+outputpath= {{ wps_basedir }}/outputs/{{ item.name }}
+workdir={{ wps_basedir }}/tmp/{{ item.name }}
 sethomedir={{ item.sethomedir | default('false') }}
 
 [processing]
@@ -32,7 +32,7 @@ mode={{ item.mode | default('default')}}
 level = {{ item.log_level | default('INFO') }}
 file = /var/log/pywps/{{ item.name }}.log
 {% if db_install_sqlite %}
-database = sqlite:////var/lib/pywps/db/{{ item.name }}_log.db
+database = sqlite:///{{ wps_basedir }}/db/{{ item.name }}_log.db
 {% else %}
 database = {{ item.database | default(wps_database) }}
 {% endif %}

@@ -1,0 +1,8 @@
+---
+- include: source.yml
+
+- include: conda.yml
+
+- include: folders.yml
+
+- include: config.yml

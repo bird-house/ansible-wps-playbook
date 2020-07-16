@@ -6,13 +6,13 @@
     - /etc/pywps
     - "{{ wps_run_dir }}"
     - /var/log/pywps
-    - /var/lib/pywps/db
+    - "{{ wps_basedir }}/db"
   tags:
     - pywps
     - conf
 
 - name: Create output folders used by PyWPS and set owner
-  file: path="/var/lib/pywps/outputs/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
+  file: path="{{ wps_basedir }}/outputs/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
   with_items:
     - "{{ wps_services }}"
   tags:
@@ -20,7 +20,7 @@
     - conf
 
 - name: Create temp folders used by PyWPS and set owner
-  file: path="/var/lib/pywps/tmp/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
+  file: path="{{ wps_basedir }}/tmp/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
   with_items:
     - "{{ wps_services }}"
   tags:

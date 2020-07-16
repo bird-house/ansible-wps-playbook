@@ -1,0 +1,19 @@
+---
+db_install_postgresql: true
+db_install_sqlite: false
+db_host: "192.168.50.44"
+postgresql_pg_hba_md5_hosts: ['192.168.50.44/32', '192.168.50.45/32', '192.168.50.46/32']
+slurm_enabled: true
+service_user: vagrant
+service_add_user: false
+wps_basedir: /vagrant/pywps
+# Configuration for Emu WPS
+wps_services:
+  - name: emu
+    repo: https://github.com/bird-house/emu.git
+    version: master
+    hostname: "192.168.50.44"
+    port: 5000
+    mode: scheduler
+    maxprocesses: 10000
+    parallelprocesses: 100
