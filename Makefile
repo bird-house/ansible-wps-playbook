@@ -36,4 +36,4 @@ play: roles
 clean:
 	@echo "Cleaning ..."
 	@git diff --quiet HEAD || echo "There are uncommited changes! Not doing 'git clean' ..."
-	@-git clean -dfx -e *.bak -e custom.yml -e etc/custom*.yml
+	@-git clean -dfx -e *.bak -e custom.yml -e etc/custom*.yml -e .vagrant

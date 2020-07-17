@@ -4,15 +4,15 @@
   hosts: web
   become: yes
 
-  vars_files:
-    - vars/main.yml
-
   pre_tasks:
     - name: Include vars from custom.yml if found
       include_vars: "{{ item }}"
       with_first_found:
        - custom.yml
        - null.yml
+    # - name: "Ansible | List all known variables and facts"
+    #   debug:
+    #     var: hostvars['192.168.50.44']
   roles:
     - role: geerlingguy.repo-epel
       when: ansible_os_family == "RedHat"
@@ -35,13 +35,12 @@
         db
     - name: pywps
       wps_webservice_enabled: true
+    - name: demo
+      when: demo 
 
 - name: Install a PyWPS worker
   hosts: worker
   become: yes
-
-  vars_files:
-    - vars/main.yml
 
   pre_tasks:
     - name: Include vars from custom.yml if found

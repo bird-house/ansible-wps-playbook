@@ -1,4 +1,5 @@
 ---
+demo: true
 db_install_postgresql: true
 db_install_sqlite: false
 db_host: "192.168.50.44"
@@ -8,11 +9,14 @@ service_user: vagrant
 service_add_user: false
 wps_basedir: /vagrant/.local/pywps
 wps_services:
-  - name: emu
-    repo: https://github.com/bird-house/emu.git
+  - name: rook
+    repo: https://github.com/roocs/rook.git
     version: master
     hostname: "192.168.50.44"
     port: 5000
     mode: scheduler
     maxprocesses: 10000
     parallelprocesses: 100
+    extra_config: |
+      [data]
+      cmip5_archive_root: /vagrant/.local/data/mini-esgf-data/test_data/badc/cmip5/data
