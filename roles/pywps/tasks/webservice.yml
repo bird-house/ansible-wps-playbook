@@ -1,4 +1,5 @@
 ---
+- include: clean.yml
 - include: webservice_config.yml
 
 - include: slurm.yml

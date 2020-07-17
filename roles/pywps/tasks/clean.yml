@@ -1,0 +1,46 @@
+---
+- name: Stop nginx
+  service:
+    name: nginx
+    state: stopped
+  tags:
+    - conf
+
+- name: Get nginx configs
+  find:
+    path: "{{ nginx_conf_path }}"
+    patterns: "*.conf"
+  register: nginx_files
+  tags:
+    - conf
+
+- name: Clean nginx configs
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items: "{{ nginx_files.files }}"
+  tags:
+    - conf
+
+- name: Get supervisor configs
+  find:
+    path: "{{ supervisor_config_path }}/conf.d"
+    patterns: "*.conf"
+  register: supervisor_files
+  tags:
+    - conf
+
+- name: Clean supervisor configs
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items: "{{ supervisor_files.files }}"
+  tags:
+    - conf
+
+- name: Reload supervisor
+  service:
+    name: supervisord
+    state: reloaded
+  tags:
+    - conf
