@@ -4,9 +4,6 @@
   hosts: all
   become: yes
 
-  vars_files:
-    - vars/main.yml
-
   pre_tasks:
     - name: Include vars from custom.yml if found
       include_vars: "{{ item }}"

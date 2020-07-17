@@ -10,6 +10,9 @@ roles/ansible-role-supervisor
 roles/jdauphant.ssl-certs
 roles/nginxinc.nginx
 
+# Sphinx docs
+docs/build
+
 # temp files
 *.retry
 *.log
@@ -18,6 +21,9 @@ caps.xml
 
 # Vagrant
 .vagrant
+
+# Shared local folder
+.local
 
 # Tests
 tests/test.sh

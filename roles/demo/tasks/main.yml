@@ -1,0 +1,9 @@
+---
+- name: Clone test data.
+  git:
+    repo: "https://github.com/roocs/mini-esgf-data.git"
+    version: "master"
+    dest: "/vagrant/.local/data/mini-esgf-data"
+    update: yes
+    force: yes
+  run_once: true
