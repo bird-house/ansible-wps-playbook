@@ -63,7 +63,7 @@ Run your playbook locally:
 
 .. code-block:: console
 
-    $ ansible-playbook -c local playbook.yml
+    $ ansible-playbook -c local -i hosts playbook.yml
 
 .. note:: You can also use the shortcut to run both::
 
