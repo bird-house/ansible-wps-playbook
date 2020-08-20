@@ -21,7 +21,7 @@
     - conda
 
 - name: Install additional Conda packages.
-  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2-binary drmaa dill"
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2-binary drmaa dill sphinx"
   with_items: "{{ wps_services }}"
   when: conda_env.changed
   tags:
