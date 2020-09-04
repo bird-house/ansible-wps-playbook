@@ -5,6 +5,7 @@ worker_class = 'sync'
 # environment
 raw_env = [
   "PYWPS_CFG=/etc/pywps/{{ item.name }}.cfg",
+  "ROOCS_CONFIG=/etc/roocs.ini",
 {% if item.environment is defined %}
 {% for key, value in item.environment.items() %}
   "{{ key }}={{ value }}",

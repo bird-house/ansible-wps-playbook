@@ -6,6 +6,8 @@ db_install_sqlite: true
 #db_user: dbuser
 #db_password: dbuser
 wps_enable_https: false
+demo: true
+data_dir: /vagrant/.local/data/mini-esgf-data/test_data
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
@@ -14,7 +16,3 @@ wps_services:
     port: 5000
     maxprocesses: 100
     parallelprocesses: 10
-    extra_config: |
-      [data]
-      cmip5_archive_root: /data/demo/mini-esgf-data/test_data/badc/cmip5/data
-      cordex_archive_root: /data

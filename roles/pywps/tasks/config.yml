@@ -16,3 +16,11 @@
   tags:
     - pywps
     - conf
+
+- name: Copy roocs config
+  template:
+    src: ./templates/roocs.ini.j2
+    dest: "/etc/roocs.ini"
+  tags:
+    - roocs
+    - conf
