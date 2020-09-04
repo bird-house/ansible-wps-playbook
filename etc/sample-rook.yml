@@ -14,7 +14,3 @@ wps_services:
     port: 5000
     maxprocesses: 100
     parallelprocesses: 10
-    extra_config: |
-      [data]
-      cmip5_archive_root: /data/demo/mini-esgf-data/test_data/badc/cmip5/data
-      cordex_archive_root: /data
