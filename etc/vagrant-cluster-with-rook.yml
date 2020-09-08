@@ -1,6 +1,7 @@
 ---
 demo: true
-data_dir: /vagrant/.local/data/mini-esgf-data/test_data
+data_dir: /vagrant/.local/data
+epel_repo_disable: true
 db_install_postgresql: true
 db_install_sqlite: false
 db_host: "192.168.50.44"

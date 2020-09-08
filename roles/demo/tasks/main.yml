@@ -3,7 +3,7 @@
   git:
     repo: "https://github.com/roocs/mini-esgf-data.git"
     version: "master"
-    dest: "/vagrant/.local/data/mini-esgf-data"
+    dest: "{{ data_dir }}/mini-esgf-data"
     update: yes
     force: yes
   run_once: true
