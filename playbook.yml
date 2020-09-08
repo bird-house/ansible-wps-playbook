@@ -36,7 +36,7 @@
     - name: pywps
       wps_webservice_enabled: true
     - name: demo
-      when: demo 
+      when: demo
 
 - name: Install a PyWPS worker
   hosts: worker
