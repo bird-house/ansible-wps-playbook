@@ -17,3 +17,5 @@ wps_services:
     hostname: "{{ server_name }}"
     fs_hostname: "{{ server_name }}"
     port: 5000
+    log_level: DEBUG
+    cleantempdir: false
