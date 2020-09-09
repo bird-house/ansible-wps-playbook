@@ -105,6 +105,7 @@ wps_services: []
   #   parallelprocesses: 4
   #   mode: default
   #   log_level: INFO
+  #   cleantempdir: true
   #   database: "{{ wps_database }}"
   #   # outputurl: http://somewhere.earth/outputs # optional
   #   extra_config: |

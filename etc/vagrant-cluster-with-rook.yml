@@ -21,3 +21,4 @@ wps_services:
     maxprocesses: 10000
     parallelprocesses: 1000
     log_level: DEBUG
+    cleantempdir: false
