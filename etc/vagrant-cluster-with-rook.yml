@@ -20,3 +20,4 @@ wps_services:
     mode: scheduler
     maxprocesses: 10000
     parallelprocesses: 1000
+    log_level: DEBUG
