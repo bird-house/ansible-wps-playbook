@@ -1,0 +1,22 @@
+---
+wps_internal_hostname: cp4cds-cn1.dkrz.de
+wps_external_hostname: compute.mips.copernicus-climate.eu
+wps_user: wps
+wps_group: wps
+db_install_postgresql: false
+db_install_sqlite: true
+db_user: pywps
+db_password: pywps
+wps_services:
+  - name: c4cds
+    repo: https://github.com/cp4cds/c4cds-wps.git
+    version: master
+    hostname: "{{ wps_external_hostname }}"
+    fs_hostname: "{{ wps_internal_hostname }}"
+    port: 80
+    maxprocesses: 3000000
+    parallelprocesses: 30000
+    extra_config: |
+      [data]
+      c3s_cmip5_archive_root: /mnt/lustre02/work/ik1017/C3SCMIP5/data/c3s-cmip5/output1
+      cordex_archive_root: /mnt/lustre01/work/kd0956/CORDEX/data/cordex/output
