@@ -1,6 +1,7 @@
 ---
 wps_internal_hostname: cp4cds-cn1.dkrz.de
-wps_external_hostname: compute.mips.copernicus-climate.eu
+wps_external_hostname: cp4cds-cn1.dkrz.de
+# wps_external_hostname: compute.mips.copernicus-climate.eu
 wps_user: wps
 wps_group: wps
 db_install_postgresql: false
@@ -18,3 +19,4 @@ wps_services:
     port: 80
     maxprocesses: 3000000
     parallelprocesses: 30000
+    log_level: ERROR
