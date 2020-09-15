@@ -11,12 +11,12 @@ db_password: pywps
 demo: true
 data_dir: /opt/birdhouse/data
 wps_services:
-  - name: rook 
+  - name: rook
     repo: https://github.com/roocs/rook.git
     version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
-    maxprocesses: 3000000
-    parallelprocesses: 30000
+    maxprocesses: -1
+    parallelprocesses: -1
     log_level: ERROR

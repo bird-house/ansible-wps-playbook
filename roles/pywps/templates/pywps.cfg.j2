@@ -28,6 +28,7 @@ cleantempdir={{ item.cleantempdir | default('true') }}
 
 [processing]
 mode={{ item.mode | default('default')}}
+drmaa_native_specification={{ item.drmaa_native_specification | default('') }}
 
 [logging]
 level = {{ item.log_level | default('INFO') }}
