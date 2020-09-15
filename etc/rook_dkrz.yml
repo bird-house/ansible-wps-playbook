@@ -20,3 +20,7 @@ wps_services:
     maxprocesses: -1
     parallelprocesses: -1
     log_level: ERROR
+    environment:
+      OMP_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
