@@ -104,6 +104,7 @@ wps_services: []
   #   maxprocesses: 30
   #   parallelprocesses: 4
   #   mode: default
+  #   drmaa_native_specification: ""
   #   log_level: INFO
   #   cleantempdir: true
   #   database: "{{ wps_database }}"

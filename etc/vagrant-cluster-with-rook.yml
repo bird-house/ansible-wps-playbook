@@ -18,7 +18,8 @@ wps_services:
     hostname: "192.168.50.44"
     port: 5000
     mode: scheduler
-    maxprocesses: 10000
-    parallelprocesses: 1000
+    drmaa_native_specification: "--share -N 1-2"
+    maxprocesses: -1
+    parallelprocesses: -1
     log_level: DEBUG
     cleantempdir: false
