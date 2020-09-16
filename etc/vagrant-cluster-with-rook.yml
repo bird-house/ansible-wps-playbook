@@ -1,13 +1,20 @@
 ---
 demo: true
 data_dir: /vagrant/.local/data
-# rm /etc/yum.repos.d/epel.repo to re-run when changed
+# epel: rm /etc/yum.repos.d/epel.repo to re-run when changed
 epel_repo_disable: false
+# conda
+conda_env_use_spec: true
+conda_env_spec_file: spec-list.txt
+# conda_env_file: env.yml
+# db
 db_install_postgresql: true
 db_install_sqlite: false
 db_host: "192.168.50.44"
 postgresql_pg_hba_md5_hosts: ['192.168.50.44/32', '192.168.50.45/32', '192.168.50.46/32']
+# slurm
 slurm_enabled: true
+# wps service
 service_user: vagrant
 service_add_user: false
 wps_basedir: /vagrant/.local/pywps
@@ -23,3 +30,7 @@ wps_services:
     parallelprocesses: -1
     log_level: DEBUG
     cleantempdir: false
+    environment:
+      OMP_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1

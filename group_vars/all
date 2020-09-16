@@ -42,8 +42,9 @@ miniconda_make_sys_default: False
 conda_location: "{{ prefix }}/anaconda"
 conda_bin: "{{ conda_location }}/bin/conda"
 conda_envs_dir: "{{ conda_location }}/envs"
+conda_env_file: environment.yml
 conda_env_use_spec: false
-conda_env_spec_file: spec-file.txt
+conda_env_spec_file: spec-list.txt
 
 # supervisor
 supervisor_user: root

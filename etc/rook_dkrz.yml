@@ -4,10 +4,16 @@ wps_internal_hostname: cp4cds-cn1.dkrz.de
 wps_external_hostname: compute.mips.copernicus-climate.eu
 wps_user: wps
 wps_group: wps
+# conda
+conda_env_use_spec: true
+conda_env_spec_file: spec-list.txt
+# conda_env_file: env.yml
+# db
 db_install_postgresql: false
 db_install_sqlite: true
 db_user: pywps
 db_password: pywps
+# demo
 demo: true
 data_dir: /opt/birdhouse/data
 wps_services:
