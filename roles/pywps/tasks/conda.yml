@@ -24,7 +24,7 @@
     chdir: "{{ src_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
   when: conda_env_use_spec
-  register: conda_env
+  register: conda_env_spec
   tags:
     - pywps
     - conda
@@ -34,7 +34,7 @@
   args:
     chdir: "{{ src_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
-  when: conda_env.changed
+  when: conda_env.changed or conda_env_spec.changed
   tags:
     - pywps
     - conda
@@ -42,7 +42,7 @@
 - name: Install additional Conda packages.
   command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2-binary drmaa dill sphinx"
   with_items: "{{ wps_services }}"
-  when: conda_env.changed
+  when: conda_env.changed or conda_env_spec.changed
   tags:
     - pywps
     - conda
