@@ -1,6 +1,19 @@
 Changes
 *******
 
+0.4.0 (2020-09-22)
+==================
+
+Changes:
+
+* added cleantempdir option (#107).
+* skip epel setup when not used (#106).
+* added demo mode for test data (#105).
+* fixed local deployment (#103).
+* added clean task (#102).
+* added support for slurm cluster deployment (#99, #100, #101).
+* use pip install for extra packages (#97, #98).
+
 0.3.0 (2020-01-20)
 ==================
 
