@@ -9,6 +9,7 @@ roles/ANXS.*
 roles/ansible-role-supervisor
 roles/jdauphant.ssl-certs
 roles/nginxinc.nginx
+roles/arillso.logrotate
 
 # Sphinx docs
 docs/build

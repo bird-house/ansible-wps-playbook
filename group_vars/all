@@ -16,6 +16,18 @@ service_user_home: /var/lib/pywps
 # RedHat/CentOS epel repo
 epel_repo_disable: false
 
+# logrotation
+logrotate_applications:
+  - name: pywps
+    definitions:
+      - logs:
+          - /var/log/pywps/*.log
+        options:
+          - rotate 12
+          - daily
+          - missingok
+          - notifempty
+
 # postgres
 db_install_postgresql: true
 db_install_sqlite: false
