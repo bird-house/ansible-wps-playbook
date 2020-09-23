@@ -26,3 +26,7 @@
 # ssl-certs
 # ---------
 - src: jdauphant.ssl-certs
+
+# logrotate
+# ---------
+- src: arillso.logrotate

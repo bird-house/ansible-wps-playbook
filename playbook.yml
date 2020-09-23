@@ -35,6 +35,7 @@
         db
     - name: pywps
       wps_webservice_enabled: true
+    - role: arillso.logrotate
     - name: demo
       when: demo
 
