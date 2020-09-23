@@ -9,6 +9,10 @@ env:
   #- distro: fedora27
   #- distro: debian9
 
+addons:
+  yum:
+    packages: cronie
+
 script:
   # copy test config
   - cp ${PWD}/etc/sample-emu.yml ${PWD}/custom.yml

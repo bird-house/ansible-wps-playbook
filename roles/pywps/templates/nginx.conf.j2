@@ -46,4 +46,11 @@ server {
     }
     {% endif %}
 
+    # endpoint for load-balancer health checks
+    location /health
+    {
+        access_log off;
+        return 200 "healthy\n";
+    }
+
 }

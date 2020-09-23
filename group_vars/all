@@ -93,6 +93,8 @@ wps_run_dir: /run/pywps
 wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/pywps"
 wps_webservice_enabled: true
 wps_basedir: "{{ service_user_home }}"
+wps_cronjob_disabled: yes
+wps_outputs_keep_days: 30
 wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git
