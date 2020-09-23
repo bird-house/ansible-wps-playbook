@@ -10,6 +10,7 @@
       - initscripts
       - python-meld3
       - openssl-devel
+      - cronie
 
 - name: Remove unwanted packages on RedHat
   yum:

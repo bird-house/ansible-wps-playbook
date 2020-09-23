@@ -1,5 +1,6 @@
 ---
 - include: clean.yml
+- include: cronjob.yml
 - include: webservice_config.yml
 
 - include: slurm.yml
