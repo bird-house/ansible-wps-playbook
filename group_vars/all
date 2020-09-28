@@ -17,13 +17,14 @@ service_user_home: /var/lib/pywps
 epel_repo_disable: false
 
 # logrotation
+logrotate_use_hourly_rotation: false
 logrotate_applications:
   - name: pywps
     definitions:
       - logs:
           - /var/log/pywps/*.log
         options:
-          - rotate 12
+          - rotate 7
           - daily
           - missingok
           - notifempty
@@ -105,6 +106,7 @@ wps_run_dir: /run/pywps
 wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/pywps"
 wps_webservice_enabled: true
 wps_basedir: "{{ service_user_home }}"
+wps_cache_dir: "{{ wps_basedir }}/cache"
 wps_cronjob_disabled: yes
 wps_outputs_keep_days: 30
 wps_services: []
