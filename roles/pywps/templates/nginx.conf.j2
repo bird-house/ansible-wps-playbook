@@ -4,6 +4,16 @@ upstream {{ item.name }} {
     server unix://{{ wps_run_dir }}/{{ item.name }}.sock fail_timeout=0;
 }
 
+proxy_cache_path {{ wps_cache_dir }} levels=1:2 keys_zone=pywps:10m max_size=1g
+                 inactive=10m use_temp_path=off;
+
+map $arg_request $wps_nocache {
+  default         1;
+  GetCapabilities 0;
+  DescribeProcess 0;
+  Execute         1;
+}
+
 server {
     {% if wps_enable_https %}
     listen                 {{ item.port | default('5000') }} ssl;
@@ -23,6 +33,11 @@ server {
 
     # PyWPS avail at /wps
     location /wps {
+        proxy_cache             pywps;
+        proxy_cache_valid       200 10m;
+        proxy_cache_bypass      $http_cache_control $arg_nocache;
+        proxy_no_cache          $http_pragma $wps_nocache;
+        add_header X-Proxy-Cache $upstream_cache_status;
         proxy_pass              http://{{ item.name }};
         proxy_set_header        X-Forwarded-Ssl on;
         proxy_set_header        X-Forwarded-Host $host/wps/;
@@ -33,8 +48,8 @@ server {
         proxy_set_header        X-SSL-Client-S-DN $ssl_client_s_dn;
         proxy_redirect          off;
         proxy_buffering         on;
-        client_max_body_size    64m;
-        proxy_read_timeout      30s;
+        client_max_body_size    8m;
+        proxy_read_timeout      60s;
     }
 
     {% if not fs_enabled %}
@@ -50,7 +65,7 @@ server {
     location /health
     {
         access_log off;
-        return 200 "healthy\n";
+        rewrite ^ /wps?service=WPS&request=GetCapabilities last;
     }
 
 }
