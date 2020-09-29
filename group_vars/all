@@ -17,7 +17,7 @@ service_user_home: /var/lib/pywps
 epel_repo_disable: false
 
 # logrotation
-logrotate_use_hourly_rotation: false
+logrotate_use_hourly_rotation: true
 logrotate_applications:
   - name: pywps
     definitions:
@@ -25,7 +25,8 @@ logrotate_applications:
           - /var/log/pywps/*.log
         options:
           - rotate 7
-          - daily
+          # - daily
+          - copytruncate
           - missingok
           - notifempty
 
