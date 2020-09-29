@@ -3,7 +3,7 @@
   cron:
     name: "clear wps outputs"
     special_time: daily
-    user: root
+    user: {{ service_user }}
     job: "find {{ wps_basedir }}/outputs/* -maxdepth 1 -mtime +{{ wps_outputs_keep_days }} -exec rm -rf {} \\;"
     cron_file: ansible_wps-clear-outputs
     disabled: "{{ wps_cronjob_disabled }}"
@@ -13,7 +13,7 @@
   cron:
     name: "clear wps tempfiles"
     special_time: daily
-    user: root
+    user: {{ service_user }}
     job: "find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mtime +{{ wps_outputs_keep_days }} -exec rm -rf {} \\;"
     cron_file: ansible_wps-clear-tempfiles
     disabled: "{{ wps_cronjob_disabled }}"
