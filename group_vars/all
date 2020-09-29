@@ -26,6 +26,7 @@ logrotate_applications:
         options:
           - rotate 7
           - daily
+          - copytruncate
           - missingok
           - notifempty
 
