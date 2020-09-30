@@ -4,6 +4,9 @@ wps_internal_hostname: cp4cds-cn1.dkrz.de
 wps_external_hostname: compute.mips.copernicus-climate.eu
 wps_user: wps
 wps_group: wps
+# enable cronjob to clean outputs
+wps_cronjob_disabled: no
+wps_outputs_keep_days: 3
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
@@ -19,7 +22,7 @@ data_dir: /opt/birdhouse/data
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: master 
+    version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
