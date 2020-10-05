@@ -1,11 +1,21 @@
 ---
+- name: Clean up cron files managed by ansible
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - ansible_pywps
+    - ansible_wps-clear-outputs
+    - ansible_wps-clear-status
+    - ansible_wps-clear-tempfiles
+
 - name: Clear wps outputs
   cron:
     name: "clear wps outputs"
     special_time: daily
     user: "{{ service_user }}"
     job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type d -mtime +{{ wps_outputs_keep_days }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}$" -exec rm -rf {} \;'
-    cron_file: ansible_wps-clear-outputs
+    cron_file: ansible_pywps
     disabled: "{{ wps_cronjob_disabled }}"
     state: present
 
@@ -15,7 +25,7 @@
     special_time: daily
     user: "{{ service_user }}"
     job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type f -mtime +{{ wps_outputs_keep_days }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete'
-    cron_file: ansible_wps-clear-status
+    cron_file: ansible_pywps
     disabled: "{{ wps_cronjob_disabled }}"
     state: present
 
@@ -25,6 +35,6 @@
     special_time: daily
     user: "{{ service_user }}"
     job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mtime +{{ wps_temp_keep_days }} -name "pywps_process_*" -exec rm -rf {} \;'
-    cron_file: ansible_wps-clear-tempfiles
+    cron_file: ansible_pywps
     disabled: "{{ wps_cronjob_disabled }}"
     state: present
