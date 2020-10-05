@@ -15,7 +15,7 @@
     special_time: daily
     user: "{{ service_user }}"
     job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type f -mtime +{{ wps_outputs_keep_days }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete'
-    cron_file: ansible_wps-clear-outputs
+    cron_file: ansible_wps-clear-status
     disabled: "{{ wps_cronjob_disabled }}"
     state: present
 
