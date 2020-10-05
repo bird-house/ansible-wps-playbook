@@ -32,7 +32,7 @@ logrotate_applications:
           - notifempty
           - sharedscripts
         postrotate:
-          - supervisorctl restart all
+          - supervisorctl restart all >/dev/null 2>/dev/null || true
 
 # postgres
 db_install_postgresql: true
