@@ -2,11 +2,18 @@
 wps_internal_hostname: cp4cds-cn1.dkrz.de
 # wps_external_hostname: cp4cds-cn1.dkrz.de
 wps_external_hostname: compute.mips.copernicus-climate.eu
+
+# user for pywps service
 wps_user: wps
 wps_group: wps
+## TODO: allow user wps to run cron
+# $ vim /etc/security/access.conf
+# + : wps : cron crond :0 tty1 tty2 tty3 tty4 tty5 tty6
+
 # enable cronjob to clean outputs
 wps_cronjob_disabled: no
 wps_outputs_keep_days: 3
+wps_temp_keep_days: 3
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
