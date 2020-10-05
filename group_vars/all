@@ -26,9 +26,13 @@ logrotate_applications:
         options:
           - rotate 7
           - daily
+          - dateext
           - copytruncate
           - missingok
           - notifempty
+          - sharedscripts
+        postrotate:
+          - supervisorctl restart all >/dev/null 2>/dev/null || true
 
 # postgres
 db_install_postgresql: true
