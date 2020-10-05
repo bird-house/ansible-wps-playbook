@@ -1,7 +1,7 @@
 ---
 - name: Clean up cron files managed by ansible
   file:
-    path: "{{ item }}"
+    path: "/etc/cron.d/{{ item }}"
     state: absent
   with_items:
     - ansible_pywps
