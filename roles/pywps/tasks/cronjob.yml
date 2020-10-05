@@ -24,7 +24,7 @@
     name: "clear wps tempfiles"
     special_time: daily
     user: "{{ service_user }}"
-    job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mtime +{{ wps_outputs_keep_days }} -name "pywps_process_*" -delete'
+    job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mtime +{{ wps_temp_keep_days }} -name "pywps_process_*" -delete'
     cron_file: ansible_wps-clear-tempfiles
     disabled: "{{ wps_cronjob_disabled }}"
     state: present

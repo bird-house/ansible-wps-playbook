@@ -114,6 +114,7 @@ wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
 wps_cronjob_disabled: yes
 wps_outputs_keep_days: 30
+wps_temp_keep_days: 30
 wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git
