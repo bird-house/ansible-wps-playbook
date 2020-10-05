@@ -29,6 +29,9 @@ logrotate_applications:
           - copytruncate
           - missingok
           - notifempty
+          - sharedscripts
+        postrotate:
+          - supervisorctl restart all
 
 # postgres
 db_install_postgresql: true
