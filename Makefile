@@ -14,7 +14,7 @@ help:
 .PHONY: roles
 roles:
 	@echo "Installing required Ansible roles from ansible-galaxy ..."
-	ansible-galaxy install -p roles -r requirements.yml
+	ansible-galaxy install -r requirements.yml
 
 .PHONY: quick
 quick: roles
