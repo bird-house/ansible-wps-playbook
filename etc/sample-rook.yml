@@ -5,6 +5,7 @@ db_install_postgresql: false
 db_install_sqlite: true
 #db_user: dbuser
 #db_password: dbuser
+cron_mailto: root
 wps_enable_https: false
 demo: true
 data_dir: /vagrant/.local/data

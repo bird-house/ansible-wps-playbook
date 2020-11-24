@@ -6,6 +6,13 @@
 - src: andrewrothstein.bash
 - src: andrewrothstein.unarchive-deps
 
+
+# community.general
+# -----------------
+# https://docs.ansible.com/ansible/latest/collections/community/general/cronvar_module.html
+collections:
+- name: community.general
+
 # epel
 # ----
 # Installs the EPEL repository (Extra Packages for Enterprise Linux) for RHEL/CentOS.
