@@ -1,7 +1,4 @@
 ---
-collections:
-  - name: community.general
-
 roles:
   - name: andrewrothstein.miniconda
   - name: andrewrothstein.bash
@@ -12,3 +9,6 @@ roles:
   - name: ANXS.postgresql
   - name: jdauphant.ssl-certs
   - name: arillso.logrotate
+
+collections:
+  - name: community.general
