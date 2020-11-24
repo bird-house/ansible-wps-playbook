@@ -53,7 +53,7 @@ Install Slurm cluster
 
 Use this slurm playbook:
 
-https://github.com/agstephens/slurm-playbook
+https://github.com/roocs/slurm-playbook
 
 Run playbook with Vagrant::
 

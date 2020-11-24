@@ -11,6 +11,9 @@ roles/jdauphant.ssl-certs
 roles/nginxinc.nginx
 roles/arillso.logrotate
 
+# ansible collections
+ansible_collections/
+
 # Sphinx docs
 docs/build
 

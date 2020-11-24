@@ -1,32 +1,14 @@
 ---
+roles:
+  - name: andrewrothstein.miniconda
+  - name: andrewrothstein.bash
+  - name: andrewrothstein.unarchive-deps
+  - name: geerlingguy.repo-epel
+  - name: geerlingguy.supervisor
+  - name: geerlingguy.nginx
+  - name: ANXS.postgresql
+  - name: jdauphant.ssl-certs
+  - name: arillso.logrotate
 
-# miniconda
-# ---------
-- src: andrewrothstein.miniconda
-- src: andrewrothstein.bash
-- src: andrewrothstein.unarchive-deps
-
-# epel
-# ----
-# Installs the EPEL repository (Extra Packages for Enterprise Linux) for RHEL/CentOS.
-- src: geerlingguy.repo-epel
-
-# supervisor
-# ----------
-- src: geerlingguy.supervisor
-
-# nginx
-# -----
-- src: geerlingguy.nginx
-
-# postgresql
-# ----------
-- src: ANXS.postgresql
-
-# ssl-certs
-# ---------
-- src: jdauphant.ssl-certs
-
-# logrotate
-# ---------
-- src: arillso.logrotate
+collections:
+  - name: community.general
