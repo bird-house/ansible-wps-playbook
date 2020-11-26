@@ -103,6 +103,10 @@ ssl_certs_verify_client: "optional"
 ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"
 ssl_certs_enable_verify_client: false
 
+# cron
+cron_mailto: root
+cron_disabled: yes
+
 # pywps
 wps_user: "{{ service_user }}"
 wps_group: "{{ service_group }}"
@@ -112,7 +116,6 @@ wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host 
 wps_webservice_enabled: true
 wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
-wps_cronjob_disabled: yes
 wps_outputs_keep_days: 30
 wps_temp_keep_days: 30
 wps_services: []

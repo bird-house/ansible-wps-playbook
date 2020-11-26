@@ -9,6 +9,12 @@
     - ansible_wps-clear-status
     - ansible_wps-clear-tempfiles
 
+- name: Add MAILTO to cron file
+  community.general.cronvar:
+    name: MAILTO
+    value: "{{ cron_mailto }}"
+    cron_file: ansible_pywps
+
 - name: Clear wps outputs
   cron:
     name: "clear wps outputs"
@@ -16,7 +22,7 @@
     user: "{{ service_user }}"
     job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type d -mtime +{{ wps_outputs_keep_days }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}$" -exec rm -rf {} \;'
     cron_file: ansible_pywps
-    disabled: "{{ wps_cronjob_disabled }}"
+    disabled: "{{ cron_disabled }}"
     state: present
 
 - name: Clear wps status
@@ -26,7 +32,7 @@
     user: "{{ service_user }}"
     job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type f -mtime +{{ wps_outputs_keep_days }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete'
     cron_file: ansible_pywps
-    disabled: "{{ wps_cronjob_disabled }}"
+    disabled: "{{ cron_disabled }}"
     state: present
 
 - name: Clear wps tempfiles
@@ -36,5 +42,5 @@
     user: "{{ service_user }}"
     job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mtime +{{ wps_temp_keep_days }} -name "pywps_process_*" -exec rm -rf {} \;'
     cron_file: ansible_pywps
-    disabled: "{{ wps_cronjob_disabled }}"
+    disabled: "{{ cron_disabled }}"
     state: present
