@@ -1,5 +1,5 @@
 ---
-- name: Download and unarchive slrum-drmaa
+- name: Download and unarchive slurm-drmaa
   unarchive:
     src: https://github.com/natefoo/slurm-drmaa/releases/download/{{ slurm_drmaa_version }}/slurm-drmaa-{{ slurm_drmaa_version }}.tar.gz
     dest: /usr/local/src
@@ -8,11 +8,10 @@
     - slurm
 
 - name: Configure slurm-drmaa
-  command: ./configure --prefix="{{ conda_envs_dir}}/{{ item.name }}"
+  command: "./configure --prefix={{ conda_envs_dir }}/{{ item.name }}"
   args:
     chdir: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}
   with_items: "{{ wps_services }}"
-  # when: conda_env.changed
   tags:
     - slurm
 
