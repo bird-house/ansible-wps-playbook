@@ -8,13 +8,13 @@ db_install_sqlite: true
 cron_mailto: root
 wps_enable_https: false
 demo: true
-data_dir: /vagrant/.local/data
+demo_data_dir: /vagrant/.local/data
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
     hostname: "{{ server_name }}"
     fs_hostname: "{{ server_name }}"
     port: 5000
-    maxprocesses: 100
-    parallelprocesses: 10
-    log_level: DEBUG
+    maxprocesses: -1
+    parallelprocesses: -1
+    log_level: INFO

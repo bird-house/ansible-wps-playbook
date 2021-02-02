@@ -28,7 +28,7 @@
 
 - name: Copy roocs production config
   template:
-    src: ./templates/roocs.ini.j2
+    src: "./templates/roocs.{{ site }}ini.j2"
     dest: "/etc/roocs.ini"
   tags:
     - roocs
