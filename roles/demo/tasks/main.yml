@@ -3,7 +3,7 @@
   git:
     repo: "https://github.com/roocs/mini-esgf-data.git"
     version: "master"
-    dest: "{{ data_dir }}/mini-esgf-data"
+    dest: "{{ demo_data_dir }}/mini-esgf-data"
     update: yes
     force: yes
   run_once: true

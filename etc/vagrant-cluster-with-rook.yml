@@ -1,6 +1,6 @@
 ---
 demo: true
-data_dir: /vagrant/.local/data
+demo_data_dir: /vagrant/.local/data
 # epel: rm /etc/yum.repos.d/epel.repo to re-run when changed
 epel_repo_disable: false
 # conda

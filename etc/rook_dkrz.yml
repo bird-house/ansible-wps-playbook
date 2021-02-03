@@ -26,7 +26,7 @@ db_user: pywps
 db_password: pywps
 # demo
 demo: true
-data_dir: /opt/birdhouse/data
+demo_data_dir: /opt/birdhouse/data
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
@@ -37,7 +37,3 @@ wps_services:
     maxprocesses: -1
     parallelprocesses: -1
     log_level: INFO
-    environment:
-      OMP_NUM_THREADS: 1
-      MKL_NUM_THREADS: 1
-      OPENBLAS_NUM_THREADS: 1
