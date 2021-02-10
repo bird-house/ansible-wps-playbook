@@ -7,12 +7,14 @@
     update: yes
     force: yes
   run_once: true
-  when: roocs_site == demo
+  when: roocs_site == "demo"
 
-- name: Copy roocs production config
+- name: Clean roocs cache dir
+  file:
+    state: absent
+    path: "{{ roocs_cache_dir }}/"
+
+- name: Copy roocs config
   template:
     src: "./templates/roocs.{{ roocs_site }}.ini.j2"
     dest: "/etc/roocs.ini"
-  tags:
-    - roocs
-    - conf
