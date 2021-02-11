@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # Restart pywps service and clean out old gunicorn processes
+# Usage: restart-pywps [service_name]
+# Example: restart-pywps rook
+
 APP="$1"
 echo "[INFO] Stopping $APP"
 supervisorctl stop $APP

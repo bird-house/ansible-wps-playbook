@@ -46,6 +46,8 @@
   template:
     src: ./templates/restart-pywps.sh.j2
     dest: "{{ service_user_home }}/restart-pywps.sh"
+    owner: "{{ service_user }}"
+    mode: 0744
 
 - name: Restart pywps service and clean out old gunicorn processes every night
   cron:
