@@ -46,7 +46,8 @@
   template:
     src: ./templates/restart-pywps.sh.j2
     dest: "{{ service_user_home }}/restart-pywps.sh"
-    owner: "{{ service_user }}"
+    # owner: "{{ service_user }}"
+    owner: root
     mode: 0744
 
 - name: Restart pywps service and clean out old gunicorn processes every night
@@ -55,7 +56,8 @@
     # weekday: "0"
     minute: "0"
     hour: "3"
-    user: "{{ service_user }}"
+    # user: "{{ service_user }}"
+    user: root
     job: "{{ service_user_home }}/restart-pywps.sh {{ item.name }} 2>&1 > /var/log/pywps/restart-{{ item.name }}.log"
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
