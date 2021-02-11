@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Restart pywps service and clean out old gunicorn processes
+# Usage: restart-pywps [service_name]
+# Example: restart-pywps rook
+
+APP="$1"
+echo "[INFO] Stopping $APP"
+supervisorctl stop $APP
+sleep 1
+echo "[INFO] Finding gunicorn processes..."
+gunicorn_pids=$(echo $(ps aux | grep -i gunicorn | grep $APP | cut -c10-15))
+echo "[INFO] Found processes: $gunicorn_pids"
+if [ "$gunicorn_pids" ]; then
+    echo "[WARN] Killing processes: $gunicorn_pids"
+    kill $gunicorn_pids
+fi
+supervisorctl start $APP
+echo "[INFO] Restarted $APP"
