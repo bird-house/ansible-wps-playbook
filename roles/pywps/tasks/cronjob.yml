@@ -47,14 +47,16 @@
     src: ./templates/restart-pywps.sh.j2
     dest: "{{ service_user_home }}/restart-pywps.sh"
 
-- name: Restart pywps and clean out old gunicorn processes every night
+- name: Restart pywps service and clean out old gunicorn processes every night
   cron:
     name: "restart pywps"
     # weekday: "0"
     minute: "0"
     hour: "3"
     user: "{{ service_user }}"
-    job: "{{ service_user_home }}/restart-pywps.sh 2>&1 > /var/log/pywps/restart-pywps.log"
+    job: "{{ service_user_home }}/restart-pywps.sh {{ item.name }} 2>&1 > /var/log/pywps/restart-{{ item.name }}.log"
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
+  with_items:
+    - "{{ wps_services }}"
