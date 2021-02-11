@@ -7,8 +7,9 @@ db_install_sqlite: true
 #db_password: dbuser
 cron_mailto: root
 wps_enable_https: false
-demo: true
-demo_data_dir: /vagrant/.local/data
+# roocs
+roocs_enabled: true
+roocs_demo_data_dir: /vagrant/.local/data
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
