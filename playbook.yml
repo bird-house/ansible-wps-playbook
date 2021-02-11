@@ -58,3 +58,5 @@
         conda
     - name: pywps
       wps_webservice_enabled: false
+    - name: roocs
+      when: roocs_enabled
