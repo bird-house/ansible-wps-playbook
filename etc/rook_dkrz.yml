@@ -24,6 +24,10 @@ db_install_postgresql: false
 db_install_sqlite: true
 db_user: pywps
 db_password: pywps
+# access control
+wps_enable_acl: true
+wps_acl_allow:
+   - 136.172.0.0/16
 # roocs
 roocs_enabled: true
 roocs_site: dkrz

@@ -7,8 +7,13 @@ db_install_sqlite: true
 #db_password: dbuser
 cron_mailto: root
 wps_enable_https: false
+# access control
+wps_enable_acl: false
+wps_acl_allow:
+  - 192.168.128.1/24
 # roocs
 roocs_enabled: true
+roocs_site: demo
 roocs_demo_data_dir: /vagrant/.local/data
 wps_services:
   - name: rook
