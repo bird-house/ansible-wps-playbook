@@ -14,6 +14,15 @@ map $arg_request $wps_nocache {
   Execute         1;
 }
 
+{% if wps_enable_acl %}
+map $arg_request $wps_deny {
+  default         1;
+  GetCapabilities 0;
+  DescribeProcess 0;
+  Execute         1;
+}
+{% endif %}
+
 server {
     {% if wps_enable_https %}
     listen                 {{ item.port | default('5000') }} ssl;
@@ -50,6 +59,18 @@ server {
         proxy_buffering         on;
         client_max_body_size    8m;
         proxy_read_timeout      60s;
+        {% if wps_enable_acl %}
+        # access control
+        limit_except GET {
+            {% for ip_range in wps_acl_allow %}
+            allow {{ ip_range }};
+            {% endfor %}
+            deny all;
+        }
+        if ($wps_deny) {
+            return 403;
+        }
+        {% endif %}
     }
 
     {% if not fs_enabled %}
