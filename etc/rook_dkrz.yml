@@ -1,7 +1,7 @@
 ---
 wps_internal_hostname: cp4cds-cn2.cloud.dkrz.de
-wps_external_hostname: cp4cds-cn2.cloud.dkrz.de
-#wps_external_hostname: compute.mips.copernicus-climate.eu
+#wps_external_hostname: cp4cds-cn2.cloud.dkrz.de
+wps_external_hostname: compute.mips.copernicus-climate.eu
 
 # user for pywps service
 wps_user: wps
@@ -16,7 +16,7 @@ cron_disabled: no
 wps_outputs_keep_days: 3
 wps_temp_keep_days: 3
 # conda
-conda_env_use_spec: false
+conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # conda_env_file: env.yml
 # db
@@ -27,14 +27,19 @@ db_password: pywps
 # access control
 wps_enable_acl: true
 wps_acl_allow:
-   - 136.172.0.0/16
+   - 136.172.0.0/16  # dkrz
+   #- 136.172.60.0/16  
+   - 136.156.132.0/23
+   - 130.246.130.0/24
+   - 130.246.148.0/24
+   - 172.17.11.15
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: master
+    version: v0.3.0
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
