@@ -1,7 +1,5 @@
 ---
 # Variables listed here are applicable to all host groups
-demo: false
-data_dir: /data
 prefix: /usr/local
 src_dir: "{{ prefix }}/src"
 server_name: localhost
@@ -107,10 +105,18 @@ ssl_certs_enable_verify_client: false
 cron_mailto: root
 cron_disabled: yes
 
+# roocs
+roocs_enabled: false
+roocs_site: demo
+roocs_demo_data_dir: /data
+roocs_cache_dir: "/tmp/inventory_cache"
+
 # pywps
 wps_user: "{{ service_user }}"
 wps_group: "{{ service_group }}"
 wps_enable_https: false
+wps_enable_acl: false
+wps_acl_allow: []
 wps_run_dir: /run/pywps
 wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/pywps"
 wps_webservice_enabled: true

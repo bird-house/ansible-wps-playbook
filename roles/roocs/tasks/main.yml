@@ -1,0 +1,20 @@
+---
+- name: Clone test data.
+  git:
+    repo: "https://github.com/roocs/mini-esgf-data.git"
+    version: "master"
+    dest: "{{ roocs_demo_data_dir }}/mini-esgf-data"
+    update: yes
+    force: yes
+  run_once: true
+  when: roocs_site == "demo"
+
+- name: Clean roocs cache dir
+  file:
+    state: absent
+    path: "{{ roocs_cache_dir }}/"
+
+- name: Copy roocs config
+  template:
+    src: "./templates/roocs.{{ roocs_site }}.ini.j2"
+    dest: "/etc/roocs.ini"

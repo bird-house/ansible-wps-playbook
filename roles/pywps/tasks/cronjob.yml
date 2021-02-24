@@ -5,9 +5,6 @@
     state: absent
   with_items:
     - ansible_pywps
-    - ansible_wps-clear-outputs
-    - ansible_wps-clear-status
-    - ansible_wps-clear-tempfiles
 
 - name: Add MAILTO to cron file
   community.general.cronvar:
@@ -44,3 +41,26 @@
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
+
+- name: Copy restart script
+  template:
+    src: ./templates/restart-pywps.sh.j2
+    dest: "{{ service_user_home }}/restart-pywps.sh"
+    # owner: "{{ service_user }}"
+    owner: root
+    mode: 0744
+
+- name: Restart pywps service and clean out old gunicorn processes every night
+  cron:
+    name: "restart pywps"
+    # weekday: "0"
+    minute: "0"
+    hour: "3"
+    # user: "{{ service_user }}"
+    user: root
+    job: "{{ service_user_home }}/restart-pywps.sh {{ item.name }} 2>&1 > /var/log/pywps/restart-{{ item.name }}.log"
+    cron_file: ansible_pywps
+    disabled: "{{ cron_disabled }}"
+    state: present
+  with_items:
+    - "{{ wps_services }}"
