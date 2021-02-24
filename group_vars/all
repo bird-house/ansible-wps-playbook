@@ -10,6 +10,7 @@ service_group: "{{ service_user }}"
 service_groups: "{{ service_group }}"
 # service_gid: 100
 service_user_home: /var/lib/pywps
+cron_script_dir: "{{ service_user_home }}"
 
 # RedHat/CentOS epel repo
 epel_repo_disable: false
