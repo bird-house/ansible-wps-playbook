@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Run smoke test for pywps service
+# Usage: smoke [service_name]
+# Example: smoke rook
+
+APP="$1"
+export PYWPS_CFG="/etc/pywps/$APP.cfg"
+"{{ conda_envs_dir}}/$APP/bin/pytest" -v -k smoke "/usr/local/src/$APP/tests"
