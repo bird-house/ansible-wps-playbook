@@ -39,8 +39,8 @@
     - pywps
     - conda
 
-- name: Install additional Conda packages.
-  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2-binary drmaa dill sphinx"
+- name: Install additional pip packages.
+  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn psycopg2-binary drmaa dill sphinx pytest"
   with_items: "{{ wps_services }}"
   when: conda_env.changed or conda_env_spec.changed
   tags:
