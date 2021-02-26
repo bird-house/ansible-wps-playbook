@@ -95,12 +95,9 @@ postgresql_pg_hba_trust_hosts: []
 postgresql_port: "{{ db_port }}"
 
 # ssl-certs
+# https://github.com/jdauphant/ansible-role-ssl-certs/blob/master/defaults/main.yml
 ssl_certs_path_owner: "{{ service_user }}"
 ssl_certs_path_group: "{{ service_group }}"
-ssl_certs_cacert_path: "{{ ssl_certs_path }}/cacert.crt"
-ssl_certs_verify_client: "optional"
-ssl_certs_cacert_url: "https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt"
-ssl_certs_enable_verify_client: false
 
 # cron
 cron_mailto: root
