@@ -24,6 +24,8 @@ db_install_postgresql: false
 db_install_sqlite: true
 db_user: pywps
 db_password: pywps
+# using certs
+wps_enable_https: false
 # access control
 wps_enable_acl: false
 wps_acl_allow:
