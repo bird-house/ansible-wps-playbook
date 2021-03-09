@@ -71,3 +71,11 @@
     state: present
   with_items:
     - "{{ wps_services }}"
+
+- name: Copy smoke test script
+  template:
+    src: ./templates/smoke.sh.j2
+    dest: "{{ cron_script_dir }}/smoke.sh"
+    # owner: "{{ service_user }}"
+    owner: root
+    mode: 0744
