@@ -30,7 +30,6 @@ wps_enable_https: false
 wps_enable_acl: false
 wps_acl_allow:
    - 136.172.0.0/16     # DKRZ ipv4
-   - 2001:638:70e::/48  # DKRZ ipv6
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
