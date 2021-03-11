@@ -42,6 +42,18 @@ server {
 
     # PyWPS avail at /wps
     location /wps {
+        {% if wps_enable_acl %}
+        # access control
+        limit_except GET {
+            {% for ip_range in wps_acl_allow %}
+            allow {{ ip_range }};
+            {% endfor %}
+            deny all;
+        }
+        if ($wps_deny) {
+            return 403;
+        }
+        {% endif %}
         proxy_cache             pywps;
         proxy_cache_valid       200 10m;
         proxy_cache_bypass      $http_cache_control $arg_nocache;
@@ -59,18 +71,6 @@ server {
         proxy_buffering         on;
         client_max_body_size    8m;
         proxy_read_timeout      60s;
-        {% if wps_enable_acl %}
-        # access control
-        limit_except GET {
-            {% for ip_range in wps_acl_allow %}
-            allow {{ ip_range }};
-            {% endfor %}
-            deny all;
-        }
-        if ($wps_deny) {
-            return 403;
-        }
-        {% endif %}
     }
 
     {% if not fs_enabled %}
