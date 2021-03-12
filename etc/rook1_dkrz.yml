@@ -20,8 +20,8 @@ conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # conda_env_file: env.yml
 # db
-db_install_postgresql: false
-db_install_sqlite: true
+db_install_postgresql: true
+db_install_sqlite: false
 db_user: pywps
 db_password: pywps
 # using certs
@@ -40,6 +40,6 @@ wps_services:
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
-    maxprocesses: 100
-    parallelprocesses: 8
+    maxprocesses: 1000
+    parallelprocesses: 8 
     log_level: INFO
