@@ -13,15 +13,15 @@ wps_group: wps
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_disabled: no
-wps_outputs_keep_days: 14
-wps_temp_keep_days: 14
+wps_outputs_keep_days: 1
+wps_temp_keep_days: 1
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # conda_env_file: env.yml
 # db
-db_install_postgresql: false
-db_install_sqlite: true
+db_install_postgresql: true
+db_install_sqlite: false
 db_user: pywps
 db_password: pywps
 # using certs
@@ -29,17 +29,17 @@ wps_enable_https: false
 # access control
 wps_enable_acl: false
 wps_acl_allow:
-   - 136.172.0.0/16
+   - 136.172.0.0/16     # DKRZ ipv4
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.4.0 
+    version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
     maxprocesses: 1000
-    parallelprocesses: 10
+    parallelprocesses: 8 
     log_level: INFO

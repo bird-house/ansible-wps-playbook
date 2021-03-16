@@ -6,6 +6,7 @@
     - /etc/pywps
     - "{{ wps_run_dir }}"
     - /var/log/pywps
+    - "{{ wps_basedir }}"
     - "{{ wps_basedir }}/db"
   tags:
     - pywps
