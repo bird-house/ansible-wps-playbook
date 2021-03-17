@@ -1,6 +1,6 @@
 bind = 'unix://{{ wps_run_dir }}/{{ item.name }}.sock'
-workers = 3
-worker_class = 'sync'
+workers = {{ gunicorn_workers }}
+worker_class = '{{ gunicorn_worker_class }}'
 
 # environment
 raw_env = [
