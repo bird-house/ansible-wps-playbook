@@ -1,3 +1,13 @@
+[metadata:main]
+identification_fees = {{ item.identification_fees | default('')}}
+identification_accessconstraints = {{ item.identification_accessconstraints | default('')}}
+provider_name = {{ item.provider_name | default('')}}
+provider_url = {{ item.provider_url | default('')}}
+contact_name = {{ item.contact_name | default('')}}
+contact_city = {{ item.contact_city | default('')}}
+contact_country = {{ item.contact_country | default('')}}
+contact_url = {{ item.contact_url | default('')}}
+
 [server]
 {% if wps_enable_https %}
 {% set _protocol = 'https' %}
