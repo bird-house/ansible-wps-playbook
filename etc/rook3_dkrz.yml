@@ -55,3 +55,10 @@ wps_services:
     maxprocesses: -1
     parallelprocesses: -1
     log_level: INFO
+    identification_accessconstraints: "restricted"
+    provider_name: rook3.cloud.dkrz.de
+    provider_url: https://roocs.github.io/
+    contact_name: DKRZ
+    contact_city: Hamburg
+    contact_country: Germany
+    contact_url: https://roocs.github.io/
