@@ -81,6 +81,11 @@ nginx_extra_http_options: |
     application/ncML+xml    ncml;
   }
 
+# gunicorn
+# https://docs.gunicorn.org/en/stable/settings.html
+gunicorn_workers: 5  # rule of thumb: 2 * CPUs + 1
+gunicorn_worker_class: 'sync'  # or "gevent", needs gevent
+
 # postgres
 postgresql_databases:
   - name:  "pywps"
