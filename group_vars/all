@@ -84,7 +84,7 @@ nginx_extra_http_options: |
 # gunicorn
 # https://docs.gunicorn.org/en/stable/settings.html
 gunicorn_workers: 5  # rule of thumb: 2 * CPUs + 1
-gunicorn_worker_class: 'sync'  # or async, needs gevent
+gunicorn_worker_class: 'sync'  # or "gevent", needs gevent
 
 # postgres
 postgresql_databases:
