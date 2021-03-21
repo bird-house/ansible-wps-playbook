@@ -142,6 +142,7 @@ wps_services: []
   #   drmaa_native_specification: ""
   #   log_level: INFO
   #   cleantempdir: true
+  #   storage_copy_function: copy
   #   database: "{{ wps_database }}"
   #   # outputurl: http://somewhere.earth/outputs # optional
   #   extra_config: |

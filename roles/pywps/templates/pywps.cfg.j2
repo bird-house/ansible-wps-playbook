@@ -35,6 +35,7 @@ outputpath= {{ wps_basedir }}/outputs/{{ item.name }}
 workdir={{ wps_basedir }}/tmp/{{ item.name }}
 sethomedir={{ item.sethomedir | default('false') }}
 cleantempdir={{ item.cleantempdir | default('true') }}
+storage_copy_function={{ item.storage_copy_function | default('copy') }}
 
 [processing]
 mode={{ item.mode | default('default')}}
