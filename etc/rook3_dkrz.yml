@@ -16,7 +16,7 @@ cron_disabled: no
 wps_outputs_keep_days: 1 
 wps_temp_keep_days: 1
 # conda
-conda_env_use_spec: false
+conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # conda_env_file: env.yml
 # db
@@ -27,7 +27,7 @@ db_install_sqlite: false
 db_user: pywps
 db_password: pywps
 # gunicorn
-gunicorn_workers: 21
+gunicorn_workers: 17
 gunicorn_worker_class: 'gevent'
 # slurm
 slurm_enabled: true
@@ -46,7 +46,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: intake
+    version: v0.4.1
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
