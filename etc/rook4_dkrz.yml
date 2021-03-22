@@ -57,8 +57,8 @@ wps_services:
     storage_copy_function: link
     log_level: INFO
     identification_accessconstraints: "open access"
-    provider_name: rook.dkrz.de
-    provider_url: https://roocs.github.io/
+    provider_name: "rook (intake)"
+    provider_url: http://rook.dkrz.de
     contact_name: DKRZ
     contact_city: Hamburg
     contact_country: Germany
