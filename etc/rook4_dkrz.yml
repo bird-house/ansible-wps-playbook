@@ -46,7 +46,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: intake 
+    version: fix-intake-filemapper
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -63,3 +63,6 @@ wps_services:
     contact_city: Hamburg
     contact_country: Germany
     contact_url: https://roocs.github.io/
+    cleantempdir: false
+    environment:
+      INTAKE_CONF_DIR: /var/lib/pywps/intake 
