@@ -46,7 +46,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.4.2
+    version: v0.5.0
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -58,9 +58,11 @@ wps_services:
     log_level: INFO
     cleantempdir: true
     identification_accessconstraints: "restricted"
-    provider_name: "rook v0.4.2"
+    provider_name: "rook v0.5.0"
     provider_url: http://rook3.cloud.dkrz.de
     contact_name: DKRZ
     contact_city: Hamburg
     contact_country: Germany
     contact_url: https://roocs.github.io/
+    environment:
+      INTAKE_CONF_DIR: /var/lib/pywps/intake 
