@@ -1,7 +1,7 @@
 ---
 wps_internal_hostname: rook4.cloud.dkrz.de
 #wps_external_hostname: compute.mips.copernicus-climate.eu
-wps_external_hostname: rook4.cloud.dkrz.de
+wps_external_hostname: rook.dkrz.de
 
 # user for pywps service
 wps_user: wps
@@ -46,7 +46,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: fix-intake-filemapper
+    version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
