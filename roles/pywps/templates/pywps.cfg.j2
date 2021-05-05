@@ -43,13 +43,14 @@ drmaa_native_specification={{ item.drmaa_native_specification | default('') }}
 
 [logging]
 level = {{ item.log_level | default('INFO') }}
-file = /var/log/pywps/{{ item.name }}.log
+file = {{ wps_log_dir }}/{{ item.name }}.log
 {% if db_install_sqlite %}
 database = sqlite:///{{ wps_basedir }}/db/{{ item.name }}_log.db
 {% else %}
 database = {{ item.database | default(wps_database) }}
 {% endif %}
 format = %(asctime)s] [%(levelname)s] %(message)s
+http_log_path = {{ wps_http_log_dir | default('/var/log/nginx') }}
 
 {% if item.extra_config is defined %}
 {{ item.extra_config }}
