@@ -129,6 +129,8 @@ wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host 
 wps_webservice_enabled: true
 wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
+wps_log_dir: /var/log/pywps
+wps_http_log_dir: /var/log/nginx
 wps_outputs_keep_days: 30
 wps_temp_keep_days: 30
 wps_services: []
