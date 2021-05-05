@@ -26,9 +26,14 @@ postgresql_pg_hba_md5_hosts: ['136.172.60.84/32']
 db_install_sqlite: false
 db_user: pywps
 db_password: pywps
+# nginx
+nginx_keepalive_timeout: 300
+nginx_keepalive_requests: 100
+nginx_proxy_timeout: 300
 # gunicorn
 gunicorn_workers: 17
 gunicorn_worker_class: 'gevent'
+gunicorn_timeout: 300
 # slurm
 slurm_enabled: true
 # access control
@@ -46,7 +51,8 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.5.0
+    #version: v0.5.0
+    version: release-0.5.x
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
