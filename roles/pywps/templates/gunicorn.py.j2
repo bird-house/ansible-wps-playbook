@@ -1,6 +1,7 @@
 bind = 'unix://{{ wps_run_dir }}/{{ item.name }}.sock'
 workers = {{ gunicorn_workers }}
 worker_class = '{{ gunicorn_worker_class }}'
+timeout = {{ gunicorn_timeout }}
 
 # environment
 raw_env = [
