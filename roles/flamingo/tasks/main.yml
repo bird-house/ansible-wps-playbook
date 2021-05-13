@@ -1,18 +1,23 @@
 ---
+- name: Stat the test data directory
+  stat: 
+    path: "/badc"
+  register: stat_test_data
+
 - name: Clone test data.
   git:
     repo: "https://github.com/cedadev/mini-ceda-archive.git"
-    version: "master"
+    version: "main"
     dest: "/tmp/mini-ceda-archive"
     update: yes
     force: yes
   run_once: true
-  when: flamingo_site == "demo"
+  when: flamingo_site == "demo" and not stat_test_data.stat.exists
 
 - name: Move test data to archive location
-  command: "mv -f /tmp/mini-ceda-archive/main/archive/badc /"
+  command: "mv -f /tmp/mini-ceda-archive/archive/badc /"
   run_once: true
-  when: flamingo_site == "demo"
+  when: flamingo_site == "demo" and not stat_test_data.stat.exists
 
 - name: Copy flamingo (roocs) config
   template:
