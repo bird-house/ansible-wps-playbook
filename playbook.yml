@@ -60,3 +60,5 @@
       wps_webservice_enabled: false
     - name: roocs
       when: roocs_enabled
+    - name: flamingo
+      when: flamingo_enabled

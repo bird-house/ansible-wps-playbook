@@ -1,0 +1,21 @@
+---
+- name: Clone test data.
+  git:
+    repo: "https://github.com/cedadev/mini-ceda-archive.git"
+    version: "master"
+    dest: "/tmp/mini-ceda-archive"
+    update: yes
+    force: yes
+  run_once: true
+  when: flamingo_site == "demo"
+
+- name: Move test data to archive location
+  command: "mv -f /tmp/mini-ceda-archive/main/archive/badc /"
+  run_once: true
+  when: flamingo_site == "demo"
+
+- name: Copy flamingo (roocs) config
+  template:
+    src: "./templates/flamingo.ini.j2"
+    dest: "/etc/roocs.ini"
+
