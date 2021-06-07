@@ -80,11 +80,15 @@ nginx_extra_http_options: |
     application/x-netcdf    nc;
     application/ncML+xml    ncml;
   }
+nginx_keepalive_timeout: "60"
+nginx_keepalive_requests: "100"
+nginx_proxy_timeout: "60s"
 
 # gunicorn
 # https://docs.gunicorn.org/en/stable/settings.html
 gunicorn_workers: 5  # rule of thumb: 2 * CPUs + 1
 gunicorn_worker_class: 'sync'  # or "gevent", needs gevent
+gunicorn_timeout: 30
 
 # postgres
 postgresql_databases:
@@ -125,6 +129,8 @@ wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host 
 wps_webservice_enabled: true
 wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
+wps_log_dir: /var/log/pywps
+wps_http_log_dir: /var/log/nginx
 wps_outputs_keep_days: 30
 wps_temp_keep_days: 30
 wps_services: []
