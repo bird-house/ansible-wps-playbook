@@ -24,30 +24,3 @@
     src: "./templates/flamingo.ini.j2"
     dest: "/etc/roocs.ini"
 
-- name: Edit pywps file - hot fix
-  lineinfile:
-    path: /usr/local/anaconda/envs/flamingo/lib/python3.7/site-packages/pywps/app/WPSRequest.py
-    regexp: '.*bbox\.crs.*'
-    line: "                inpt['crs'] = '' #bbox.crs"
-    owner: root
-    group: root
-    mode: '0644'
-
-- name: Edit owslib file - hot fix
-  lineinfile:
-    path: /usr/local/anaconda/envs/flamingo/lib/python3.7/site-packages/owslib/ows.py
-    insertbefore: '.*self\.crs = crs\.Crs\(val\).*'
-    line: "                val = 'urn:ogc:def:crs:OGC:2:84'"
-    owner: root
-    group: root
-    mode: '0644'
-
-- name: Edit line in daops - hot fix
-  lineinfile:
-    path: /usr/local/anaconda/envs/flamingo/lib/python3.7/site-packages/daops/utils/core.py
-    insertafter: '.*combine="by_coords",.*'
-    line: "            decode_timedelta=False"
-    owner: root
-    group: root
-    mode: '0644'
-

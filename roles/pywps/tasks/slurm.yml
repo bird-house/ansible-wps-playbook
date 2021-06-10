@@ -1,23 +1,42 @@
 ---
+- name: Create directory to download and build slurm-drmaa
+  file:
+    path: /usr/local/src/slurm-drmaa-{{ item.name }}
+    state: directory
+  with_items: "{{ wps_services }}"
+  tags:
+    - slurm
+
 - name: Download and unarchive slurm-drmaa
   unarchive:
     src: https://github.com/natefoo/slurm-drmaa/releases/download/{{ slurm_drmaa_version }}/slurm-drmaa-{{ slurm_drmaa_version }}.tar.gz
-    dest: /usr/local/src
+    dest: "/usr/local/src/slurm-drmaa-{{ item.name }}"
     remote_src: yes
+  with_items: "{{ wps_services }}"
   tags:
     - slurm
 
 - name: Configure slurm-drmaa
   command: "./configure --prefix={{ conda_envs_dir }}/{{ item.name }}"
   args:
-    chdir: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}
+    chdir: /usr/local/src/slurm-drmaa-{{ item.name }}/slurm-drmaa-{{ slurm_drmaa_version }}
+  with_items: "{{ wps_services }}"
+  tags:
+    - slurm
+
+- name: Do a make clean to empty out installation
+  make:
+    chdir: /usr/local/src/slurm-drmaa-{{ item.name }}/slurm-drmaa-{{ slurm_drmaa_version }}
+    target: clean
   with_items: "{{ wps_services }}"
   tags:
     - slurm
 
 - name: Make slurm-drmaa
   make:
-    chdir: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}
+    chdir: /usr/local/src/slurm-drmaa-{{ item.name }}/slurm-drmaa-{{ slurm_drmaa_version }}
     target: install
+  with_items: "{{ wps_services }}"
   tags:
     - slurm
+

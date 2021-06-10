@@ -4,7 +4,7 @@ upstream {{ item.name }} {
     server unix://{{ wps_run_dir }}/{{ item.name }}.sock fail_timeout=0;
 }
 
-proxy_cache_path {{ wps_cache_dir }} levels=1:2 keys_zone=pywps:10m max_size=1g
+proxy_cache_path {{ wps_cache_dir }}/{{ item.name }} levels=1:2 keys_zone={{ item.name }}:10m max_size=1g
                  inactive=10m use_temp_path=off;
 
 map $arg_request $wps_nocache {
@@ -54,7 +54,7 @@ server {
             return 403;
         }
         {% endif %}
-        proxy_cache             pywps;
+        proxy_cache             {{ item.name }};
         proxy_cache_valid       200 10m;
         proxy_cache_bypass      $http_cache_control $arg_nocache;
         proxy_no_cache          $http_pragma $wps_nocache;
