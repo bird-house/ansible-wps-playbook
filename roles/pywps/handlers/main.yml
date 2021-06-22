@@ -12,3 +12,4 @@
   service:
     name: nginx
     state: restarted
+

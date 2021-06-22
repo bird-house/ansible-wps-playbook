@@ -31,15 +31,16 @@ maxsingleinputsize = {{ item.maxsingleinputsize | default('10gb') }}
 maxrequestsize = {{ item.maxrequestsize | default('200mb') }}
 maxprocesses = {{ item.maxprocesses | default('30') }}
 parallelprocesses = {{ item.parallelprocesses | default('4') }}
-outputpath= {{ wps_basedir }}/outputs/{{ item.name }}
-workdir={{ wps_basedir }}/tmp/{{ item.name }}
-sethomedir={{ item.sethomedir | default('false') }}
-cleantempdir={{ item.cleantempdir | default('true') }}
-storage_copy_function={{ item.storage_copy_function | default('copy') }}
+outputpath = {{ wps_basedir }}/outputs/{{ item.name }}
+workdir = {{ wps_basedir }}/tmp/{{ item.name }}
+sethomedir = {{ item.sethomedir | default('false') }}
+cleantempdir = {{ item.cleantempdir | default('true') }}
+storage_copy_function = {{ item.storage_copy_function | default('copy') }}
+shared_cache_dir = {{ item.shared_cache_dir | default('') }}
 
 [processing]
-mode={{ item.mode | default('default')}}
-drmaa_native_specification={{ item.drmaa_native_specification | default('') }}
+mode = {{ item.mode | default('default')}}
+drmaa_native_specification = {{ item.drmaa_native_specification | default('') }}
 
 [logging]
 level = {{ item.log_level | default('INFO') }}

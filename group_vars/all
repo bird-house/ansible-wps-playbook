@@ -118,9 +118,6 @@ roocs_site: demo
 roocs_demo_data_dir: /data
 roocs_cache_dir: "/tmp/inventory_cache"
 
-# flamingo
-flamingo_enabled: false
-
 # pywps
 wps_user: "{{ service_user }}"
 wps_group: "{{ service_group }}"
