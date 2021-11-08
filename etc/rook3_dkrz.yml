@@ -13,8 +13,8 @@ wps_group: wps
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_disabled: no
-wps_outputs_keep_days: 2 
-wps_temp_keep_days: 2
+wps_outputs_keep_days: 14 
+wps_temp_keep_days: 5
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
@@ -45,14 +45,15 @@ wps_acl_allow:
    - 130.246.130.0/24
    - 130.246.148.0/24
    - 172.17.11.15
+# flamingo
+flamingo_enabled: false
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    #version: v0.5.0
-    version: release-0.5.x
+    version: v0.6.2
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -62,9 +63,9 @@ wps_services:
     parallelprocesses: -1
     storage_copy_function: link
     log_level: INFO
-    cleantempdir: true
+    cleantempdir: false 
     identification_accessconstraints: "restricted"
-    provider_name: "rook v0.5.0"
+    provider_name: "DKRZ rook v0.6.2"
     provider_url: http://rook3.cloud.dkrz.de
     contact_name: DKRZ
     contact_city: Hamburg
