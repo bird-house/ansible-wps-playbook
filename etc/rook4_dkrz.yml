@@ -51,8 +51,8 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    #version: v0.8.0
-    version: fix-0.8.0
+    version: v0.8.1
+    #version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -63,7 +63,7 @@ wps_services:
     storage_copy_function: link
     log_level: INFO
     identification_accessconstraints: "open access"
-    provider_name: "rook (intake)"
+    provider_name: "rook (DKRZ)"
     provider_url: http://rook.dkrz.de
     contact_name: DKRZ
     contact_city: Hamburg
