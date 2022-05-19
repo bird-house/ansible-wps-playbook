@@ -17,7 +17,7 @@
     - slurm
 
 - name: Configure slurm-drmaa
-  command: "./configure --prefix={{ conda_envs_dir }}/{{ item.name }}"
+  command: "./configure --prefix={{ conda_envs_dir }}/{{ item.name }} --with-slurm-inc=/usr/include/slurm --with-slurm-lib=/usr/lib64/slurm"
   args:
     chdir: /usr/local/src/slurm-drmaa-{{ item.name }}/slurm-drmaa-{{ slurm_drmaa_version }}
   with_items: "{{ wps_services }}"
