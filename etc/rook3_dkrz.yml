@@ -3,9 +3,14 @@ wps_internal_hostname: rook3.cloud.dkrz.de
 #wps_external_hostname: compute.mips.copernicus-climate.eu
 wps_external_hostname: rook3.cloud.dkrz.de
 
+# service user
+service_user: tomcat
+service_uid: 401
+service_group: tomcat
+service_gid: 399
 # user for pywps service
-wps_user: wps
-wps_group: wps
+#wps_user: wps
+#wps_group: wps
 ## TODO: allow user wps to run cron
 # $ vim /etc/security/access.conf
 # + : wps : cron crond :0 tty1 tty2 tty3 tty4 tty5 tty6
@@ -54,7 +59,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.8.1
+    version: v0.8.2
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -66,7 +71,7 @@ wps_services:
     log_level: INFO
     cleantempdir: false 
     identification_accessconstraints: "restricted"
-    provider_name: "DKRZ rook v0.8.1"
+    provider_name: "DKRZ rook v0.8.2"
     provider_url: http://rook3.cloud.dkrz.de
     contact_name: DKRZ
     contact_city: Hamburg
