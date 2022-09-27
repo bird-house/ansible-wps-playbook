@@ -1,30 +1,45 @@
 [project:cmip5]
-#base_dir = /mnt/lustre01/work/kd0956/CMIP5/data/cmip5
 base_dir = /mnt/lustre/work/kd0956/CMIP5/data/cmip5
 use_inventory = False
 
 [project:cmip6]
-#base_dir = /mnt/lustre02/work/ik1017/CMIP6/data/CMIP6
 base_dir = /mnt/lustre/work/ik1017/CMIP6/data/CMIP6
 use_inventory = False
 data_node_root = http://esgf3.dkrz.de/thredds/fileServer/cmip6/
 
 [project:cordex]
-#base_dir = /mnt/lustre02/work/ik1017/CORDEX/data/cordex
 base_dir = /mnt/lustre/work/ik1017/CORDEX/data/cordex
 use_inventory = False
 
 [project:c3s-cmip5]
-#base_dir = /mnt/lustre02/work/ik1017/C3SCMIP5/data/c3s-cmip5
 base_dir = /mnt/lustre/work/ik1017/C3SCMIP5/data/c3s-cmip5
 use_catalog = False
 
 [project:c3s-cmip6]
-#base_dir = /mnt/lustre02/work/ik1017/CMIP6/data/CMIP6
 base_dir = /mnt/lustre/work/ik1017/CMIP6/data/CMIP6
 
+[project:c3s-cmip6-decadal]
+project_name = c3s-cmip6-decadal
+base_dir = /mnt/lustre/work/ik1017/CMIP6/data/CMIP6
+is_default_for_path = True
+# these may need to be changed
+file_name_template = {__derive__var_id}_{table_id}_{source_id}_{experiment_id}_r{realization_index}i{initialization_index}p{physics_index}f{forcing_index}_{grid_label}{__derive__time_range}{extra}.{__derive__extension}
+attr_defaults =
+    table_id:no-table
+    source_id:no-model
+    experiment_id:no-expt
+    realization_index:X
+    initialization_index:X
+    physics_index:X
+    forcing_index:X
+    grid_label:no-grid
+facet_rule = mip_era activity_id institution_id source_id experiment_id member_id table_id variable_id grid_label version
+mappings =
+    project:mip_era
+use_catalog = True
+data_node_root = https://data.mips.copernicus-climate.eu/thredds/fileServer/esg_c3s-cmip6/
+
 [project:c3s-cordex]
-#base_dir = /mnt/lustre02/work/ik1017/C3SCORDEX/data/c3s-cordex
 base_dir = /mnt/lustre/work/ik1017/C3SCORDEX/data/c3s-cordex
 
 [dachar:store]
