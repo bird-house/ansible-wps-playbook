@@ -32,6 +32,21 @@ logrotate_applications:
           - sharedscripts
         postrotate:
           - supervisorctl restart all >/dev/null 2>/dev/null || true
+  - name: slurm
+    definitions:
+      - logs:
+          - /var/log/slurm/*.log
+        options:
+          - rotate 7
+          - daily
+          - dateext
+          - copytruncate
+          - missingok
+          - notifempty
+          - sharedscripts
+        postrotate:
+          - systemctl reload slurmd > /dev/null 2>&1 || true
+          - systemctl reload slurmctld > /dev/null 2>&1 || true
 
 # postgres
 db_install_postgresql: true
