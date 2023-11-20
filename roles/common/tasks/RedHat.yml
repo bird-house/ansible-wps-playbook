@@ -6,9 +6,7 @@
     packages:
       - gcc-c++
       - make
-      - libselinux-python
       - initscripts
-      - python-meld3
       - openssl-devel
       - cronie
 
