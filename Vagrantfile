@@ -21,14 +21,14 @@ Vagrant.configure("2") do |config|
     wps.vm.box = "bento/almalinux-9"
     wps.vm.hostname = "wps.local"
     wps.vm.network "private_network", ip: "192.168.128.100"
-    wps.vm.provision 'ansible' do |ansible|
-      ansible.playbook = 'playbook.yml'
-      ansible.verbose = "v"
-      ansible.host_key_checking = false
-      ansible.groups = {
-        "web" => ["wps"],
-        "worker"  => []
-      }
-    end
+    # wps.vm.provision 'ansible' do |ansible|
+    #   ansible.playbook = 'playbook.yml'
+    #   ansible.verbose = "v"
+    #   ansible.host_key_checking = false
+    #   ansible.groups = {
+    #     "web" => ["wps"],
+    #     "worker"  => []
+    #   }
+    # end
   end
 end
