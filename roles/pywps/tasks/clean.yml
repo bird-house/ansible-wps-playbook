@@ -42,5 +42,6 @@
   service:
     name: supervisord
     state: reloaded
+  when: False
   tags:
     - conf

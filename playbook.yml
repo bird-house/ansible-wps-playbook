@@ -14,12 +14,13 @@
     #   debug:
     #     var: hostvars['192.168.50.44']
   roles:
-    - role: geerlingguy.repo-epel
-      when: (ansible_os_family == "RedHat") and (not epel_repo_disable)
     - common
     - role: andrewrothstein.miniconda
       tags:
         conda
+    - role: geerlingguy.pip
+      tags:
+        supervisor
     - role: geerlingguy.supervisor
       tags:
         supervisor
@@ -52,8 +53,6 @@
        - custom.yml
        - null.yml
   roles:
-    - role: geerlingguy.repo-epel
-      when: (ansible_os_family == "RedHat") and (not epel_repo_disable)
     - common
     - role: andrewrothstein.miniconda
       tags:

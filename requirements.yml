@@ -1,9 +1,7 @@
 ---
 roles:
   - name: andrewrothstein.miniconda
-  - name: andrewrothstein.bash
-  - name: andrewrothstein.unarchive-deps
-  - name: geerlingguy.repo-epel
+  - name: geerlingguy.pip
   - name: geerlingguy.supervisor
   - name: geerlingguy.nginx
   - name: ANXS.postgresql

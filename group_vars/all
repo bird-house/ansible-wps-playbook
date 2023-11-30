@@ -12,8 +12,6 @@ service_groups: "{{ service_group }}"
 service_user_home: /var/lib/pywps
 cron_script_dir: "{{ service_user_home }}"
 
-# RedHat/CentOS epel repo
-epel_repo_disable: false
 
 # logrotation
 logrotate_use_hourly_rotation: false
@@ -68,7 +66,6 @@ slurm_drmaa_version: 1.1.3
 # miniconda
 miniconda_parent_dir: "{{ prefix }}"
 miniconda_make_sys_default: False
-# miniconda_ver: '4.7.12.1'
 
 # conda
 conda_location: "{{ prefix }}/anaconda"
