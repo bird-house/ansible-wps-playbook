@@ -1,6 +1,19 @@
 Changes
 *******
 
+0.5.0 (2023-11-30)
+==================
+
+Changes:
+
+* updates
+* support for site specific roocs configs (#122) 
+* added nginx access control (#127)
+* added smoke test runner (#132)
+* added config for gunicorn (#136)
+* added support for flamingo WPS (#140, #141)
+* added logrotate for slurm (#143)
+
 0.4.0 (2020-09-22)
 ==================
 
