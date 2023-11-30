@@ -22,6 +22,8 @@
       tags:
         supervisor
     - role: geerlingguy.supervisor
+      vars:
+        - ansible_distribution_major_version: 8  # TODO: redhat 9 is missing
       tags:
         supervisor
     - role: jdauphant.ssl-certs

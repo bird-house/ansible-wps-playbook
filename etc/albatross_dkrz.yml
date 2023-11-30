@@ -1,0 +1,13 @@
+---
+db_install_postgresql: false
+db_install_sqlite: true
+# conda
+conda_env_use_spec: true
+conda_env_spec_file: spec-list.txt
+# Configuration for Albatross WPS
+wps_services:
+  - name: albatross
+    repo: https://github.com/climateintelligence/albatross.git
+    version: main
+    hostname: localhost
+    port: 5000

@@ -6,9 +6,6 @@
     packages:
       - gcc-c++
       - make
-      - initscripts
-      - openssl-devel
-      - cronie
 
 - name: Remove unwanted packages on RedHat
   yum:

@@ -7,10 +7,11 @@
 - name: Install common packages
   package: name={{ item }} state=latest
   with_items:
-    - python-pip
     - wget
     - curl
     - git
+    - vim
+    - tmux
   tags:
     - common
 
