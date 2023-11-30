@@ -18,8 +18,8 @@ service_gid: 399
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_disabled: no
-wps_outputs_keep_days: 7 
-wps_temp_keep_days: 3
+wps_outputs_keep_days: 0 
+wps_temp_keep_days: 0
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
@@ -56,7 +56,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.9.3
+    version: v0.11.0
     #version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
