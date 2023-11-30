@@ -18,8 +18,8 @@ service_gid: 399
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_disabled: no
-wps_outputs_keep_days: 3 
-wps_temp_keep_days: 1
+wps_outputs_keep_days: 0 
+wps_temp_keep_days: 0
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
@@ -32,13 +32,13 @@ db_install_sqlite: false
 db_user: pywps
 db_password: pywps
 # nginx
-nginx_keepalive_timeout: 300
+nginx_keepalive_timeout: 900
 nginx_keepalive_requests: 100
-nginx_proxy_timeout: 300
+nginx_proxy_timeout: 900
 # gunicorn
 gunicorn_workers: 17
 gunicorn_worker_class: 'gevent'
-gunicorn_timeout: 300
+gunicorn_timeout: 900
 # slurm
 slurm_enabled: true
 # access control
@@ -59,8 +59,8 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.9.1
-    # version: quick-fix-apply-fixes
+    version: v0.11.0
+    #version: quick-fix-apply-fixes
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -70,9 +70,9 @@ wps_services:
     parallelprocesses: -1
     storage_copy_function: link
     log_level: INFO
-    cleantempdir: false 
+    cleantempdir: true
     identification_accessconstraints: "restricted"
-    provider_name: "DKRZ rook v0.9.0"
+    provider_name: "DKRZ rook"
     provider_url: http://rook3.cloud.dkrz.de
     contact_name: DKRZ
     contact_city: Hamburg
