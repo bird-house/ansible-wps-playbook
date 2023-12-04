@@ -1,8 +1,8 @@
 ---
-- include: source.yml
+- include_tasks: source.yml
 
-- include: conda.yml
+- include_tasks: conda.yml
 
-- include: folders.yml
+- include_tasks: folders.yml
 
-- include: config.yml
+- include_tasks: config.yml
