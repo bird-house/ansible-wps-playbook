@@ -56,7 +56,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.11.0
+    version: v0.13.0
     #version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"

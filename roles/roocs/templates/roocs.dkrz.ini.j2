@@ -1,3 +1,9 @@
+[clisops:read]
+chunk_memory_limit = 2048MiB
+
+[clisops:write]
+file_size_limit = 2GB
+
 [project:cmip5]
 base_dir = /mnt/lustre/work/kd0956/CMIP5/data/cmip5
 use_inventory = False
@@ -13,59 +19,21 @@ use_inventory = False
 
 [project:c3s-cmip5]
 base_dir = /mnt/lustre/work/ik1017/C3SCMIP5/data/c3s-cmip5
-use_fixes = False
 
 [project:c3s-cmip6]
 base_dir = /mnt/lustre/work/ik1017/CMIP6/data/CMIP6
-use_fixes = False
 
 [project:c3s-cmip6-decadal]
-project_name = c3s-cmip6-decadal
 base_dir = /mnt/lustre/work/ik1017/CMIP6/data/CMIP6
-is_default_for_path = True
-# these may need to be changed
-file_name_template = {__derive__var_id}_{table_id}_{source_id}_{experiment_id}_r{realization_index}i{initialization_index}p{physics_index}f{forcing_index}_{grid_label}{__derive__time_range}{extra}.{__derive__extension}
-attr_defaults =
-    table_id:no-table
-    source_id:no-model
-    experiment_id:no-expt
-    realization_index:X
-    initialization_index:X
-    physics_index:X
-    forcing_index:X
-    grid_label:no-grid
-facet_rule = mip_era activity_id institution_id source_id experiment_id member_id table_id variable_id grid_label version
-mappings =
-    project:mip_era
-use_catalog = True
-use_fixes = False
-data_node_root = https://data.mips.copernicus-climate.eu/thredds/fileServer/esg_c3s-cmip6/
 
 [project:c3s-cordex]
 base_dir = /mnt/lustre/work/ik1017/C3SCORDEX/data/c3s-cordex
 
 [project:c3s-ipcc-atlas]
 base_dir = /mnt/lustre/work/ik1017/C3SATLAS/data/c3s-ipcc-ar6-atlas
-use_inventory = True
-use_catalog = True
-is_default_for_path = True
-file_name_template = {__derive__var_id}_{project}_{experiment}_{time_frequency}_{__derive__time_range}{extra}.{__derive__extension}
-attr_defaults =
-    time_frequency:no-freq
-    experiment:no-expt
-facet_rule = variable project experiment time_frequency
-mappings =
-    project:project_id
-data_node_root = https://data.mips.copernicus-climate.eu/thredds/fileServer/esg_c3s-ipcc-atlas/
 
-[dachar:store]
-store_type = elasticsearch
+[project:c3s-cica-atlas]
+base_dir = /mnt/lustre/work/ik1017/C3SATLAS_v1/data/c3s-cica-atlas
 
-[elasticsearch]
-endpoint = _elasticsearch.ceda.ac.uk
-port = 443
-fix_store = c3s-roocs-fix
-fix_proposal_store = c3s-roocs-fix-prop
-
-[catalog]
-#intake_catalog_url = https://raw.githubusercontent.com/cp4cds/c3s_34g_manifests/master/intake/catalogs/c3s.yaml
+[project:copernicus -interactive-climate-atlas-dataset]
+base_dir = /mnt/lustre/work/ik1017/C3SATLAS_v1/data/c3s-cica-atlas
