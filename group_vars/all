@@ -125,7 +125,7 @@ ssl_certs_path_group: "{{ service_group }}"
 
 # cron
 cron_enabled: false
-cron_disabled: "{{ cron_enabled | bool is falsy }}"
+cron_disabled: "{{ cron_enabled | bool == false }}"
 cron_mailto: root
 cron_user: root
 
