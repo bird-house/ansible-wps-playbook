@@ -4,9 +4,7 @@ roles:
   - name: geerlingguy.pip
   - name: geerlingguy.supervisor
   - name: geerlingguy.nginx
-  - src: https://github.com/ANXS/postgresql
-    version: v1.16.0
-    name: ANXS.postgresql
+  - name: anxs.postgresql
   - name: jdauphant.ssl-certs
   - name: arillso.logrotate
 
