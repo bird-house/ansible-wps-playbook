@@ -17,7 +17,8 @@ service_gid: 399
 
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
-cron_disabled: no
+cron_enabled: yes
+cron_user: root
 wps_outputs_keep_days: 0 
 wps_temp_keep_days: 0
 # conda
