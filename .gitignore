@@ -6,6 +6,7 @@ etc/custom*.yml
 roles/andrewrothstein.*
 roles/geerlingguy.*
 roles/ANXS.*
+roles/anxs.*
 roles/ansible-role-supervisor
 roles/jdauphant.ssl-certs
 roles/nginxinc.nginx
