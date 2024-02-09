@@ -1,4 +1,11 @@
 ---
+# enable cronjob to clean outputs
+cron_mailto: ehbrecht@dkrz.de
+cron_enabled: yes
+cron_user: root
+wps_outputs_keep_days: 0 
+wps_temp_keep_days: 0
+# db
 db_install_postgresql: false
 db_install_sqlite: true
 # conda
