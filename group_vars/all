@@ -51,8 +51,8 @@ db_install_postgresql: true
 db_install_sqlite: false
 db_host: localhost
 db_port: 5432
-db_user: dbuser
-db_password: dbuser
+db_user: postgres
+db_password: postgres
 
 # nginx fileserver
 fs_enabled: false
@@ -103,17 +103,21 @@ gunicorn_worker_class: 'sync'  # or "gevent", needs gevent
 gunicorn_timeout: 30
 
 # postgres
+postgresql_service_state: "started"
+postgresql_service_enabled: true
 postgresql_databases:
   - name:  "pywps"
+    port: "{{ db_port }}"
 postgresql_users:
   - name: "{{ db_user }}"
-    pass: "{{ db_password }}"
+    # password: "{{ db_password }}"
+    # pass: "{{ db_password }}"
     encrypted: yes  # encryption necessary for postgres>=10.0.
-postgresql_listen_addresses:
-  - "*"
-postgresql_pg_hba_md5_hosts: []
-postgresql_pg_hba_trust_hosts: []
-postgresql_port: "{{ db_port }}"
+#postgresql_listen_addresses:
+#  - "*"
+#postgresql_pg_hba_md5_hosts: []
+#postgresql_pg_hba_trust_hosts: []
+# postgresql_port: "{{ db_port }}"
 
 # ssl-certs
 # https://github.com/jdauphant/ansible-role-ssl-certs/blob/master/defaults/main.yml

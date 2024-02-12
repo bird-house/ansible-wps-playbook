@@ -4,7 +4,8 @@ roles:
   - name: geerlingguy.pip
   - name: geerlingguy.supervisor
   - name: geerlingguy.nginx
-  - name: anxs.postgresql
+  - name: geerlingguy.postgresql
+  # - name: anxs.postgresql
   - name: jdauphant.ssl-certs
   - name: arillso.logrotate
 
