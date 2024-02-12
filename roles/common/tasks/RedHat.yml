@@ -6,6 +6,7 @@
     packages:
       - gcc-c++
       - make
+      - glibc-all-langpacks
 
 - name: Remove unwanted packages on RedHat
   yum:
