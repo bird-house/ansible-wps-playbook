@@ -107,8 +107,8 @@ gunicorn_timeout: 30
 postgresql_restarted_state: "restarted"
 postgresql_service_state: "started"
 postgresql_service_enabled: true
-# postgresql_locales:
-#   - 'en_US.UTF-8'
+postgresql_locales:
+  - 'en_US.utf8'
 postgresql_databases:
   - name:  "pywps"
     port: "{{ db_port }}"
