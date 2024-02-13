@@ -5,7 +5,6 @@ roles:
   - name: geerlingguy.supervisor
   - name: geerlingguy.nginx
   - name: geerlingguy.postgresql
-  # - name: anxs.postgresql
   - name: jdauphant.ssl-certs
   - name: arillso.logrotate
 

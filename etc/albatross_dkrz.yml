@@ -6,8 +6,8 @@ cron_user: root
 wps_outputs_keep_days: 0 
 wps_temp_keep_days: 0
 # db
-db_install_postgresql: false
-db_install_sqlite: true
+db_install_postgresql: true
+db_install_sqlite: false
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
