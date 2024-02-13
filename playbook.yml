@@ -36,6 +36,8 @@
       when: db_install_postgresql
       tags:
         db
+    - role: galaxyproject.slurm
+      when: slurm_enabled
     - name: pywps
       wps_webservice_enabled: true
     - role: arillso.logrotate

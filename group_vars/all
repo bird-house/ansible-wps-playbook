@@ -118,6 +118,11 @@ postgresql_users:
     encrypted: yes  # encryption necessary for postgres>=10.0.
 # postgresql_hba_entries: []
 
+# slurm
+# https://github.com/galaxyproject/ansible-slurm
+slurm_enabled: false
+slurm_roles: ['controller', 'exec', 'dbd']
+
 # ssl-certs
 # https://github.com/jdauphant/ansible-role-ssl-certs/blob/master/defaults/main.yml
 ssl_certs_path_owner: "{{ service_user }}"
