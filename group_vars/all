@@ -63,7 +63,7 @@ fs_port: 6000
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
 slurm_drmaa_version: 1.1.3
-slurm_roles: ['controller', 'exec', 'dbd']
+slurm_roles: ['controller', 'exec']
 slurm_munge_key: /etc/munge/munge.key
 
 # miniconda
