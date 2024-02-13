@@ -107,6 +107,7 @@ gunicorn_timeout: 30
 postgresql_restarted_state: "restarted"
 postgresql_service_state: "started"
 postgresql_service_enabled: true
+postgresql_python_library: python3-psycopg2
 postgresql_locales:
   - 'en_US.utf8'
 postgresql_databases:
