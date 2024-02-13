@@ -17,4 +17,4 @@ wps_services:
     repo: https://github.com/climateintelligence/albatross.git
     version: main
     hostname: localhost
-    port: 5000
+    port: 80
