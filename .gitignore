@@ -12,6 +12,7 @@ roles/jdauphant.ssl-certs
 roles/nginxinc.nginx
 roles/arillso.logrotate
 roles/galaxyproject.*
+roles/grycap.*
 
 # ansible collections
 ansible_collections/

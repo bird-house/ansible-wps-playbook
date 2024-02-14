@@ -36,7 +36,7 @@
       when: db_install_postgresql
       tags:
         db
-    - role: grycap.munge
+    - role: slurm
       when: slurm_enabled
     - role: galaxyproject.slurm
       when: slurm_enabled

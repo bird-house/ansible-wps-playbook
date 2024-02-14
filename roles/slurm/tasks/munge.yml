@@ -1,0 +1,15 @@
+---
+  - name: Install munge
+    package: name={{ item }} state=latest
+    with_items:
+      - munge
+      - slurm-devel
+
+  - name: set munge log directory access rights
+    file: path=/var/log/munge state=directory mode=0700
+
+  - name: set log directory access rights
+    file: path=/var/log state=directory mode=0755
+
+  - name: Generate munge key
+    shell: create-munge-key -r
