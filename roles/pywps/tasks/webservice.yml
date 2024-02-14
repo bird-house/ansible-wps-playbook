@@ -17,7 +17,7 @@
 - name: Assure PyWPS running at end of playbook
   command: /bin/true
   notify:
-    - restart pywps
+    - restart supervisord
   tags:
     - pywps
     - conf
