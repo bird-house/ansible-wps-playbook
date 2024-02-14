@@ -79,6 +79,7 @@ conda_env_use_spec: false
 conda_env_spec_file: spec-list.txt
 
 # supervisor
+# https://github.com/geerlingguy/ansible-role-supervisor
 supervisor_user: root
 supervisor_password: 'test'
 supervisor_unix_http_server_password_protect: false

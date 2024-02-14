@@ -1,11 +1,8 @@
 ---
-- name: restart pywps
-  supervisorctl:
-    name: "{{ item.name }}"
+- name: restart supervisord
+  service:
+    name: supervisord
     state: restarted
-    username: "{{ supervisor_user }}"
-    password: "{{ supervisor_password }}"
-  with_items: "{{ wps_services }}"
 
 - name: restart nginx
   service:
