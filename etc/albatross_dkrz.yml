@@ -1,6 +1,4 @@
 ---
-wps_internal_hostname: albatross1.cloud.dkrz.de
-wps_external_hostname: albatross1.cloud.dkrz.de
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
@@ -20,6 +18,6 @@ wps_services:
   - name: albatross
     repo: https://github.com/climateintelligence/albatross.git
     version: main
-    hostname: {{ wps_internal_hostname }}
+    hostname: albatross1.cloud.dkrz.de
     port: 80
     mode: scheduler
