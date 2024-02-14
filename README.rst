@@ -28,9 +28,10 @@ Introduction
 PyWPS Ansible Playbook can completely provision a remote server to run the full stack of PyWPS_, including:
 
 * Conda_ to manage application dependencies.
-* `Nginx <http://wiki.nginx.org/Main>`_ as Web-Server.
-* `Supervisor <http://supervisord.org/>`_ to start/stop and monitor services.
+* Nginx_ as Web-Server.
+* Supervisor_ to start/stop and monitor services.
 * PostgreSQL_ optional database used for job logging.
+* Slurm_ optional workload manager for jobs.
 
 It will install a PyWPS application on a single host.
 Nginx, Supervisor and miniconda are installed on the system.
@@ -44,4 +45,7 @@ See the ``docs`` subdirectory or `readthedocs <http://ansible-wps-playbook.readt
 .. _Ansible: https://www.ansible.com/
 .. _Vagrant: https://www.vagrantup.com/
 .. _Conda: https://conda.io/miniconda.html
+.. _Nginx: https://www.nginx.com/
+.. _Supervisor: http://supervisord.org/
 .. _PostgreSQL: https://www.postgresql.org/
+.. _Slurm: https://slurm.schedmd.com/
