@@ -3,11 +3,9 @@
   supervisorctl:
     name: "{{ item.name }}"
     state: restarted
-    # config: "{{ supervisor_config_path}}/supervisord.conf"
     username: "{{ supervisor_user }}"
     password: "{{ supervisor_password }}"
   with_items: "{{ wps_services }}"
-  when: False
 
 - name: restart nginx
   service:
