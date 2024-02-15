@@ -16,3 +16,5 @@ wps_services:
     hostname: "{{ server_name }}"
     port: 80
     mode: scheduler
+    maxprocesses: -1
+    parallelprocesses: -1
