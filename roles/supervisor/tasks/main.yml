@@ -7,3 +7,7 @@
   loop:
     - { src: /usr/local/bin/supervisord, dest: /usr/bin/supervisord }
     - { src: /usr/local/bin/supervisorctl, dest: /usr/bin/supervisorctl }
+  when:
+    - ansible_distribution == "RedHat"
+    - ansible_distribution_major_version|int >= 8
+  
