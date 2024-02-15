@@ -49,3 +49,45 @@ See the ``docs`` subdirectory or `readthedocs <http://ansible-wps-playbook.readt
 .. _Supervisor: http://supervisord.org/
 .. _PostgreSQL: https://www.postgresql.org/
 .. _Slurm: https://slurm.schedmd.com/
+
+Testing with Vagrant
+====================
+
+Use Vagrant to test the installation:
+
+.. code-block:: sh
+
+    vagrant up
+
+Login in to VM:
+
+.. code-block:: sh
+
+    vagrant ssh
+
+Become root:
+
+.. code-block:: sh
+
+    sudo -i 
+
+Install ansible:
+
+.. code-block:: sh
+
+    dnf install epel-release
+    dnf install ansible
+
+
+Change to the /vagrant folder:
+
+.. code-block:: sh
+  
+    cd /vagrant
+
+Run the playbook:
+
+.. code-block:: sh
+
+    cp etc/sample-vagrant.yml custom.yml
+    make play

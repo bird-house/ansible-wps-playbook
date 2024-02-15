@@ -6,8 +6,28 @@
     packages:
       - gcc-c++
       - make
+
+- name: Install packages on RedHat 7/8
+  yum:
+    name: "{{ packages }}"
+    state: latest
+  vars:
+    packages:
+      - python2-pip
+  when:
+    - ansible_distribution_major_version|int <= 8
+
+- name: Install packages on RedHat 9
+  yum:
+    name: "{{ packages }}"
+    state: latest
+  vars:
+    packages:
+      - python3-pip
       - langpacks-en 
       - glibc-all-langpacks
+  when:
+    - ansible_distribution_major_version|int >= 9
 
 - name: Remove unwanted packages on RedHat
   yum:

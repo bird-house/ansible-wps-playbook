@@ -18,6 +18,7 @@ Vagrant.configure("2") do |config|
 
   config.vm.define "wps" do |wps|
     # wps.vm.box = "bento/centos-7"
+    # wps.vm.box = "bento/almalinux-8"
     wps.vm.box = "bento/almalinux-9"
     wps.vm.hostname = "wps.local"
     wps.vm.network "private_network", ip: "192.168.128.100"

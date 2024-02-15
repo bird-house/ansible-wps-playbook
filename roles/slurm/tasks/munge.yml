@@ -12,4 +12,4 @@
     file: path=/var/log state=directory mode=0755
 
   - name: Generate munge key
-    shell: create-munge-key -r
+    shell: create-munge-key < /dev/null creates={{ slurm_munge_key }}

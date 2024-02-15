@@ -1,0 +1,9 @@
+---
+- name: Create links to supervisor bin
+  ansible.builtin.file:
+    src: '{{ item.src }}'
+    dest: '{{ item.dest }}'
+    state: link
+  loop:
+    - { src: /usr/local/bin/supervisord, dest: /usr/bin/supervisord }
+    - { src: /usr/local/bin/supervisorctl, dest: /usr/bin/supervisorctl }
