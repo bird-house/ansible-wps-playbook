@@ -4,6 +4,7 @@
     src: '{{ item.src }}'
     dest: '{{ item.dest }}'
     state: link
+    force: yes
   loop:
     - { src: /usr/local/bin/supervisord, dest: /usr/bin/supervisord }
     - { src: /usr/local/bin/supervisorctl, dest: /usr/bin/supervisorctl }
