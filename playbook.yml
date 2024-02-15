@@ -18,10 +18,12 @@
     - role: andrewrothstein.miniconda
       tags:
         conda
+    - role: supervisor
+      tags:
+        supervisor
     - role: geerlingguy.supervisor
       tags:
         supervisor
-    - role: supervisor
     - role: jdauphant.ssl-certs
       tags:
         nginx
