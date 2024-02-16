@@ -22,3 +22,5 @@ wps_services:
     # hostname: localhost
     port: 80
     mode: scheduler
+    maxprocesses: -1
+    parallelprocesses: -1
