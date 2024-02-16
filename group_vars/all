@@ -45,8 +45,17 @@ fs_port: 6000
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
+slurm_cpus: 2
 slurm_drmaa_version: 1.1.4
 slurm_roles: ['controller', 'exec']
+slurm_nodes:
+  - name: localhost
+    CPUs: "{{ slurm_cpus }}"
+slurm_partitions:
+  - name: fast
+    Default: YES
+    MaxTime: INFINITE
+    Nodes: localhost
 slurm_munge_key: /etc/munge/munge.key
 
 # miniconda
