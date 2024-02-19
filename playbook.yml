@@ -40,7 +40,6 @@
       when: slurm_enabled
     - name: pywps
       wps_webservice_enabled: true
-    - role: arillso.logrotate
     - name: roocs
       when: roocs_enabled
     - name: flamingo

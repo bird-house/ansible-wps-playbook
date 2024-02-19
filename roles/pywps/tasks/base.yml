@@ -6,3 +6,5 @@
 - include_tasks: folders.yml
 
 - include_tasks: config.yml
+
+- include_tasks: logrotate.yml

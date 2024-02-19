@@ -1,0 +1,8 @@
+---
+- name: Copy pywps logrotate config
+  template:
+    src: ./templates/logrotate.j2
+    dest: /etc/logrotate.d/pywps
+  tags:
+    - pywps
+    - conf

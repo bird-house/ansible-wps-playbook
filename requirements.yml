@@ -6,7 +6,6 @@ roles:
   - name: geerlingguy.postgresql
   - name: galaxyproject.slurm
   - name: jdauphant.ssl-certs
-  - name: arillso.logrotate
 
 collections:
   - name: community.general

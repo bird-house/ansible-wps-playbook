@@ -12,23 +12,6 @@ service_groups: "{{ service_group }}"
 service_user_home: /var/lib/pywps
 cron_script_dir: "{{ service_user_home }}"
 
-
-# logrotation
-logrotate_use_hourly_rotation: false
-logrotate_applications:
-  - name: pywps
-    definitions:
-      - logs:
-          - /var/log/pywps/*.log
-        options:
-          - rotate 7
-          - daily
-          - dateext
-          - copytruncate
-          - missingok
-          - notifempty
-          - sharedscripts
-
 # postgres
 db_install_postgresql: true
 db_install_sqlite: false
