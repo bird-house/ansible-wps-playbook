@@ -13,12 +13,13 @@ conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # slurm
 slurm_enabled: yes
+slurm_cpus: 4
 # Configuration for Shearwater WPS
 wps_services:
   - name: shearwater
     repo: https://github.com/climateintelligence/shearwater.git
     version: main
-    hostname: shearwater1.cloud.dkrz.de
+    hostname: shearwater.dkrz.de
     # hostname: localhost
     port: 80
     mode: scheduler
