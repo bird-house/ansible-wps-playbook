@@ -12,6 +12,7 @@
     - git
     - vim
     - tmux
+    - logrotate
   tags:
     - common
 
