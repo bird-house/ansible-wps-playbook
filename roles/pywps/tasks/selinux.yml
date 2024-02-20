@@ -12,3 +12,8 @@
 
 - name: Apply new SELinux file context to filesystem
   command: restorecon -iRv /var/run
+
+- name: Change the httpd_t domain to permissive
+  community.general.selinux_permissive:
+    name: httpd_t
+    permissive: true
