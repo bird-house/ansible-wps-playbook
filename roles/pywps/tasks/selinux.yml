@@ -1,6 +1,11 @@
 ---
-- name: Allow nginx to modify files in /var/run/pywps
+- name: Enable SELinux
+  ansible.posix.selinux:
+    policy: targeted
+    state: enforcing
+
+- name: Allow nginx to modify files in /run/pywps
   community.general.sefcontext:
-    target: '/var/run/pywps(/.*)?'
+    target: '/run/pywps(/.*)?'
     setype: httpd_sys_rw_content_t
     state: present

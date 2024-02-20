@@ -6,6 +6,7 @@
     packages:
       - gcc-c++
       - make
+      - libselinux
 
 - name: Install packages on RedHat 7/8
   yum:
