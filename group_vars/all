@@ -109,6 +109,7 @@ cron_mailto: root
 cron_user: root
 
 # selinux
+# https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html
 selinux_enabled: true
 
 # roocs
