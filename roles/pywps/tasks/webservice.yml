@@ -2,6 +2,9 @@
 - include_tasks: clean.yml
 - include_tasks: cronjob.yml
 - include_tasks: webservice_config.yml
+- include_tasks: logrotate.yml
+- include_tasks: selinux.yml
+  when: selinux_enabled
 
 - include_tasks: slurm.yml
   when: slurm_enabled

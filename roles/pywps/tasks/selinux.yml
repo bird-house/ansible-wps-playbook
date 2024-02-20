@@ -1,0 +1,6 @@
+---
+- name: Allow nginx to modify files in /var/run/pywps
+  community.general.sefcontext:
+    target: '/var/run/pywps(/.*)?'
+    setype: httpd_sys_rw_content_t
+    state: present

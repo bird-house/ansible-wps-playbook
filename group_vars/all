@@ -108,6 +108,8 @@ cron_disabled: "{{ cron_enabled | bool == false }}"
 cron_mailto: root
 cron_user: root
 
+# selinux
+selinux_enabled: true
 
 # roocs
 roocs_enabled: false
