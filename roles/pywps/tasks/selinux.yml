@@ -4,8 +4,11 @@
     policy: targeted
     state: enforcing
 
-- name: Allow nginx to modify files in /run/pywps
+- name: Allow nginx to modify files in /var/run/pywps
   community.general.sefcontext:
-    target: '/run/pywps(/.*)?'
+    target: '/var/run/pywps(/.*)?'
     setype: httpd_sys_rw_content_t
     state: present
+
+- name: Apply new SELinux file context to filesystem
+  command: restorecon -iRv /var/run
