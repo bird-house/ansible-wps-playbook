@@ -31,6 +31,10 @@ slurm_enabled: false
 slurm_cpus: 2
 slurm_drmaa_version: 1.1.4
 slurm_roles: ['controller', 'exec']
+slurm_config:
+  SchedulerType: "sched/builtin"
+  SelectType: "select/cons_res"
+  SelectTypeParameters: "CR_Core"
 slurm_nodes:
   - name: localhost
     CPUs: "{{ slurm_cpus }}"
