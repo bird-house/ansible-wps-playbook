@@ -16,7 +16,7 @@ slurm_enabled: yes
 slurm_cpus: 4
 # Configuration for Albatross WPS
 wps_services:
-  - name: albatross
+  - name: owl
     repo: https://github.com/climateintelligence/owl.git
     version: main
     hostname: owl1.cloud.dkrz.de
