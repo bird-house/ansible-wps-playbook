@@ -19,7 +19,7 @@ wps_services:
   - name: albatross
     repo: https://github.com/climateintelligence/albatross.git
     version: main
-    hostname: albatross1.cloud.dkrz.de
+    hostname: albatross2.cloud.dkrz.de
     port: 80
     mode: scheduler
     maxprocesses: -1
