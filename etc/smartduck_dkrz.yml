@@ -20,7 +20,7 @@ wps_services:
     repo: https://github.com/climateintelligence/duck.git
     # version: main
     version: curiousduck
-    hostname: smartduck3.cloud.dkrz.de
+    hostname: smartduck.dkrz.de
     port: 80
     mode: scheduler
     maxprocesses: -1
