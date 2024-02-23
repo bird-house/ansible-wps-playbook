@@ -18,7 +18,8 @@ slurm_cpus: 4
 wps_services:
   - name: duck
     repo: https://github.com/climateintelligence/duck.git
-    version: main
+    # version: main
+    version: curiousduck
     hostname: smartduck3.cloud.dkrz.de
     port: 80
     mode: scheduler
