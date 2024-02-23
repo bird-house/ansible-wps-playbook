@@ -19,7 +19,7 @@ wps_services:
   - name: owl
     repo: https://github.com/climateintelligence/owl.git
     version: main
-    hostname: owl1.cloud.dkrz.de
+    hostname: owl.dkrz.de
     port: 80
     mode: scheduler
     maxprocesses: -1
