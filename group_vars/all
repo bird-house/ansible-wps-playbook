@@ -101,11 +101,6 @@ postgresql_users:
     encrypted: yes  # encryption necessary for postgres>=10.0.
 # postgresql_hba_entries: []
 
-# ssl-certs
-# https://github.com/jdauphant/ansible-role-ssl-certs/blob/master/defaults/main.yml
-ssl_certs_path_owner: "{{ service_user }}"
-ssl_certs_path_group: "{{ service_group }}"
-
 # cron
 cron_enabled: false
 cron_disabled: "{{ cron_enabled | bool == false }}"

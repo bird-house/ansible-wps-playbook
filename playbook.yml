@@ -24,9 +24,6 @@
     - role: geerlingguy.supervisor
       tags:
         supervisor
-    - role: jdauphant.ssl-certs
-      tags:
-        nginx
     - role: geerlingguy.nginx
       tags:
         nginx
