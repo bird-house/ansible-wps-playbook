@@ -11,6 +11,8 @@ db_install_sqlite: false
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
+# nginx
+wps_enable_https: true
 # slurm
 slurm_enabled: yes
 slurm_cpus: 4
@@ -21,7 +23,7 @@ wps_services:
     # version: main
     version: curiousduck
     hostname: smartduck.dkrz.de
-    port: 80
+    port: 443
     mode: scheduler
     maxprocesses: -1
     parallelprocesses: -1

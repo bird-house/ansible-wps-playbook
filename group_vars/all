@@ -68,6 +68,8 @@ supervisor_inet_http_server_enable: false
 supervisor_inet_http_server_port: '*:9001'
 
 # nginx
+# https://galaxy.ansible.com/ui/standalone/roles/geerlingguy/nginx/
+# https://galaxy.ansible.com/ui/standalone/roles/nginxinc/nginx/
 nginx_user: "{{ service_user }} {{ service_group }}"
 nginx_remove_default_vhost: true
 nginx_extra_http_options: |
