@@ -87,6 +87,15 @@ Run the playbook:
 make play
 ```
 
+Check if WPS is running:
+```sh
+supervisorctl status
+```
+
+Check WPS service by getting the capabilities:
+
+http://192.168.128.100/wps?service=wps&version=1.0.0&request=GetCapabilities
+
 ## Configuration
 
 
