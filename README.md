@@ -16,7 +16,7 @@ PyWPS applications from [Birdhouse](http://bird-house.github.io/) like
 **Warning**
 
 The current version (>= v0.6.0) is a major update of the Ansible deployment. 
-It includes as role to deploy Slurm. 
+It includes a role to deploy Slurm. 
 It can only be used for a single host deployment.
 
 The deployment on a Slurm cluster is only support by the previous version v0.5.x.
@@ -74,9 +74,15 @@ Change to the /vagrant folder:
 cd /vagrant
 ```
 
-Run the playbook:
+Configure the playbook:
 
 ``` sh
 cp etc/sample-vagrant.yml custom.yml
+vim custom.yml
+```
+
+Run the playbook:
+
+``` sh
 make play
 ```
