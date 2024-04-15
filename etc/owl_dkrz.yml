@@ -1,0 +1,31 @@
+---
+# enable cronjob to clean outputs
+cron_mailto: ehbrecht@dkrz.de
+cron_enabled: yes
+cron_user: root
+wps_outputs_keep_days: 0 
+wps_temp_keep_days: 0
+# db
+db_install_postgresql: true
+db_install_sqlite: false
+# conda
+conda_env_use_spec: true
+conda_env_spec_file: spec-list.txt
+# slurm
+slurm_enabled: yes
+slurm_cpus: 4
+# Configuration for Albatross WPS
+wps_services:
+  - name: owl
+    repo: https://github.com/climateintelligence/owl.git
+    version: main
+    hostname: owl1.cloud.dkrz.de
+    port: 80
+    mode: scheduler
+    maxprocesses: -1
+    parallelprocesses: -1
+    storage_copy_function: link
+    log_level: INFO
+    cleantempdir: true
+    provider_name: CLINT
+    provider_url: https://climateintelligence.eu/

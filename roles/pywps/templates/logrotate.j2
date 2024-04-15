@@ -1,0 +1,13 @@
+#
+# Ansible managed
+#
+
+/var/log/pywps/*.log {
+    rotate 7
+    daily
+    dateext
+    copytruncate
+    missingok
+    notifempty
+    sharedscripts
+}

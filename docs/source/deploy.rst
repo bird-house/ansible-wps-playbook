@@ -7,7 +7,7 @@ Deploy a PyWPS Application
 
 .. note::
 
-    You can safely try the installation using Vagrant_ or Docker. See :ref:`testing`.
+    You can safely try the installation using Vagrant_.
 
 Prepare
 -------
@@ -19,7 +19,6 @@ You need a recent Ansible_ version (`>=2.7`) on your local client:
   $ ansible --version
   ansible 2.7.2
 
-If you don't have Ansible installed, then follow these instructions: :ref:`requirements`.
 
 Get the Playbook
 ----------------
@@ -53,7 +52,7 @@ Running your playbook locally
   Make sure your Ansible directory is not world-readable, otherwise the `ansible.cfg` file will not be read.
   See `Ansible Documentation <https://docs.ansible.com/ansible/devel/reference_appendices/config.html#cfg-in-world-writable-dir>`_.
 
-If not already done (see :ref:`requirements`), fetch required roles/recipes from `ansible-galaxy`:
+If not already done, fetch required roles/recipes from `ansible-galaxy`:
 
 .. code-block:: console
 
@@ -68,5 +67,3 @@ Run your playbook locally:
 .. note:: You can also use the shortcut to run both::
 
     $ make play
-
-For remote deployment follow the instructions in the next section :ref:`live`.

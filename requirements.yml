@@ -1,14 +1,11 @@
 ---
 roles:
   - name: andrewrothstein.miniconda
-  - name: andrewrothstein.bash
-  - name: andrewrothstein.unarchive-deps
-  - name: geerlingguy.repo-epel
   - name: geerlingguy.supervisor
   - name: geerlingguy.nginx
-  - name: ANXS.postgresql
-  - name: jdauphant.ssl-certs
-  - name: arillso.logrotate
+  - name: geerlingguy.postgresql
+  - name: galaxyproject.slurm
 
 collections:
   - name: community.general
+  - name: ansible.posix

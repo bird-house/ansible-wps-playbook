@@ -1,23 +1,26 @@
 ---
-- include: clean.yml
-- include: cronjob.yml
-- include: webservice_config.yml
+- include_tasks: clean.yml
+- include_tasks: cronjob.yml
+- include_tasks: webservice_config.yml
+- include_tasks: logrotate.yml
+- include_tasks: selinux.yml
+  when: selinux_enabled
 
-- include: slurm.yml
+- include_tasks: slurm.yml
   when: slurm_enabled
   tags:
     - slurm
 
-- include: sqlite.yml
+- include_tasks: sqlite.yml
   when: db_install_sqlite
 
-- include: fileserver.yml
+- include_tasks: fileserver.yml
   when: fs_enabled
 
 - name: Assure PyWPS running at end of playbook
   command: /bin/true
   notify:
-    - restart pywps
+    - restart supervisord
   tags:
     - pywps
     - conf

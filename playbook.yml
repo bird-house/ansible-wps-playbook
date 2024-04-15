@@ -14,28 +14,29 @@
     #   debug:
     #     var: hostvars['192.168.50.44']
   roles:
-    - role: geerlingguy.repo-epel
-      when: (ansible_os_family == "RedHat") and (not epel_repo_disable)
     - common
     - role: andrewrothstein.miniconda
       tags:
         conda
+    - role: supervisor
+      tags:
+        supervisor
     - role: geerlingguy.supervisor
       tags:
         supervisor
-    - role: jdauphant.ssl-certs
-      tags:
-        nginx
     - role: geerlingguy.nginx
       tags:
         nginx
-    - role: ANXS.postgresql
+    - role: geerlingguy.postgresql
       when: db_install_postgresql
       tags:
         db
+    - role: slurm
+      when: slurm_enabled
+    - role: galaxyproject.slurm
+      when: slurm_enabled
     - name: pywps
       wps_webservice_enabled: true
-    - role: arillso.logrotate
     - name: roocs
       when: roocs_enabled
     - name: flamingo
@@ -52,8 +53,6 @@
        - custom.yml
        - null.yml
   roles:
-    - role: geerlingguy.repo-epel
-      when: (ansible_os_family == "RedHat") and (not epel_repo_disable)
     - common
     - role: andrewrothstein.miniconda
       tags:
