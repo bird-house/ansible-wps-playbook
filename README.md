@@ -86,3 +86,124 @@ Run the playbook:
 ``` sh
 make play
 ```
+
+## Configuration
+
+
+### Edit custom.yml
+
+You need to customize the Ansible deployment configuration to
+install your PyWPS service. Create a `custom.yml` configuration and
+overwrite any of the variables found in `group_vars/all`. There are some
+prepared sample configurations `etc/sample-*.yml` for specific
+deployments. Copy one of those to get started.
+
+You can also add your custom configurations to the `etc/` folder to stay
+away from Git control:
+
+``` console
+$ cp etc/sample-emu.yml etc/custom-emu.yml
+$ vim etc/custom-emu.yml
+$ ln -s etc/custom-emu.yml custom.yml
+```
+
+### Use Conda to build identical environments
+
+You can use Conda specification files to build identical
+[environments](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#building-identical-conda-environments).
+The WPS service needs to have a specification file, `spec-file.txt`, in
+its top level folder. You can set the following option in your
+`custom.yml`:
+
+    conda_env_use_spec: true
+
+See an example in `etc/sample-emu-with-conda-spec.yml`.
+
+
+**Warning**
+
+This is option is currently enabled for [all]{.title-ref} configured WPS
+services.
+
+### Use sqlite Database
+
+You can use a SQLite database with the following settings:
+
+    db_install_postgresql: false
+    db_install_sqlite: true
+
+See an example in `etc/sample-sqlite.yml`.
+
+### Use PostgreSQL Database installed by playbook
+
+By default the playbook will install a PostgreSQL database. You can
+customize the installation. For example you can configure a database
+user:
+
+    db_user: dbuser
+    db_password: dbuser
+
+See an example in `etc/sample-postgres.yml`.
+
+
+### Use external PostgreSQL Database
+
+If you want to use an existing database you can skip the database
+installation by setting the variable:
+
+    db_install_postgresql: false
+
+You need to configure then the database connection string to your
+external database:
+
+    wps_database: "postgresql+psycopg2://user:password@host:5432/pywps"
+
+See an example in `etc/sample-postgres.yml`.
+
+### Install multiple PyWPS applications
+
+You can install several PyWPS applications with a single Ansible run.
+See `etc/sample-multiple.yml` configuration as example.
+
+You can also configure a shared file-server for outputs. See
+`etc/sample-multiple-with-shared-fileserver.yml`.
+
+### Use HTTPS with Nginx
+
+You can enable HTTPS for the Nginx service by setting the variable:
+
+    wps_enable_https: true
+
+See `etc/sample-certs.yml` configuration as example.
+
+By default it generates a *self-signed* certificate automatically.
+
+You can also provide your own certificate by setting the following
+variables:
+
+    ssl_certs_local_privkey_path: '/path/to/example.com.key'
+    ssl_certs_local_cert_path: '/path/to/example.com.pem'
+
+Read the [ssl-certs
+role](https://galaxy.ansible.com/jdauphant/ssl-certs) documentation for
+details.
+
+### Extend PyWPS configuration
+
+This Ansible playbook has its own template for a PyWPS configuration
+file. This template does not cover all options and you might want to
+extend it for additional configurations. You can extend the
+`pywps.cfg` configuration with the
+`extra_config` option. Here is an example:
+
+``` yaml
+---
+server_name: demowps
+wps_services:
+  - name: demo
+    hostname: "{{ server_name }}"
+    port: 5000
+    extra_config: |
+      [data]
+      cache_path = /tmp/cache
+```
