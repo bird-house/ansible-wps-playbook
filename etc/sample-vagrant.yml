@@ -13,6 +13,8 @@ slurm_enabled: yes
 # Configuration for Emu WPS
 wps_services:
   - name: emu
+    repo: https://github.com/bird-house/emu.git
+    version: master
     hostname: "{{ server_name }}"
     port: 80
     mode: scheduler
