@@ -1,7 +1,7 @@
 ---
-wps_internal_hostname: rook5.cloud.dkrz.de
+wps_internal_hostname: rook7.cloud.dkrz.de
 #wps_external_hostname: compute.mips.copernicus-climate.eu
-wps_external_hostname: rook5,cloud.dkrz.de
+wps_external_hostname: rook7,cloud.dkrz.de
 
 # service user
 service_user: tomcat
@@ -37,7 +37,7 @@ nginx_keepalive_timeout: 300
 nginx_keepalive_requests: 100
 nginx_proxy_timeout: 300
 # gunicorn
-gunicorn_workers: 5 
+gunicorn_workers: 17 
 gunicorn_worker_class: 'gevent'
 gunicorn_timeout: 300
 # slurm
@@ -69,7 +69,7 @@ wps_services:
     storage_copy_function: link
     log_level: INFO
     identification_accessconstraints: "open access"
-    provider_name: "rook5 (DKRZ)"
+    provider_name: "rook7 (DKRZ)"
     provider_url: http://rook.dkrz.de
     contact_name: DKRZ
     contact_city: Hamburg
