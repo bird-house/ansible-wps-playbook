@@ -1,7 +1,7 @@
 ---
 wps_internal_hostname: rook7.cloud.dkrz.de
 #wps_external_hostname: compute.mips.copernicus-climate.eu
-wps_external_hostname: rook7,cloud.dkrz.de
+wps_external_hostname: rook7.cloud.dkrz.de
 
 # service user
 service_user: tomcat
