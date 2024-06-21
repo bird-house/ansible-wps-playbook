@@ -43,14 +43,11 @@ gunicorn_timeout: 300
 # slurm
 slurm_enabled: true
 # access control
-wps_enable_acl: false
+wps_enable_acl: true
 wps_acl_allow:
-   - 136.172.0.0/16  # dkrz
-   #- 136.172.60.0/16  
-   - 136.156.132.0/23
-   - 130.246.130.0/24
-   - 130.246.148.0/24
-   - 172.17.11.15
+   - 136.172.0.0/16   # dkrz
+   - 136.156.132.0/23 # CDS Reading
+   - 136.156.152.0/22 # CDS Bologna
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
