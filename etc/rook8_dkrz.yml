@@ -42,6 +42,7 @@ gunicorn_worker_class: 'gevent'
 gunicorn_timeout: 300
 # slurm
 slurm_enabled: true
+slurm_cpus: 10
 # access control
 wps_enable_acl: true
 wps_acl_allow:
