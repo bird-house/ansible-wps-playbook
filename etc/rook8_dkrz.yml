@@ -42,21 +42,20 @@ gunicorn_worker_class: 'gevent'
 gunicorn_timeout: 300
 # slurm
 slurm_enabled: true
-slurm_cpus: 10
+slurm_cpus: 12
 # access control
 wps_enable_acl: true
 wps_acl_allow:
    - 136.172.0.0/16   # dkrz
-   - 136.156.132.0/23 # CDS Reading
-   - 136.156.152.0/22 # CDS Bologna
+   - 136.156.0.0/16   # cds
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.13.0
-    #version: master
+    #version: v0.13.0
+    version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -68,7 +67,7 @@ wps_services:
     log_level: INFO
     identification_accessconstraints: "open access"
     provider_name: "rook8 (DKRZ)"
-    provider_url: http://rook.dkrz.de
+    provider_url: https://roocs.github.io/
     contact_name: DKRZ
     contact_city: Hamburg
     contact_country: Germany
