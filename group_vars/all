@@ -89,7 +89,8 @@ ssl_certs_cert_path: "{{ ssl_certs_path }}/{{ ssl_certs_common_name }}.pem"
 
 # gunicorn
 # https://docs.gunicorn.org/en/stable/settings.html
-gunicorn_workers: 5  # rule of thumb: 2 * CPUs + 1
+gunicorn_workers: 9  # rule of thumb: 2 * CPUs + 1
+gunicorn_worker_connections: 1000
 gunicorn_worker_class: 'sync'  # or "gevent", needs gevent
 gunicorn_timeout: 30
 
