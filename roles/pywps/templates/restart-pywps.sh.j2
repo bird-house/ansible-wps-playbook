@@ -11,7 +11,7 @@ echo "[INFO] Stopping $APP"
 supervisorctl stop $APP
 sleep 1
 echo "[INFO] Finding gunicorn processes..."
-gunicorn_pids=$(echo $(ps -eo pid,cmd | grep -i gunicorn | grep $APP | cut -s --delimiter=" " -f2))
+gunicorn_pids=$(echo $(ps -eo pid,cmd | grep -i gunicorn | grep $APP | awk '{print $1}'))
 echo "[INFO] Found processes: $gunicorn_pids"
 if [ "$gunicorn_pids" ]; then
     echo "[WARN] Killing processes: $gunicorn_pids"

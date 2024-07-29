@@ -33,13 +33,14 @@ db_install_sqlite: false
 db_user: pywps
 db_password: pywps
 # nginx
-nginx_keepalive_timeout: 300
-nginx_keepalive_requests: 100
-nginx_proxy_timeout: 300
+#nginx_keepalive_timeout: 300
+#nginx_keepalive_requests: 100
+#nginx_proxy_timeout: 300
 # gunicorn
-gunicorn_workers: 17 
+gunicorn_workers: 17
+gunicorn_worker_connections: 1000 
 gunicorn_worker_class: 'gevent'
-gunicorn_timeout: 300
+gunicorn_timeout: 30
 # slurm
 slurm_enabled: true
 slurm_cpus: 6
@@ -47,7 +48,7 @@ slurm_cpus: 6
 wps_enable_acl: false
 wps_acl_allow:
    - 136.172.0.0/16  # dkrz
-   - 136.156.0.0/16   # cds
+   - 136.156.0.0/16  # cds
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
