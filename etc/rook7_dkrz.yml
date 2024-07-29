@@ -39,7 +39,7 @@ db_password: pywps
 # gunicorn
 gunicorn_workers: 17
 gunicorn_worker_connections: 1000 
-gunicorn_worker_class: 'sync'
+gunicorn_worker_class: 'gevent'
 gunicorn_timeout: 30
 # slurm
 slurm_enabled: true
