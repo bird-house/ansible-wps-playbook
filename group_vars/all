@@ -28,7 +28,7 @@ fs_port: 6000
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
-slurm_cpus: 2
+slurm_cpus: 4
 slurm_drmaa_version: 1.1.4
 slurm_roles: ['controller', 'exec']
 slurm_config:
