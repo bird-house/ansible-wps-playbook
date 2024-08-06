@@ -59,9 +59,7 @@
 - name: Restart pywps service and clean out old gunicorn processes every night
   cron:
     name: "restart pywps"
-    # weekday: "0"
-    minute: "0"
-    hour: "3"
+    special_time: hourly
     user: root
     job: "{{ cron_script_dir }}/restart-pywps.sh {{ item.name }} 2>&1 > /var/log/pywps/restart-{{ item.name }}.log"
     cron_file: ansible_pywps
