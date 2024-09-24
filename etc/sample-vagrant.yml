@@ -1,21 +1,22 @@
 ---
 server_name: 192.168.128.100
+# use postgres
 db_install_postgresql: true
 db_install_sqlite: false
-#db_user: dbuser
-#db_password: dbuser
+# no https
 wps_enable_https: false
-# Enable separate Fileserver for WPS outputs
-# fs_enabled: false
-# fs_host: "{{ server_name }}"
-# fs_port: 5001
 # Conda spec
-# conda_env_use_spec: false
+conda_env_use_spec: true
+conda_env_spec_file: spec-list.txt
+# slurm
+slurm_enabled: yes
 # Configuration for Emu WPS
 wps_services:
   - name: emu
+    repo: https://github.com/bird-house/emu.git
+    version: master
     hostname: "{{ server_name }}"
-    fs_hostname: "{{ server_name }}"
-    port: 5000
-    log_level: DEBUG
-    cleantempdir: false
+    port: 80
+    mode: scheduler
+    maxprocesses: -1
+    parallelprocesses: -1

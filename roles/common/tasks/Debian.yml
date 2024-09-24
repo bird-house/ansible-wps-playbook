@@ -4,6 +4,7 @@
     state: latest
   vars:
     packages:
+      - python3-pip
       - build-essential
       - libssl-dev
 

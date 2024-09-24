@@ -12,48 +12,42 @@ service_groups: "{{ service_group }}"
 service_user_home: /var/lib/pywps
 cron_script_dir: "{{ service_user_home }}"
 
-# RedHat/CentOS epel repo
-epel_repo_disable: false
-
-# logrotation
-logrotate_use_hourly_rotation: false
-logrotate_applications:
-  - name: pywps
-    definitions:
-      - logs:
-          - /var/log/pywps/*.log
-        options:
-          - rotate 7
-          - daily
-          - dateext
-          - copytruncate
-          - missingok
-          - notifempty
-          - sharedscripts
-        postrotate:
-          - supervisorctl restart all >/dev/null 2>/dev/null || true
-
 # postgres
 db_install_postgresql: true
 db_install_sqlite: false
 db_host: localhost
 db_port: 5432
-db_user: dbuser
-db_password: dbuser
+db_user: pywps
+db_password: pywps
 
 # nginx fileserver
 fs_enabled: false
 fs_host: localhost
 fs_port: 6000
 
-# drmaa
+# slurm/drmaa
+# https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
-slurm_drmaa_version: 1.1.3
+slurm_cpus: 4
+slurm_drmaa_version: 1.1.4
+slurm_roles: ['controller', 'exec']
+slurm_config:
+  SchedulerType: "sched/builtin"
+  SelectType: "select/cons_res"
+  SelectTypeParameters: "CR_Core"
+slurm_nodes:
+  - name: localhost
+    CPUs: "{{ slurm_cpus }}"
+slurm_partitions:
+  - name: fast
+    Default: YES
+    MaxTime: INFINITE
+    Nodes: localhost
+slurm_munge_key: /etc/munge/munge.key
 
 # miniconda
 miniconda_parent_dir: "{{ prefix }}"
 miniconda_make_sys_default: False
-# miniconda_ver: '4.7.12.1'
 
 # conda
 conda_location: "{{ prefix }}/anaconda"
@@ -64,6 +58,7 @@ conda_env_use_spec: false
 conda_env_spec_file: spec-list.txt
 
 # supervisor
+# https://github.com/geerlingguy/ansible-role-supervisor
 supervisor_user: root
 supervisor_password: 'test'
 supervisor_unix_http_server_password_protect: false
@@ -73,6 +68,8 @@ supervisor_inet_http_server_enable: false
 supervisor_inet_http_server_port: '*:9001'
 
 # nginx
+# https://galaxy.ansible.com/ui/standalone/roles/geerlingguy/nginx/
+# https://galaxy.ansible.com/ui/standalone/roles/nginxinc/nginx/
 nginx_user: "{{ service_user }} {{ service_group }}"
 nginx_remove_default_vhost: true
 nginx_extra_http_options: |
@@ -84,33 +81,44 @@ nginx_keepalive_timeout: "60"
 nginx_keepalive_requests: "100"
 nginx_proxy_timeout: "60s"
 
+# ssl 
+ssl_certs_common_name: "{{ ansible_fqdn }}"
+ssl_certs_path: "/etc/ssl/{{ ssl_certs_common_name }}"
+ssl_certs_privkey_path: "{{ ssl_certs_path }}/{{ ssl_certs_common_name }}.key"
+ssl_certs_cert_path: "{{ ssl_certs_path }}/{{ ssl_certs_common_name }}.pem"
+
 # gunicorn
 # https://docs.gunicorn.org/en/stable/settings.html
-gunicorn_workers: 5  # rule of thumb: 2 * CPUs + 1
-gunicorn_worker_class: 'sync'  # or "gevent", needs gevent
+gunicorn_workers: 9  # rule of thumb: 2 * CPUs + 1
+gunicorn_worker_connections: 1000
+gunicorn_worker_class: 'gevent'  # "sync" or "gevent", needs gevent
 gunicorn_timeout: 30
 
 # postgres
+# https://github.com/geerlingguy/ansible-role-postgresql
+postgresql_restarted_state: "restarted"
+postgresql_service_state: "started"
+postgresql_service_enabled: true
+postgresql_locales:
+  - 'en_US.utf8'
 postgresql_databases:
   - name:  "pywps"
+    port: "{{ db_port }}"
 postgresql_users:
   - name: "{{ db_user }}"
-    pass: "{{ db_password }}"
+    password: "{{ db_password }}"
     encrypted: yes  # encryption necessary for postgres>=10.0.
-postgresql_listen_addresses:
-  - "*"
-postgresql_pg_hba_md5_hosts: []
-postgresql_pg_hba_trust_hosts: []
-postgresql_port: "{{ db_port }}"
-
-# ssl-certs
-# https://github.com/jdauphant/ansible-role-ssl-certs/blob/master/defaults/main.yml
-ssl_certs_path_owner: "{{ service_user }}"
-ssl_certs_path_group: "{{ service_group }}"
+# postgresql_hba_entries: []
 
 # cron
+cron_enabled: false
+cron_disabled: "{{ cron_enabled | bool == false }}"
 cron_mailto: root
-cron_disabled: yes
+cron_user: root
+
+# selinux
+# https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html
+selinux_enabled: true
 
 # roocs
 roocs_enabled: false

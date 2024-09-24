@@ -1,0 +1,19 @@
+---
+- name: Enable SELinux
+  ansible.posix.selinux:
+    policy: targeted
+    state: enforcing
+
+- name: Allow nginx to modify access socket files in /var/run/pywps
+  community.general.sefcontext:
+    target: '/var/run/pywps(/.*)?'
+    setype: httpd_var_run_t
+    state: present
+
+- name: Apply new SELinux file context to filesystem
+  command: restorecon -iRv /var/run
+
+- name: Change the httpd_t domain to permissive
+  community.general.selinux_permissive:
+    name: httpd_t
+    permissive: true

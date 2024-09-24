@@ -1,7 +1,7 @@
 ---
-wps_internal_hostname: rook4.cloud.dkrz.de
+wps_internal_hostname: rook8.cloud.dkrz.de
 #wps_external_hostname: compute.mips.copernicus-climate.eu
-wps_external_hostname: rook.dkrz.de
+wps_external_hostname: rook8.cloud.dkrz.de
 
 # service user
 service_user: tomcat
@@ -17,46 +17,44 @@ service_gid: 399
 
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
-cron_disabled: no
-wps_outputs_keep_days: 7 
-wps_temp_keep_days: 3
+cron_enabled: yes
+cron_user: root
+wps_outputs_keep_days: 0 
+wps_temp_keep_days: 0
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # conda_env_file: env.yml
 # db
 db_install_postgresql: true
-db_host: "136.172.60.158"
-postgresql_pg_hba_md5_hosts: ['136.172.60.158/32']
+#db_host: "136.172.60.7"
+#postgresql_pg_hba_md5_hosts: ['136.172.60.7/32']
 db_install_sqlite: false
 db_user: pywps
 db_password: pywps
 # nginx
-nginx_keepalive_timeout: 300
-nginx_keepalive_requests: 100
-nginx_proxy_timeout: 300
+#nginx_keepalive_timeout: 300
+#nginx_keepalive_requests: 100
+#nginx_proxy_timeout: 300
 # gunicorn
-gunicorn_workers: 17 
+gunicorn_workers: 25 
 gunicorn_worker_class: 'gevent'
-gunicorn_timeout: 300
+gunicorn_timeout: 30
 # slurm
 slurm_enabled: true
+slurm_cpus: 12
 # access control
-wps_enable_acl: false
+wps_enable_acl: true
 wps_acl_allow:
-   - 136.172.0.0/16  # dkrz
-   #- 136.172.60.0/16  
-   - 136.156.132.0/23
-   - 130.246.130.0/24
-   - 130.246.148.0/24
-   - 172.17.11.15
+   - 136.172.0.0/16   # dkrz
+   - 136.156.0.0/16   # cds
 # roocs
 roocs_enabled: true
 roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.8.2
+    version: v0.13.1
     #version: master
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
@@ -68,8 +66,8 @@ wps_services:
     storage_copy_function: link
     log_level: INFO
     identification_accessconstraints: "open access"
-    provider_name: "rook (DKRZ)"
-    provider_url: http://rook.dkrz.de
+    provider_name: "rook8 (DKRZ)"
+    provider_url: https://roocs.github.io/
     contact_name: DKRZ
     contact_city: Hamburg
     contact_country: Germany

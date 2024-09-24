@@ -15,8 +15,8 @@
 - name: Clear wps outputs
   cron:
     name: "clear wps outputs"
-    special_time: daily
-    user: "{{ service_user }}"
+    special_time: hourly
+    user: "{{ cron_user }}"
     job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type d -mtime +{{ wps_outputs_keep_days }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}$" -exec rm -rf {} \;'
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
@@ -25,8 +25,8 @@
 - name: Clear wps status
   cron:
     name: "clear wps status"
-    special_time: daily
-    user: "{{ service_user }}"
+    special_time: hourly
+    user: "{{ cron_user }}"
     job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type f -mtime +{{ wps_outputs_keep_days }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete'
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
@@ -35,8 +35,8 @@
 - name: Clear wps tempfiles
   cron:
     name: "clear wps tempfiles"
-    special_time: daily
-    user: "{{ service_user }}"
+    special_time: hourly
+    user: "{{ cron_user }}"
     job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mtime +{{ wps_temp_keep_days }} -name "pywps_process_*" -exec rm -rf {} \;'
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
@@ -53,17 +53,13 @@
   template:
     src: ./templates/restart-pywps.sh.j2
     dest: "{{ cron_script_dir }}/restart-pywps.sh"
-    # owner: "{{ service_user }}"
     owner: root
     mode: 0744
 
 - name: Restart pywps service and clean out old gunicorn processes every night
   cron:
     name: "restart pywps"
-    # weekday: "0"
-    minute: "0"
-    hour: "3"
-    # user: "{{ service_user }}"
+    special_time: hourly
     user: root
     job: "{{ cron_script_dir }}/restart-pywps.sh {{ item.name }} 2>&1 > /var/log/pywps/restart-{{ item.name }}.log"
     cron_file: ansible_pywps
@@ -76,6 +72,5 @@
   template:
     src: ./templates/smoke.sh.j2
     dest: "{{ cron_script_dir }}/smoke.sh"
-    # owner: "{{ service_user }}"
     owner: root
     mode: 0744

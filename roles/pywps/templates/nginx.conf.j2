@@ -25,9 +25,11 @@ map $arg_request $wps_deny {
 
 server {
     {% if wps_enable_https %}
-    listen                 {{ item.port | default('5000') }} ssl;
+    listen                 {{ item.port | default('5000') }} ssl http2 default_server;
+    listen                 [::]:{{ item.port | default('5000') }} ssl http2 default_server;
     {% else %}
-    listen                 {{ item.port | default('5000') }};
+    listen                 {{ item.port | default('5000') }} default_server;
+    listen                 [::]:{{ item.port | default('5000') }} default_server;
     {% endif %}
     server_name            {{ item.hostname | default('localhost') }};
     {% if wps_enable_https %}
