@@ -37,3 +37,6 @@ tests/test.sh
 
 # CEDA submodule for local modifcations
 ansible-birdhouse-content
+
+# macos
+.DS_Store
