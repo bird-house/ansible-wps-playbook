@@ -13,6 +13,9 @@
     # - name: "Ansible | List all known variables and facts"
     #   debug:
     #     var: hostvars['192.168.50.44']
+    - name: Debug miniconda url
+      debug:
+        var: miniconda_installer_url
   roles:
     - common
     - role: andrewrothstein.miniconda
