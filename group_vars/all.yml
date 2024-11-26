@@ -48,6 +48,7 @@ slurm_munge_key: /etc/munge/munge.key
 # miniconda: we need to use Miniforge! See extra_vars.yml
 miniconda_parent_dir: "{{ prefix }}"
 miniconda_make_sys_default: False
+miniconda_pkg_update: false
 
 # conda
 conda_location: "{{ prefix }}/anaconda"
