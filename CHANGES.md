@@ -1,5 +1,14 @@
 # Changes
 
+## 0.7.0 (2024-11-28)
+
+Changes:
+
+- using miniforge instead of miniconda (#156, #158, #159)
+- removed outdated flamingo role (#157)
+- updated cleaner cron.job ... run hourly (#154)
+- added ipv6 to nginx config (#151)
+
 ## 0.6.0 (2024-04-16)
 
 Changes:
