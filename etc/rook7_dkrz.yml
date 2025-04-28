@@ -37,7 +37,7 @@ db_password: pywps
 #nginx_keepalive_requests: 100
 #nginx_proxy_timeout: 300
 # gunicorn
-gunicorn_workers: 17
+gunicorn_workers: 13
 gunicorn_worker_connections: 1000 
 gunicorn_worker_class: 'gevent'
 gunicorn_timeout: 30
@@ -55,8 +55,9 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.13.1
-    #version: master
+    #version: v0.16.1
+    #version: main
+    version: dev-atlas-v2
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
