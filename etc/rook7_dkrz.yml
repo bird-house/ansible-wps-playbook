@@ -55,9 +55,8 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    #version: v0.16.1
+    version: v0.17.1
     #version: main
-    version: dev-atlas-v2
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
