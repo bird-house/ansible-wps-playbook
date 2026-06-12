@@ -23,8 +23,7 @@ wps_outputs_keep_days: 0
 wps_temp_keep_days: 0
 # conda
 conda_env_use_spec: true
-conda_env_spec_file: spec-list.txt
-# conda_env_file: env.yml
+conda_env_spec_file: linux-64.spec
 # db
 db_install_postgresql: true
 #db_host: "136.172.60.7"
@@ -55,7 +54,7 @@ roocs_site: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v0.17.1
+    version: v1.0.0
     #version: main
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
