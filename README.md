@@ -116,6 +116,16 @@ $ vim etc/custom-emu.yml
 $ ln -s etc/custom-emu.yml custom.yml
 ```
 
+### Configure output and temporary-file retention
+
+PyWPS outputs and temporary process directories older than 12 hours are
+removed by default. Configure their retention periods in minutes with:
+
+```yaml
+wps_outputs_keep_minutes: 720  # 12 hours
+wps_temp_keep_minutes: 720  # 12 hours
+```
+
 ### Use Conda to build identical environments
 
 You can use Conda specification files to build identical

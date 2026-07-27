@@ -1,5 +1,13 @@
 # Changes
 
+## Unreleased
+
+Changes:
+
+- configure PyWPS output and temporary-file retention in minutes, with a
+  default of 12 hours
+- restart PyWPS services daily instead of hourly
+
 ## 0.7.0 (2024-11-28)
 
 Changes:

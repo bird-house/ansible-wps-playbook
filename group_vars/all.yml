@@ -140,8 +140,8 @@ wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
 wps_log_dir: /var/log/pywps
 wps_http_log_dir: /var/log/nginx
-wps_outputs_keep_days: 30
-wps_temp_keep_days: 30
+wps_outputs_keep_minutes: 720  # 12 hours
+wps_temp_keep_minutes: 720  # 12 hours
 wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git
