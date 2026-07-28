@@ -4,8 +4,9 @@
 
 Changes:
 
-- configure PyWPS output and temporary-file retention in minutes, with a
-  default of 12 hours
+- configure PyWPS output and temporary-file retention in hours, with a
+  default of 12 hours; the cleanup commands receive the converted values
+  in minutes
 - restart PyWPS services daily instead of hourly
 
 ## 0.7.0 (2024-11-28)

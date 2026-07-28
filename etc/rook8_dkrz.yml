@@ -19,8 +19,8 @@ service_gid: 399
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
 cron_user: root
-wps_outputs_keep_minutes: 720  # 12 hours
-wps_temp_keep_minutes: 720  # 12 hours
+wps_outputs_keep_hours: 12
+wps_temp_keep_hours: 12
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt

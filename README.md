@@ -119,12 +119,14 @@ $ ln -s etc/custom-emu.yml custom.yml
 ### Configure output and temporary-file retention
 
 PyWPS outputs and temporary process directories older than 12 hours are
-removed by default. Configure their retention periods in minutes with:
+removed by default. Configure their retention periods in hours with:
 
 ```yaml
-wps_outputs_keep_minutes: 720  # 12 hours
-wps_temp_keep_minutes: 720  # 12 hours
+wps_outputs_keep_hours: 12
+wps_temp_keep_hours: 12
 ```
+
+The playbook converts these values to minutes for the cleanup commands.
 
 ### Use Conda to build identical environments
 
