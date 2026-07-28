@@ -20,15 +20,11 @@ help:
 .PHONY: roles
 roles:
 	@echo "Installing pinned Ansible Galaxy dependencies ..."
-	ansible-galaxy role install -r requirements.yml
-	ansible-galaxy collection install -r requirements.yml
-
-.PHONY: roles-update
-roles-update:
-	@echo "Reinstalling pinned Ansible Galaxy dependencies ..."
 	ansible-galaxy role install --force -r requirements.yml
 	ansible-galaxy collection install --force -r requirements.yml
-	$(MAKE) test
+
+.PHONY: roles-update
+roles-update: test
 
 .PHONY: quick
 quick: roles
