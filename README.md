@@ -1,49 +1,38 @@
 # PyWPS Ansible Playbook
 
+[![Checks](https://github.com/bird-house/ansible-wps-playbook/actions/workflows/checks.yml/badge.svg)](https://github.com/bird-house/ansible-wps-playbook/actions/workflows/checks.yml)
 [![GitHub license](https://img.shields.io/github/license/bird-house/ansible-wps-playbook.svg)](https://github.com/bird-house/ansible-wps-playbook/blob/master/LICENSE)
 
+Deploy one or more [PyWPS](https://pywps.org/) applications on a single
+Linux host with [Ansible](https://www.ansible.com/).
 
-Use [Ansible](https://www.ansible.com/) to deploy a full-stack
-[PyWPS](http://pywps.org/) service.
+> [!WARNING]
+> This playbook is under development and tailored to
+> [Birdhouse](https://bird-house.github.io/) applications. Releases from
+> v0.6.0 onward support single-host deployment only. For the previous Slurm
+> cluster deployment, use the v0.5.x series.
 
+The supplied `make play` command uses Ansible's local connection. Run it on
+the Linux host being provisioned or inside the supplied Vagrant VM.
 
-**Warning**
-
-This playbook is under development and is currently only used to deploy
-PyWPS applications from [Birdhouse](http://bird-house.github.io/) like
-[Emu](http://emu.readthedocs.io/en/latest/).
-
-**Warning**
-
-The current version (>= v0.6.0) is a major update of the Ansible deployment. 
-It includes a role to deploy Slurm. 
-It can only be used for a single host deployment.
-
-The deployment on a Slurm cluster is only support by the previous version v0.5.x.
-
-## Introduction
+## What it installs
 
 PyWPS Ansible Playbook can completely provision a server to run
-the full stack of [PyWPS](http://pywps.org/), including:
+the full PyWPS stack, including:
 
-*   [Conda](https://conda.io/miniconda.html) to manage application
-    dependencies.
-*   [Nginx](https://www.nginx.com/) as Web-Server.
-*   [Supervisor](http://supervisord.org/) to start/stop and monitor
-    services.
-*   [PostgreSQL](https://www.postgresql.org/) optional database used for
-    job logging.
-*   [Slurm](https://slurm.schedmd.com/) optional workload manager for
-    jobs.
+- [Conda](https://docs.conda.io/) environments for application dependencies.
+- [Nginx](https://www.nginx.com/) as the web server and reverse proxy.
+- [Supervisor](https://supervisord.org/) to start and monitor services.
+- [PostgreSQL](https://www.postgresql.org/) as an optional job database.
+- [Slurm](https://slurm.schedmd.com/) as an optional local workload manager.
 
-It will install a PyWPS application on a single host. Nginx, Supervisor
-and miniconda are installed on the system. The PyWPS application is
-fetched from GitHub and dependencies are installed into a Conda
-environment.
+Application repositories are fetched from GitHub, and each configured WPS
+service receives its own Conda environment.
 
 ## Local checks with Conda
 
-On macOS, create and activate the development environment:
+On macOS or Linux, create and activate the development environment from
+[`environment.yml`](environment.yml):
 
 ```sh
 conda env create --file environment.yml
@@ -62,173 +51,155 @@ the playbook with `ansible-playbook --syntax-check`. It also runs a
 localhost-only assertion playbook for the default retention conversions.
 The checks do not apply the deployment playbook to the local machine.
 
-## Testing with Vagrant
+## Test a deployment with Vagrant
 
-Use Vagrant to test the installation:
+The included [`Vagrantfile`](Vagrantfile) uses AlmaLinux 9 and requires
+Vagrant 2.4 or newer. Start the VM and connect to it:
 
-``` sh
+```sh
 vagrant up
-```
-
-Login in to VM:
-
-``` sh
 vagrant ssh
 ```
 
-Become root:
+Inside the VM, install Ansible and run the playbook:
 
-``` sh
-sudo -i 
-```
-
-Install ansible:
-
-``` sh
-dnf install epel-release
-dnf install ansible
-```
-
-Change to the /vagrant folder:
-
-``` sh
+```sh
+sudo -i
+dnf install -y epel-release ansible
 cd /vagrant
-```
-
-Configure the playbook:
-
-``` sh
 cp etc/sample-vagrant.yml custom.yml
 vim custom.yml
-```
-
-Run the playbook:
-
-``` sh
 make play
 ```
 
-Check if WPS is running:
+Check the Supervisor status:
+
 ```sh
 supervisorctl status
 ```
 
-Check WPS service by getting the capabilities:
-
-http://192.168.128.100/wps?service=wps&version=1.0.0&request=GetCapabilities
+Then request the
+[WPS capabilities document](http://192.168.128.100/wps?service=wps&version=1.0.0&request=GetCapabilities).
 
 ## Configuration
 
+### Create `custom.yml`
 
-### Edit custom.yml
+Create a `custom.yml` file to override variables from
+[`group_vars/all.yml`](group_vars/all.yml). The playbook loads this file
+automatically, and Git ignores it. Prepared configurations under
+`etc/sample-*.yml` provide useful starting points.
 
-You need to customize the Ansible deployment configuration to
-install your PyWPS service. Create a `custom.yml` configuration and
-overwrite any of the variables found in `group_vars/all`. There are some
-prepared sample configurations `etc/sample-*.yml` for specific
-deployments. Copy one of those to get started.
+To keep multiple local configurations, store them under `etc/custom-*.yml`
+and link the active one:
 
-You can also add your custom configurations to the `etc/` folder to stay
-away from Git control:
+```sh
+cp etc/sample-emu.yml etc/custom-emu.yml
+vim etc/custom-emu.yml
+ln -s etc/custom-emu.yml custom.yml
+```
 
-``` console
-$ cp etc/sample-emu.yml etc/custom-emu.yml
-$ vim etc/custom-emu.yml
-$ ln -s etc/custom-emu.yml custom.yml
+With the desired configuration selected, run the deployment from the target
+host:
+
+```sh
+make play
 ```
 
 ### Configure output and temporary-file retention
 
-PyWPS outputs and temporary process directories older than 12 hours are
-removed by default. Configure their retention periods in hours with:
+When the cleanup cron jobs are enabled, they run hourly and remove PyWPS
+outputs and temporary process directories older than 12 hours. Enable the
+jobs and configure their retention periods with:
 
 ```yaml
+cron_enabled: true
 wps_outputs_keep_hours: 12
 wps_temp_keep_hours: 12
 ```
 
-The playbook converts these values to minutes for the cleanup commands.
+The playbook converts the hour values to the minutes consumed by the cleanup
+commands.
 
 ### Use Conda to build identical environments
 
-You can use Conda specification files to build identical
-[environments](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#building-identical-conda-environments).
-The WPS service needs to have a specification file, `spec-file.txt`, in
-its top level folder. You can set the following option in your
-`custom.yml`:
+By default, each WPS repository must contain the configured
+`conda_env_file`, which is `environment.yml`. To create environments from
+explicit Conda specifications instead, place `spec-list.txt` in each WPS
+repository and set:
 
-    conda_env_use_spec: true
+```yaml
+conda_env_use_spec: true
+```
 
-See an example in `etc/sample-emu-with-conda-spec.yml`.
+See
+[`etc/sample-emu-with-conda-spec.yml`](etc/sample-emu-with-conda-spec.yml)
+for an example.
 
+> [!NOTE]
+> `conda_env_use_spec` and `conda_env_spec_file` apply to all configured WPS
+> services.
 
-**Warning**
+### Configure the database
 
-This is option is currently enabled for [all]{.title-ref} configured WPS
-services.
-
-### Use sqlite Database
+#### SQLite
 
 You can use a SQLite database with the following settings:
 
-    db_install_postgresql: false
-    db_install_sqlite: true
+```yaml
+db_install_postgresql: false
+db_install_sqlite: true
+```
 
-See an example in `etc/sample-sqlite.yml`.
+See [`etc/sample-sqlite.yml`](etc/sample-sqlite.yml) for an example.
 
-### Use PostgreSQL Database installed by playbook
+#### PostgreSQL installed by the playbook
 
 By default the playbook will install a PostgreSQL database. You can
 customize the installation. For example you can configure a database
 user:
 
-    db_user: dbuser
-    db_password: dbuser
+```yaml
+db_user: dbuser
+db_password: dbuser
+```
 
-See an example in `etc/sample-postgres.yml`.
+See [`etc/sample-postgres.yml`](etc/sample-postgres.yml) for an example.
 
+#### External PostgreSQL
 
-### Use external PostgreSQL Database
+To use an existing database, disable the local PostgreSQL installation and
+provide its connection URL:
 
-If you want to use an existing database you can skip the database
-installation by setting the variable:
+```yaml
+db_install_postgresql: false
+wps_database: "postgresql+psycopg2://user:password@host:5432/pywps"
+```
 
-    db_install_postgresql: false
-
-You need to configure then the database connection string to your
-external database:
-
-    wps_database: "postgresql+psycopg2://user:password@host:5432/pywps"
-
-See an example in `etc/sample-postgres.yml`.
+See [`etc/sample-postgres.yml`](etc/sample-postgres.yml) for an example.
 
 ### Install multiple PyWPS applications
 
 You can install several PyWPS applications with a single Ansible run.
-See `etc/sample-multiple.yml` configuration as example.
+See [`etc/sample-multiple.yml`](etc/sample-multiple.yml) for an example.
 
-You can also configure a shared file-server for outputs. See
-`etc/sample-multiple-with-shared-fileserver.yml`.
+You can also configure a shared file server for outputs. See
+[`etc/sample-multiple-with-shared-fileserver.yml`](etc/sample-multiple-with-shared-fileserver.yml).
 
 ### Use HTTPS with Nginx
 
-You can enable HTTPS for the Nginx service by setting the variable:
+The playbook configures Nginx to use an existing certificate and private key;
+it does not currently create them. Place both files on the target host and
+configure their paths before enabling HTTPS:
 
-    wps_enable_https: true
+```yaml
+wps_enable_https: true
+ssl_certs_cert_path: /etc/ssl/example.com/example.com.pem
+ssl_certs_privkey_path: /etc/ssl/example.com/example.com.key
+```
 
-See `etc/sample-certs.yml` configuration as example.
-
-By default it generates a *self-signed* certificate automatically.
-
-You can also provide your own certificate by setting the following
-variables:
-
-    ssl_certs_local_privkey_path: '/path/to/example.com.key'
-    ssl_certs_local_cert_path: '/path/to/example.com.pem'
-
-Read the [ssl-certs
-role](https://galaxy.ansible.com/jdauphant/ssl-certs) documentation for
-details.
+See [`etc/sample-certs.yml`](etc/sample-certs.yml) for the service
+configuration.
 
 ### Extend PyWPS configuration
 
@@ -238,7 +209,7 @@ extend it for additional configurations. You can extend the
 `pywps.cfg` configuration with the
 `extra_config` option. Here is an example:
 
-``` yaml
+```yaml
 ---
 server_name: demowps
 wps_services:
@@ -249,3 +220,9 @@ wps_services:
       [data]
       cache_path = /tmp/cache
 ```
+
+## Project notes
+
+- See [`CHANGES.md`](CHANGES.md) for release history.
+- See [`TODO.md`](TODO.md) for known limitations and future work.
+- Run `make help` to list the available development and deployment commands.
