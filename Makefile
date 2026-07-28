@@ -9,6 +9,7 @@ help:
 	@echo "  help        to print this help message. (Default)"
 	@echo "  roles       to install roles from ansible-galaxy."
 	@echo "  play        to run ansible playbook."
+	@echo "  check       to run a local Ansible syntax check."
 	@echo "  clean       to remove *all* files that are not controlled by 'git'. WARNING: use it *only* if you know what you do!"
 
 .PHONY: roles
@@ -26,6 +27,10 @@ quick: roles
 play: roles
 	echo "Installing PyWPS application with Ansible [all tasks] ..."
 	ansible-playbook -c local -i hosts playbook.yml --extra-vars "@extra_vars.yml"
+
+.PHONY: check
+check:
+	ansible-playbook --syntax-check -i hosts playbook.yml
 
 .PHONY: clean
 clean:

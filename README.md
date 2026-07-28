@@ -41,6 +41,27 @@ and miniconda are installed on the system. The PyWPS application is
 fetched from GitHub and dependencies are installed into a Conda
 environment.
 
+## Local checks with Conda
+
+On macOS, create and activate the development environment:
+
+```sh
+conda env create --file environment.yml
+conda activate ansible-wps-playbook
+```
+
+Install the external Ansible roles and collections once, then run the
+local syntax check:
+
+```sh
+make roles
+make check
+```
+
+The syntax check parses the playbook without applying it to the local
+machine. The environment also includes `ansible-lint` and `yamllint` for
+additional checks while cleaning up the playbook.
+
 ## Testing with Vagrant
 
 Use Vagrant to test the installation:
