@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0 (2026-07-28)
+
 Changes:
 
 - configure cleanup retention in hours and convert it to minutes internally
@@ -12,6 +14,8 @@ Changes:
 - pin Ansible and Galaxy dependencies and add `make roles-update`
 - improve the README, production example, and project TODOs
 - fix cron logging and the `quick` and `clean` Make targets
+- enforce pinned Galaxy role versions during installation
+- reload systemd before restarting Supervisor
 
 ## 0.7.0 (2024-11-28)
 
