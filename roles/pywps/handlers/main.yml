@@ -1,8 +1,18 @@
 ---
-- name: restart supervisord
-  service:
+- name: Reload systemd and restart supervisord
+  ansible.builtin.systemd:
     name: supervisord
     state: restarted
+    daemon_reload: true
+  when: ansible_service_mgr == "systemd"
+  listen: restart supervisord
+
+- name: Restart supervisord without systemd
+  ansible.builtin.service:
+    name: supervisord
+    state: restarted
+  when: ansible_service_mgr != "systemd"
+  listen: restart supervisord
 
 - name: restart nginx
   service:

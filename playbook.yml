@@ -43,6 +43,14 @@
     - name: roocs
       when: roocs_enabled
 
+  tasks:
+    - name: Reload systemd service definitions
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: ansible_service_mgr == "systemd"
+      tags:
+        - always
+
 - name: Install a PyWPS worker
   hosts: worker
   become: yes
