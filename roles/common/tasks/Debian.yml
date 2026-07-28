@@ -2,7 +2,7 @@
 - name: Install common packages on Debian
   apt:
     name: "{{ packages }}"
-    state: latest
+    state: present
   vars:
     packages:
       - python3-pip

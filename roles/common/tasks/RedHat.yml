@@ -2,7 +2,7 @@
 - name: Install common packages on RedHat
   yum:
     name: "{{ packages }}"
-    state: latest
+    state: present
   vars:
     packages:
       - gcc-c++
@@ -12,7 +12,7 @@
 - name: Install packages on RedHat 7/8
   yum:
     name: "{{ packages }}"
-    state: latest
+    state: present
   vars:
     packages:
       - python2-pip
@@ -22,7 +22,7 @@
 - name: Install packages on RedHat 9
   yum:
     name: "{{ packages }}"
-    state: latest
+    state: present
   vars:
     packages:
       - python3-pip

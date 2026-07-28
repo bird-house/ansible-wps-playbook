@@ -3,6 +3,9 @@
   template:
     src: ./templates/tmpfiles.config.j2
     dest: "/usr/lib/tmpfiles.d/pywps.conf"
+    owner: root
+    group: root
+    mode: "0644"
   tags:
     - pywps
     - conf
@@ -11,6 +14,9 @@
   template:
     src: ./templates/pywps.cfg.j2
     dest: "/etc/pywps/{{ item.name }}.cfg"
+    owner: root
+    group: "{{ wps_group }}"
+    mode: "0640"
   with_items:
     - "{{ wps_services }}"
   tags:
