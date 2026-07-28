@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint
@@ -32,7 +36,7 @@ jobs:
       - name: Install pinned Ansible dependencies
         run: make roles
 
-      - name: Lint YAML and Ansible
+      - name: Lint YAML, Ansible, and shell
         run: make lint
 
   configuration:
@@ -62,4 +66,4 @@ jobs:
         run: make check
 
       - name: Validate defaults and rendered configuration
-        run: make smoke
+        run: make config-check

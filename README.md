@@ -71,7 +71,7 @@ conda env create --file environment.yml
 conda activate ansible-wps-playbook
 ```
 
-Run the same smoke tests used by GitHub Actions:
+Run the same fast checks used by GitHub Actions:
 
 ```sh
 make test
