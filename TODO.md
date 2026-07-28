@@ -21,7 +21,7 @@ deployment.
 
 ### Lint and Ansible modernization
 
-- Raise `ansible-lint` gradually beyond the current `basic` profile.
+- Raise `ansible-lint` gradually beyond the current `moderate` profile.
 - Re-enable disabled YAML style rules in `.yamllint.yml` as files are cleaned
   up.
 - Modernize maintained roles to use fully qualified collection names and

@@ -76,7 +76,7 @@ make test
 ```
 
 This installs the external Ansible roles and collections, checks the
-tracked YAML files, runs the basic `ansible-lint` profile, and parses
+tracked YAML files, runs the moderate `ansible-lint` profile, and parses
 the playbook with `ansible-playbook --syntax-check`. It also runs a
 localhost-only assertion playbook for the default retention conversions.
 The checks do not apply the deployment playbook to the local machine.
