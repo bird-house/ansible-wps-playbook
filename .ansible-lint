@@ -1,5 +1,5 @@
 ---
-profile: min
+profile: basic
 offline: true
 
 exclude_paths:

@@ -1,6 +1,11 @@
 ---
 - name: Create folders used by PyWPS and set owner
-  file: path={{ item }} state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ wps_user }}"
+    group: "{{ wps_group }}"
+    mode: "0755"
   with_items:
     - /etc/gunicorn
     - /etc/pywps
@@ -13,7 +18,12 @@
     - conf
 
 - name: Create output folders used by PyWPS and set owner
-  file: path="{{ wps_basedir }}/outputs/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
+  file:
+    path: "{{ wps_basedir }}/outputs/{{ item.name }}"
+    state: directory
+    owner: "{{ wps_user }}"
+    group: "{{ wps_group }}"
+    mode: "0755"
   with_items:
     - "{{ wps_services }}"
   tags:
@@ -21,7 +31,12 @@
     - conf
 
 - name: Create temp folders used by PyWPS and set owner
-  file: path="{{ wps_basedir }}/tmp/{{ item.name }}" state=directory owner={{ wps_user }} group={{ wps_group }} mode=0755
+  file:
+    path: "{{ wps_basedir }}/tmp/{{ item.name }}"
+    state: directory
+    owner: "{{ wps_user }}"
+    group: "{{ wps_group }}"
+    mode: "0755"
   with_items:
     - "{{ wps_services }}"
   tags:
@@ -29,7 +44,12 @@
     - conf
 
 - name: Update log file permissions
-  file: path="/var/log/pywps/{{ item.name }}.log" state=touch owner={{ wps_user }} group={{ wps_group }} mode=0644
+  file:
+    path: "/var/log/pywps/{{ item.name }}.log"
+    state: touch
+    owner: "{{ wps_user }}"
+    group: "{{ wps_group }}"
+    mode: "0644"
   with_items:
     - "{{ wps_services }}"
   tags:

@@ -2,14 +2,14 @@
 # This Ansible playbook is used to deploy a PyWPS application.
 - name: Install a PyWPS server
   hosts: web
-  become: yes
+  become: true
 
   pre_tasks:
     - name: Include vars from custom.yml if found
       include_vars: "{{ item }}"
       with_first_found:
-       - custom.yml
-       - null.yml
+        - custom.yml
+        - null.yml
     # - name: "Ansible | List all known variables and facts"
     #   debug:
     #     var: hostvars['192.168.50.44']
@@ -19,28 +19,23 @@
   roles:
     - common
     - role: andrewrothstein.miniconda
-      tags:
-        conda
+      tags: conda
     - role: supervisor
-      tags:
-        supervisor
+      tags: supervisor
     - role: geerlingguy.supervisor
-      tags:
-        supervisor
+      tags: supervisor
     - role: geerlingguy.nginx
-      tags:
-        nginx
+      tags: nginx
     - role: geerlingguy.postgresql
       when: db_install_postgresql
-      tags:
-        db
+      tags: db
     - role: slurm
       when: slurm_enabled
     - role: galaxyproject.slurm
       when: slurm_enabled
-    - name: pywps
-      wps_webservice_enabled: true
-    - name: roocs
+    - role: pywps
+      pywps_webservice_enabled: true
+    - role: roocs
       when: roocs_enabled
 
   tasks:
@@ -53,20 +48,19 @@
 
 - name: Install a PyWPS worker
   hosts: worker
-  become: yes
+  become: true
 
   pre_tasks:
     - name: Include vars from custom.yml if found
       include_vars: "{{ item }}"
       with_first_found:
-       - custom.yml
-       - null.yml
+        - custom.yml
+        - null.yml
   roles:
     - common
     - role: andrewrothstein.miniconda
-      tags:
-        conda
-    - name: pywps
-      wps_webservice_enabled: false
-    - name: roocs
+      tags: conda
+    - role: pywps
+      pywps_webservice_enabled: false
+    - role: roocs
       when: roocs_enabled

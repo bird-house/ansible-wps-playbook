@@ -1,48 +1,48 @@
 ---
 - name: Remove Conda environment.
-  command: "{{ conda_location }}/bin/conda env remove -q -y -p {{ conda_envs_dir}}/{{ item.name }}"
+  command: "{{ conda_location }}/bin/conda env remove -q -y -p {{ conda_envs_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
-  ignore_errors: yes
+  ignore_errors: true
   tags:
     - pywps
     - conda
 
 - name: Create Conda environment from environment file.
-  command: "{{ conda_bin }} env create --file {{ conda_env_file }} -p {{ conda_envs_dir}}/{{ item.name }}"
+  command: "{{ conda_bin }} env create --file {{ conda_env_file }} -p {{ conda_envs_dir }}/{{ item.name }}"
   args:
     chdir: "{{ src_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
   when: not conda_env_use_spec
-  register: conda_env
+  register: pywps_conda_env
   tags:
     - pywps
     - conda
 
 - name: Create Conda environment from spec-list.txt file.
-  command: "{{ conda_location }}/bin/conda create --file {{ conda_env_spec_file }} -p {{ conda_envs_dir}}/{{ item.name }}"
+  command: "{{ conda_location }}/bin/conda create --file {{ conda_env_spec_file }} -p {{ conda_envs_dir }}/{{ item.name }}"
   args:
     chdir: "{{ src_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
   when: conda_env_use_spec
-  register: conda_env_spec
+  register: pywps_conda_env_spec
   tags:
     - pywps
     - conda
 
 - name: Install WPS package.
-  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install ."
+  command: "{{ conda_envs_dir }}/{{ item.name }}/bin/pip install ."
   args:
     chdir: "{{ src_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
-  when: conda_env.changed or conda_env_spec.changed
+  when: pywps_conda_env.changed or pywps_conda_env_spec.changed
   tags:
     - pywps
     - conda
 
 - name: Install additional pip packages.
-  command: "{{ conda_envs_dir}}/{{ item.name }}/bin/pip install gunicorn[gevent] psycopg2-binary drmaa dill pytest pytest-cov"
+  command: "{{ conda_envs_dir }}/{{ item.name }}/bin/pip install gunicorn[gevent] psycopg2-binary drmaa dill pytest pytest-cov"
   with_items: "{{ wps_services }}"
-  when: conda_env.changed or conda_env_spec.changed
+  when: pywps_conda_env.changed or pywps_conda_env_spec.changed
   tags:
     - pywps
     - conda

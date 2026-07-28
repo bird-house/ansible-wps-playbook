@@ -4,8 +4,8 @@
     repo: "https://github.com/roocs/mini-esgf-data.git"
     version: "master"
     dest: "{{ roocs_demo_data_dir }}/mini-esgf-data"
-    update: yes
-    force: yes
+    update: true
+    force: true
   run_once: true
   when: roocs_site == "demo"
 

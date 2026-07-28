@@ -3,7 +3,7 @@
   unarchive:
     src: https://github.com/natefoo/slurm-drmaa/releases/download/{{ slurm_drmaa_version }}/slurm-drmaa-{{ slurm_drmaa_version }}.tar.gz
     dest: /usr/local/src
-    remote_src: yes
+    remote_src: true
   tags:
     - slurm
 
