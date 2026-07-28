@@ -1,7 +1,9 @@
 ---
+ansible_become_method: su
+
 server_name: localhost
 
-db_install_postgresql: false
+db_install_postgresql: true
 db_install_sqlite: false
 selinux_enabled: false
 cron_enabled: false
