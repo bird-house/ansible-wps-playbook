@@ -8,9 +8,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  smoke-test:
-    name: Ansible smoke test
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
 
     defaults:
@@ -29,5 +33,37 @@ jobs:
           miniforge-version: latest
           conda-remove-defaults: "true"
 
-      - name: Run fast checks
-        run: make test
+      - name: Install pinned Ansible dependencies
+        run: make roles
+
+      - name: Lint YAML, Ansible, and shell
+        run: make lint
+
+  configuration:
+    name: Syntax and configuration
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Create Conda environment
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: ansible-wps-playbook
+          environment-file: environment.yml
+          miniforge-version: latest
+          conda-remove-defaults: "true"
+
+      - name: Install pinned Ansible dependencies
+        run: make roles
+
+      - name: Check playbook syntax
+        run: make check
+
+      - name: Validate defaults and rendered configuration
+        run: make config-check

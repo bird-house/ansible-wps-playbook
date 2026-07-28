@@ -1,5 +1,5 @@
 ---
-- name: Validate playbook defaults
+- name: Validate defaults and rendered configuration
   hosts: localhost
   connection: local
   gather_facts: false

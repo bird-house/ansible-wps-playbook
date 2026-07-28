@@ -1,6 +1,7 @@
 # PyWPS Ansible Playbook
 
 [![Checks](https://github.com/bird-house/ansible-wps-playbook/actions/workflows/checks.yml/badge.svg)](https://github.com/bird-house/ansible-wps-playbook/actions/workflows/checks.yml)
+[![Docker convergence](https://github.com/bird-house/ansible-wps-playbook/actions/workflows/convergence.yml/badge.svg)](https://github.com/bird-house/ansible-wps-playbook/actions/workflows/convergence.yml)
 [![GitHub license](https://img.shields.io/github/license/bird-house/ansible-wps-playbook.svg)](https://github.com/bird-house/ansible-wps-playbook/blob/master/LICENSE)
 
 Deploy one or more [PyWPS](https://pywps.org/) applications on a single
@@ -51,15 +52,16 @@ flowchart LR
 | --- | --- | --- |
 | Local development | macOS Intel/Apple Silicon and Linux | Conda environment; Apple Silicon runs the x86 test through Docker emulation |
 | Python and Ansible | Python 3.12, Ansible Core 2.19.11 | Pinned in `environment.yml`; lint, syntax, and assertion checks |
-| Deployment target | AlmaLinux 9 x86_64 | Default Vagrant scenario; minimal container convergence on GitHub Actions |
+| Deployment target | AlmaLinux 9 x86_64 | Minimal Docker convergence in GitHub Actions; optional Vagrant sandbox |
 | Debian and Ubuntu | x86_64 task path retained | No automated convergence coverage; currently best effort |
-| Vagrant | 2.4 or newer | Enforced by `Vagrantfile` |
 
 This table describes the current test baseline rather than a compatibility
 guarantee. Full multi-platform convergence and idempotence testing remains
 future work. Red Hat family releases older than 9 are not supported.
 
-## Local checks with Conda
+## Testing
+
+### Fast local checks
 
 On macOS or Linux, create and activate the development environment from
 [`environment.yml`](environment.yml):
@@ -69,24 +71,69 @@ conda env create --file environment.yml
 conda activate ansible-wps-playbook
 ```
 
-Run the same smoke tests used by GitHub Actions:
+Run the same fast checks used by GitHub Actions:
 
 ```sh
 make test
 ```
 
 This installs the external Ansible roles and collections, checks the
-tracked YAML files, runs the safety `ansible-lint` profile, and parses
+working-tree YAML files, runs the safety `ansible-lint` profile, and parses
 the playbook with `ansible-playbook --syntax-check`. It also runs a
 localhost-only assertion playbook for the default retention conversions.
 It also renders representative PyWPS, Gunicorn, Supervisor, Nginx, and ROOCS
 configuration. The checks do not apply the deployment playbook to the local
 machine.
 
-GitHub Actions additionally deploys a tiny fixture service in an AlmaLinux 9
-systemd container and checks Nginx, Supervisor, the health endpoint, file
-permissions, and a second playbook run. Complete ROOK deployments and smoke
-tests with real data remain manual release checks.
+### Minimal deployment with Docker
+
+With Docker running, use the same AlmaLinux 9 x86_64 convergence test as
+GitHub Actions:
+
+```sh
+make convergence
+```
+
+It deploys a tiny fixture service in a systemd container and checks Nginx,
+Supervisor, the health endpoint, sensitive file permissions, and a second
+playbook run. Docker Desktop emulates the x86_64 image on Apple Silicon.
+
+### Optional local VM
+
+The [`Vagrantfile`](Vagrantfile) provides an AlmaLinux 9 sandbox for manually
+trying a larger configuration. It requires Vagrant 2.4 or newer and a provider
+with an x86_64-compatible box. Docker convergence is the recommended option on
+Apple Silicon.
+
+Start the VM and connect:
+
+```sh
+vagrant up
+vagrant ssh
+```
+
+Vagrant installs the pinned Ansible Core version automatically. Inside the VM,
+prepare an ignored configuration and apply the playbook:
+
+```sh
+sudo -i
+cd /vagrant
+cp etc/sample-vagrant.yml custom.yml
+vim custom.yml
+make play
+supervisorctl status
+```
+
+The service is reachable through the VM address `192.168.128.100`. Destroy the
+VM when it is no longer needed:
+
+```sh
+vagrant destroy
+```
+
+Vagrant is an optional development tool, not a CI or release requirement.
+Complete ROOK deployments and smoke tests with real data remain manual release
+checks.
 
 ## Dependency version policy
 
@@ -128,7 +175,8 @@ policy.
 
    If dependency versions did not change, run `make test` instead.
 
-3. Test one complete deployment with Vagrant or a test server.
+3. Test one complete ROOK deployment and its real-data smoke tests on a test
+   server.
 4. Move the entries in `CHANGES.md` from **Unreleased** to the new version and
    date, then add a new empty **Unreleased** section.
 5. Merge the release changes and confirm GitHub Actions passes on `master`.
@@ -138,36 +186,6 @@ policy.
    git tag -a vX.Y.Z -m "Release X.Y.Z"
    git push origin vX.Y.Z
    ```
-
-## Test a deployment with Vagrant
-
-The included [`Vagrantfile`](Vagrantfile) uses AlmaLinux 9 and requires
-Vagrant 2.4 or newer. Start the VM and connect to it:
-
-```sh
-vagrant up
-vagrant ssh
-```
-
-Inside the VM, install Ansible and run the playbook:
-
-```sh
-sudo -i
-dnf install -y epel-release ansible
-cd /vagrant
-cp etc/sample-vagrant.yml custom.yml
-vim custom.yml
-make play
-```
-
-Check the Supervisor status:
-
-```sh
-supervisorctl status
-```
-
-Then request the
-[WPS capabilities document](http://192.168.128.100/wps?service=wps&version=1.0.0&request=GetCapabilities).
 
 ## Configuration
 
