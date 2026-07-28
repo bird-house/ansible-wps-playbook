@@ -1,63 +1,107 @@
-# Review findings
+# TODO
 
-The items below are findings from a review of the playbook. They are recorded
-for later consideration and are not currently planned work.
+This file separates actionable work from observations that still need
+investigation. The playbook assumes a dedicated VM owned by the PyWPS
+deployment.
 
-## Finding: configuration cleanup is too broad
+## Actionable work
 
-`roles/pywps/tasks/clean.yml` removes every `*.conf` file from the Nginx and
-Supervisor configuration directories. On a shared host, this could remove
-configuration belonging to unrelated services.
+### Tests
 
-## Finding: HTTPS certificate provisioning is missing
+- Replace or remove the retired Docker test shim and stale
+  `tests/playbook.yml`.
+- Add a minimal AlmaLinux 9 convergence test that verifies Nginx, Supervisor,
+  the configured PyWPS services, and the `/health` endpoint.
+- Test rendered configuration for multiple WPS services and the optional
+  shared file server.
+- Check idempotence for tasks that are intended to remain stable. Document and
+  exclude deliberate changes such as rebuilding application environments.
+- Extend CI beyond lint and syntax checks once suitable test infrastructure is
+  available.
 
-The Nginx template references certificate and private-key files when HTTPS is
-enabled, but the main playbook does not install a certificate role or otherwise
-create those files. This differs from the automatic self-signed certificate
-behaviour described in the README.
+### Lint and Ansible modernization
 
-## Finding: SELinux is weakened globally for web services
+- Raise `ansible-lint` gradually from the current `min` profile.
+- Re-enable disabled YAML style rules in `.yamllint.yml` as files are cleaned
+  up.
+- Modernize maintained roles to use fully qualified collection names and
+  current Ansible module syntax.
+
+### Protect rendered secrets
+
+- Set explicit ownership and restrictive permissions on
+  `/etc/pywps/*.cfg`. These files can contain the database connection URL and
+  password.
+
+### Make multi-service Nginx configuration safe
+
+- Give each service a unique `proxy_cache_path` and `keys_zone`, or declare one
+  shared cache only once.
+- Remove the port collision between the file server and the second WPS service
+  in `etc/sample-multiple-with-shared-fileserver.yml`.
+- Add an `nginx -t` validation step before reloading Nginx.
+
+### Fix local Make targets
+
+- Make the dirty-worktree guard in `make clean` actually stop before
+  `git clean`.
+- Verify and fix the `quick` target; Ansible expects `--skip-tags conda`, not
+  `--skip conda`.
+
+## Findings to investigate
+
+These observations look suspicious, but the intended behaviour or best fix
+should be confirmed first.
+
+### HTTPS certificate lifecycle
+
+HTTPS expects certificate and private-key files to exist on the target host.
+Decide whether certificate provisioning remains an external prerequisite or
+whether the playbook should install and renew certificates. At minimum, add a
+clear preflight check before generating the Nginx configuration.
+
+### SELinux scope
 
 `roles/pywps/tasks/selinux.yml` makes the complete `httpd_t` domain permissive.
-This affects all processes using that SELinux domain, rather than only the
-PyWPS deployment.
+Confirm which access is actually required and whether targeted policy rules can
+replace the broad exception.
 
-## Finding: Conda environments are rebuilt on every run
+### Dependency reproducibility
 
-`roles/pywps/tasks/conda.yml` unconditionally removes and recreates each Conda
-environment. This makes deployments non-idempotent and can cause avoidable
-service downtime, particularly if recreation fails.
+Galaxy roles and collections in `requirements.yml` are not version-pinned, and
+application repositories default to `master` when no revision is configured.
+Check whether production deployments always provide pinned application
+revisions and decide how Galaxy dependencies should be locked.
 
-## Finding: rendered configuration may expose credentials
+### Cron logging
 
-The rendered PyWPS configuration contains the database connection URL and
-password, while the template task does not specify restrictive ownership and
-permissions. A newly created file may therefore be readable by users other
-than the service account.
+The restart cron command uses `2>&1 > logfile`. Confirm whether both output
+streams should go to the log; if so, the usual order is `> logfile 2>&1`.
 
-## Finding: dependencies and application revisions are not pinned
+### Supervisor credentials
 
-The Galaxy roles and collections in `requirements.yml` have no versions.
-Application repositories also default to the `master` branch. Consequently,
-the same playbook revision may install different software over time.
+The defaults include `supervisor_password: test`, while password protection and
+the inet interface are disabled by default. Confirm that enabling either
+interface cannot expose this placeholder credential.
 
-## Finding: multiple-service Nginx configuration is fragile
+### Database URL encoding
 
-Each generated service configuration declares the same `proxy_cache_path` and
-`keys_zone`. In addition, the shared-fileserver example assigns port `5001` to
-both the fileserver and one PyWPS service.
+The PostgreSQL URL is assembled directly from `db_user` and `db_password`.
+Check how credentials containing URL-reserved characters such as `@`, `:`, or
+`/` should be encoded.
 
-## Finding: integration-test infrastructure is stale
+## Intentional behaviour
 
-`tests/playbook.yml` refers to roles that are absent from the current
-requirements. The idempotence test only checks that the second run did not
-fail; it does not check that the run reported zero changes.
+The following findings are deliberate consequences of the dedicated-VM
+deployment model and are not TODOs:
 
-The current GitHub Actions smoke test only installs dependencies, lints the
-playbook, checks its syntax, and validates a small set of defaults on localhost.
-A future PR should replace the retired Docker test shim with maintained Ansible
-integration infrastructure and meaningful convergence and idempotence tests.
+- The configuration cleanup removes existing Nginx and Supervisor `*.conf`
+  files before rendering the complete desired configuration.
+- Conda environments are removed and recreated on deployment so their contents
+  match the declared environment or explicit specification exactly.
 
-## Review validation
+## Current validation
 
-The local `make test` smoke test passes with Ansible Core 2.19.
+`make test` installs Galaxy dependencies, lints tracked YAML and maintained
+Ansible content, checks playbook syntax, and runs localhost-only assertions.
+It does not perform a full deployment.
