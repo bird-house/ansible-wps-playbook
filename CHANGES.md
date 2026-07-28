@@ -4,7 +4,7 @@
 
 Changes:
 
-- raise maintained Ansible content to the `ansible-lint` basic profile
+- raise maintained Ansible content to the `ansible-lint` safety profile
 
 ## 0.8.0 (2026-07-28)
 

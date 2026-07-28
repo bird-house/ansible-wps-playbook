@@ -3,6 +3,9 @@
   template:
     src: ./templates/logrotate.j2
     dest: /etc/logrotate.d/pywps
+    owner: root
+    group: root
+    mode: "0644"
   tags:
     - pywps
     - conf

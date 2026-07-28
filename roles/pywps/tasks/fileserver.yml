@@ -3,6 +3,9 @@
   template:
     src: ./templates/nginx_fs.conf.j2
     dest: "{{ nginx_conf_path }}/fileserver.conf"
+    owner: root
+    group: root
+    mode: "0644"
   tags:
     - pywps
     - conf
