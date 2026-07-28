@@ -1,0 +1,25 @@
+---
+server_name: localhost
+
+db_install_postgresql: false
+db_install_sqlite: false
+selinux_enabled: false
+cron_enabled: false
+slurm_enabled: false
+roocs_enabled: false
+fs_enabled: false
+
+conda_env_use_spec: false
+conda_env_file: environment.yml
+wps_pip_packages:
+  - gunicorn[gevent]
+
+gunicorn_workers: 1
+wps_services:
+  - name: tiny
+    repo: file:///tmp/tiny-wps-source
+    version: main
+    app: tiny_wps:application
+    hostname: localhost
+    port: 8080
+    database: sqlite:////tmp/tiny-wps.db

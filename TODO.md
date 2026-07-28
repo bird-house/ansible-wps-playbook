@@ -8,16 +8,11 @@ deployment.
 
 ### Tests
 
-- Replace or remove the retired Docker test shim and stale
-  `tests/playbook.yml`.
-- Add a minimal AlmaLinux 9 convergence test that verifies Nginx, Supervisor,
-  the configured PyWPS services, and the `/health` endpoint.
-- Test rendered configuration for multiple WPS services and the optional
-  shared file server.
-- Check idempotence for tasks that are intended to remain stable. Document and
-  exclude deliberate changes such as rebuilding application environments.
-- Extend CI beyond lint and syntax checks once suitable test infrastructure is
-  available.
+- Add a Debian convergence scenario after the AlmaLinux test has proved
+  stable.
+- Tighten the second convergence run to check idempotence for tasks intended
+  to remain stable while allowing deliberate service restarts.
+- Add render cases when new optional configuration branches are introduced.
 
 ### Lint and Ansible modernization
 
@@ -26,12 +21,6 @@ deployment.
   up.
 - Modernize maintained roles to use fully qualified collection names and
   current Ansible module syntax.
-
-### Protect rendered secrets
-
-- Set explicit ownership and restrictive permissions on
-  `/etc/pywps/*.cfg`. These files can contain the database connection URL and
-  password.
 
 ### Make multi-service Nginx configuration safe
 
@@ -84,5 +73,7 @@ deployment model and are not TODOs:
 ## Current validation
 
 `make test` installs Galaxy dependencies, lints tracked YAML and maintained
-Ansible content, checks playbook syntax, and runs localhost-only assertions.
-It does not perform a full deployment.
+Ansible content, checks playbook syntax, and validates defaults and rendered
+configuration on localhost. GitHub Actions also performs a minimal AlmaLinux 9
+deployment with a tiny fixture application. Complete ROOK deployment and
+real-data smoke tests remain manual.

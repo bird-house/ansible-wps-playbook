@@ -5,6 +5,7 @@
 Changes:
 
 - raise maintained Ansible content to the `ansible-lint` safety profile
+- add rendered-configuration tests and minimal AlmaLinux 9 CI convergence
 
 ## 0.8.0 (2026-07-28)
 

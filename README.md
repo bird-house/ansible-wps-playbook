@@ -49,9 +49,9 @@ flowchart LR
 
 | Area | Current baseline | Coverage |
 | --- | --- | --- |
-| Local development | macOS and Linux | Conda environment; smoke tests run locally and on Ubuntu GitHub Actions |
+| Local development | macOS and Linux | Conda environment; lint, render, and smoke tests run locally and on GitHub Actions |
 | Python and Ansible | Python 3.12, Ansible Core 2.19.11 | Pinned in `environment.yml`; lint, syntax, and assertion checks |
-| Deployment target | AlmaLinux 9 | Default Vagrant scenario |
+| Deployment target | AlmaLinux 9 | Default Vagrant scenario; minimal container convergence on GitHub Actions |
 | Other Linux targets | Red Hat and Debian task paths exist | No automated convergence coverage; currently best effort |
 | Vagrant | 2.4 or newer | Enforced by `Vagrantfile` |
 
@@ -79,7 +79,14 @@ This installs the external Ansible roles and collections, checks the
 tracked YAML files, runs the safety `ansible-lint` profile, and parses
 the playbook with `ansible-playbook --syntax-check`. It also runs a
 localhost-only assertion playbook for the default retention conversions.
-The checks do not apply the deployment playbook to the local machine.
+It also renders representative PyWPS, Gunicorn, Supervisor, Nginx, and ROOCS
+configuration. The checks do not apply the deployment playbook to the local
+machine.
+
+GitHub Actions additionally deploys a tiny fixture service in an AlmaLinux 9
+systemd container and checks Nginx, Supervisor, the health endpoint, file
+permissions, and a second playbook run. Complete ROOK deployments and smoke
+tests with real data remain manual release checks.
 
 ## Dependency version policy
 
@@ -244,6 +251,10 @@ for an example.
 > [!NOTE]
 > `conda_env_use_spec` and `conda_env_spec_file` apply to all configured WPS
 > services.
+
+Additional runtime packages installed with pip are configured through
+`wps_pip_packages`. The defaults provide Gunicorn and the packages used by the
+Birdhouse services; small test deployments can override the list.
 
 ### Configure the database
 

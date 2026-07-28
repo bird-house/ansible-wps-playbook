@@ -40,7 +40,9 @@
     - conda
 
 - name: Install additional pip packages.
-  command: "{{ conda_envs_dir }}/{{ item.name }}/bin/pip install gunicorn[gevent] psycopg2-binary drmaa dill pytest pytest-cov"
+  command: >-
+    {{ conda_envs_dir }}/{{ item.name }}/bin/pip install
+    {{ wps_pip_packages | join(' ') }}
   with_items: "{{ wps_services }}"
   when: pywps_conda_env.changed or pywps_conda_env_spec.changed
   tags:

@@ -13,7 +13,6 @@
     state: present
   with_items:
     - wget
-    - curl
     - git
     - vim
     - tmux
