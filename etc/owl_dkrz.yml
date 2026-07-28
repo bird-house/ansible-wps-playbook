@@ -3,8 +3,6 @@
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
 cron_user: root
-wps_outputs_keep_hours: 12
-wps_temp_keep_hours: 12
 # db
 db_install_postgresql: true
 db_install_sqlite: false
