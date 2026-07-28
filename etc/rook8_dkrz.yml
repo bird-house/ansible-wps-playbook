@@ -1,6 +1,6 @@
 ---
 wps_internal_hostname: rook8.cloud.dkrz.de
-#wps_external_hostname: compute.mips.copernicus-climate.eu
+# wps_external_hostname: compute.mips.copernicus-climate.eu
 wps_external_hostname: rook8.cloud.dkrz.de
 
 # service user
@@ -9,8 +9,8 @@ service_uid: 401
 service_group: tomcat
 service_gid: 399
 # user for pywps service
-#wps_user: wps
-#wps_group: wps
+# wps_user: wps
+# wps_group: wps
 ## TODO: allow user wps to run cron
 # $ vim /etc/security/access.conf
 # + : wps : cron crond :0 tty1 tty2 tty3 tty4 tty5 tty6
@@ -19,25 +19,25 @@ service_gid: 399
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
 cron_user: root
-wps_outputs_keep_minutes: 720  # 12 hours
-wps_temp_keep_minutes: 720  # 12 hours
+wps_outputs_keep_hours: 12
+wps_temp_keep_hours: 12
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # conda_env_file: env.yml
 # db
 db_install_postgresql: true
-#db_host: "136.172.60.7"
-#postgresql_pg_hba_md5_hosts: ['136.172.60.7/32']
+# db_host: "136.172.60.7"
+# postgresql_pg_hba_md5_hosts: ['136.172.60.7/32']
 db_install_sqlite: false
 db_user: pywps
 db_password: pywps
 # nginx
-#nginx_keepalive_timeout: 300
-#nginx_keepalive_requests: 100
-#nginx_proxy_timeout: 300
+# nginx_keepalive_timeout: 300
+# nginx_keepalive_requests: 100
+# nginx_proxy_timeout: 300
 # gunicorn
-gunicorn_workers: 25 
+gunicorn_workers: 25
 gunicorn_worker_class: 'gevent'
 gunicorn_timeout: 30
 # slurm
@@ -55,7 +55,7 @@ wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
     version: v0.17.1
-    #version: main
+    # version: main
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
@@ -74,4 +74,4 @@ wps_services:
     contact_url: https://roocs.github.io/
     cleantempdir: false
     environment:
-      INTAKE_CONF_DIR: /var/lib/pywps/intake 
+      INTAKE_CONF_DIR: /var/lib/pywps/intake

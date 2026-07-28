@@ -1,0 +1,11 @@
+---
+name: ansible-wps-playbook
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.12
+  - ansible-core=2.19.11
+  - ansible-lint
+  - yamllint

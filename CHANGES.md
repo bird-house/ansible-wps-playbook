@@ -4,9 +4,14 @@
 
 Changes:
 
-- configure PyWPS output and temporary-file retention in minutes, with a
-  default of 12 hours
+- configure cleanup retention in hours and convert it to minutes internally
 - restart PyWPS services daily instead of hourly
+- add the required `community.postgresql` collection
+- update Rook deployment and ROOCS catalog configuration
+- add local and GitHub CI lint, syntax, and smoke checks
+- pin Ansible and Galaxy dependencies and add `make roles-update`
+- improve the README, production example, and project TODOs
+- fix cron logging and the `quick` and `clean` Make targets
 
 ## 0.7.0 (2024-11-28)
 

@@ -25,7 +25,7 @@
   vars:
     packages:
       - python3-pip
-      - langpacks-en 
+      - langpacks-en
       - glibc-all-langpacks
   when:
     - ansible_distribution_major_version|int >= 9

@@ -1,12 +1,20 @@
 ---
 roles:
   - name: andrewrothstein.miniconda
+    version: v6.4.1
   - name: geerlingguy.supervisor
+    version: 3.3.0
   - name: geerlingguy.nginx
+    version: 3.3.0
   - name: geerlingguy.postgresql
+    version: 4.0.2
   - name: galaxyproject.slurm
+    version: 1.0.5
 
 collections:
   - name: community.general
+    version: 12.1.0
   - name: community.postgresql
+    version: 4.2.0
   - name: ansible.posix
+    version: 2.1.0

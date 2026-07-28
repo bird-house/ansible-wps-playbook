@@ -82,7 +82,7 @@ nginx_keepalive_timeout: "60"
 nginx_keepalive_requests: "100"
 nginx_proxy_timeout: "60s"
 
-# ssl 
+# ssl
 ssl_certs_common_name: "{{ ansible_fqdn }}"
 ssl_certs_path: "/etc/ssl/{{ ssl_certs_common_name }}"
 ssl_certs_privkey_path: "{{ ssl_certs_path }}/{{ ssl_certs_common_name }}.key"
@@ -140,8 +140,10 @@ wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
 wps_log_dir: /var/log/pywps
 wps_http_log_dir: /var/log/nginx
-wps_outputs_keep_minutes: 720  # 12 hours
-wps_temp_keep_minutes: 720  # 12 hours
+wps_outputs_keep_hours: 12
+wps_outputs_keep_minutes: "{{ (wps_outputs_keep_hours | int) * 60 }}"
+wps_temp_keep_hours: 12
+wps_temp_keep_minutes: "{{ (wps_temp_keep_hours | int) * 60 }}"
 wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git

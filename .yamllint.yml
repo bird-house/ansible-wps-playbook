@@ -1,0 +1,13 @@
+---
+extends: relaxed
+
+rules:
+  colons: disable
+  comments:
+    min-spaces-from-content: 1
+  empty-lines: disable
+  indentation: disable
+  line-length: disable
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

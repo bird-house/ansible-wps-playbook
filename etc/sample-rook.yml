@@ -3,8 +3,8 @@ server_name: 192.168.128.100
 # server_name: localhost
 db_install_postgresql: false
 db_install_sqlite: true
-#db_user: dbuser
-#db_password: dbuser
+# db_user: dbuser
+# db_password: dbuser
 cron_mailto: root
 wps_enable_https: false
 # access control

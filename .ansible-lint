@@ -1,0 +1,14 @@
+---
+profile: min
+offline: true
+
+exclude_paths:
+  - ansible_collections/
+  - tests/playbook.yml
+  - roles/andrewrothstein.bash/
+  - roles/andrewrothstein.miniconda/
+  - roles/andrewrothstein.unarchivedeps/
+  - roles/galaxyproject.slurm/
+  - roles/geerlingguy.nginx/
+  - roles/geerlingguy.postgresql/
+  - roles/geerlingguy.supervisor/

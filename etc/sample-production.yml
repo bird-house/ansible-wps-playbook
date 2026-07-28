@@ -1,0 +1,59 @@
+---
+# Example single-host production configuration.
+# Replace every REPLACE_WITH_* value before deployment and keep secrets in
+# Ansible Vault or another untracked variables file.
+
+server_name: wps.example.org
+
+# Clean completed outputs and abandoned process directories every hour.
+cron_enabled: true
+cron_mailto: ops@example.org
+cron_user: root
+wps_outputs_keep_hours: 24
+wps_temp_keep_hours: 12
+
+# Use a separately managed PostgreSQL database.
+db_install_postgresql: false
+db_install_sqlite: false
+db_host: postgresql.example.org
+db_port: 5432
+db_user: pywps
+db_password: REPLACE_WITH_DATABASE_PASSWORD
+
+# Reproducible application environments. Each application repository must
+# contain this explicit Conda specification.
+conda_env_use_spec: true
+conda_env_spec_file: spec-list.txt
+
+# TLS certificate and key must already exist on the target host.
+wps_enable_https: true
+ssl_certs_cert_path: /etc/ssl/wps.example.org/wps.example.org.pem
+ssl_certs_privkey_path: /etc/ssl/wps.example.org/wps.example.org.key
+
+# Keep Slurm disabled for a regular single-host deployment.
+slurm_enabled: false
+
+# Tune these values for the CPUs and workload available on the target.
+gunicorn_workers: 5
+gunicorn_worker_connections: 1000
+gunicorn_timeout: 120
+
+wps_services:
+  - name: emu
+    repo: https://github.com/bird-house/emu.git
+    version: REPLACE_WITH_RELEASE_TAG_OR_COMMIT
+    hostname: "{{ server_name }}"
+    port: 443
+    maxsingleinputsize: 200mb
+    maxrequestsize: 200mb
+    maxprocesses: 16
+    parallelprocesses: 4
+    mode: default
+    log_level: INFO
+    cleantempdir: true
+    storage_copy_function: copy
+    provider_name: Example Operations Team
+    provider_url: https://www.example.org/
+    contact_name: Operations
+    contact_country: Germany
+    contact_url: https://www.example.org/support
