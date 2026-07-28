@@ -41,13 +41,6 @@ deployment.
   in `etc/sample-multiple-with-shared-fileserver.yml`.
 - Add an `nginx -t` validation step before reloading Nginx.
 
-### Fix local Make targets
-
-- Make the dirty-worktree guard in `make clean` actually stop before
-  `git clean`.
-- Verify and fix the `quick` target; Ansible expects `--skip-tags conda`, not
-  `--skip conda`.
-
 ## Findings to investigate
 
 These observations look suspicious, but the intended behaviour or best fix

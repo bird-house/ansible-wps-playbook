@@ -24,7 +24,7 @@ roles:
 .PHONY: quick
 quick: roles
 	echo "Installing PyWPS application with Ansible [skip conda tasks] ..."
-	ansible-playbook -c local --skip conda -i hosts playbook.yml
+	ansible-playbook -c local --skip-tags conda -i hosts playbook.yml
 
 .PHONY: play
 play: roles
@@ -50,5 +50,8 @@ smoke:
 .PHONY: clean
 clean:
 	@echo "Cleaning ..."
-	@git diff --quiet HEAD || echo "There are uncommited changes! Not doing 'git clean' ..."
-	@-git clean -dfx -e *.bak -e custom.yml -e etc/custom*.yml -e .vagrant
+	@if ! git diff --quiet HEAD; then \
+		echo "There are uncommitted changes! Not running 'git clean'."; \
+		exit 1; \
+	fi
+	@git clean -dfx -e *.bak -e custom.yml -e etc/custom*.yml -e .vagrant
