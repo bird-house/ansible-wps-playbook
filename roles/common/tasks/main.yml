@@ -24,7 +24,6 @@
     - vim
     - tmux
     - logrotate
-    - sudo
   tags:
     - common
 

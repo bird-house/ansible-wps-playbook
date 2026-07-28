@@ -1,4 +1,6 @@
 ---
+ansible_become_method: su
+
 server_name: localhost
 
 db_install_postgresql: true
