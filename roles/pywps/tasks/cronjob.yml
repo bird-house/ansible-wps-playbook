@@ -61,7 +61,7 @@
     name: "restart pywps"
     special_time: daily
     user: root
-    job: "{{ cron_script_dir }}/restart-pywps.sh {{ item.name }} 2>&1 > /var/log/pywps/restart-{{ item.name }}.log"
+    job: "{{ cron_script_dir }}/restart-pywps.sh {{ item.name }} > /var/log/pywps/restart-{{ item.name }}.log 2>&1"
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present

@@ -73,11 +73,6 @@ application repositories default to `master` when no revision is configured.
 Check whether production deployments always provide pinned application
 revisions and decide how Galaxy dependencies should be locked.
 
-### Cron logging
-
-The restart cron command uses `2>&1 > logfile`. Confirm whether both output
-streams should go to the log; if so, the usual order is `> logfile 2>&1`.
-
 ### Supervisor credentials
 
 The defaults include `supervisor_password: test`, while password protection and
