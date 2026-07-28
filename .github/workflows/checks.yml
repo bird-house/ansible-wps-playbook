@@ -29,5 +29,5 @@ jobs:
           miniforge-version: latest
           conda-remove-defaults: "true"
 
-      - name: Run smoke tests
+      - name: Run fast checks
         run: make test

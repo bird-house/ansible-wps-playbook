@@ -11,9 +11,10 @@ help:
 	@echo "  roles-update"
 	@echo "              to reinstall edited dependency pins and test."
 	@echo "  play        to run ansible playbook."
-	@echo "  lint        to lint tracked YAML and Ansible files."
+	@echo "  lint        to lint working-tree YAML and maintained Ansible files."
 	@echo "  check       to run an Ansible syntax check."
 	@echo "  smoke       to validate defaults without changing the host."
+	@echo "  convergence to deploy the tiny test service in AlmaLinux 9 with Docker."
 	@echo "  test        to install dependencies and run all local checks."
 	@echo "  clean       to remove *all* files that are not controlled by 'git'. WARNING: use it *only* if you know what you do!"
 
@@ -42,7 +43,11 @@ check:
 
 .PHONY: lint
 lint:
-	git ls-files -z '*.yml' '*.yaml' | xargs -0 yamllint --config-file .yamllint.yml
+	git ls-files -z --cached --others --exclude-standard '*.yml' '*.yaml' \
+		| xargs -0 bash -c 'files=(); for file; do \
+			[[ -f "$$file" ]] && files+=("$$file"); \
+		done; (("$${#files[@]}" == 0)) \
+			|| yamllint --config-file .yamllint.yml "$${files[@]}"' _
 	ansible-lint playbook.yml tests/smoke.yml roles/common roles/pywps roles/roocs roles/slurm roles/supervisor
 
 .PHONY: test
@@ -51,6 +56,10 @@ test: roles lint check smoke
 .PHONY: smoke
 smoke:
 	ansible-playbook -i localhost, tests/smoke.yml
+
+.PHONY: convergence
+convergence:
+	tests/convergence/run.sh
 
 .PHONY: clean
 clean:

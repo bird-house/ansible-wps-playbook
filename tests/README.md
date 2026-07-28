@@ -1,17 +1,25 @@
-# Ansible Role tests
+# Tests
 
-To run the tests:
+Run the fast checks locally with:
 
-  1. Install and start Docker.
-  ---
-  # 1. Download the test shim (see .travis.yml file for the URL) into `tests/test.sh`:
-  #    - `wget -O tests/test.sh https://gist.githubusercontent.com/geerlingguy/73ef1e5ee45d8694570f334be385e181/raw/`
-  ---
-  1. Make the test shim executable: `chmod +x tests/test_playbook.sh`.
-  1. Run (from the role root directory) `distro=[distro] ./tests/test_playbook.sh`
+```sh
+make test
+```
 
-If you don't want the container to be automatically deleted after the test playbook is run, add the following environment variables: `cleanup=false container_id=$(date +%s)`
+These checks lint the maintained Ansible content, validate playbook syntax,
+and test defaults and rendered configuration without changing the host.
 
-## Links
+With Docker running, execute the same minimal convergence test used by GitHub:
 
-* https://github.com/geerlingguy/ansible-role-supervisor/tree/master/tests
+```sh
+make convergence
+```
+
+It uses an AlmaLinux 9 systemd container and deploys a tiny fixture application
+instead of ROOK. It checks Nginx and Supervisor, calls the health endpoint,
+verifies sensitive file permissions, and runs the playbook a second time. The
+test defaults to `linux/amd64`, matching the deployment and GitHub runner;
+Docker Desktop can emulate this platform on Apple Silicon.
+
+Complete ROOK deployments and smoke tests with real data remain manual release
+checks.

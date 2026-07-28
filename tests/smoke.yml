@@ -7,6 +7,23 @@
   vars_files:
     - ../group_vars/all.yml
 
+  vars:
+    ansible_fqdn: localhost
+    test_primary_service:
+      name: alpha
+      hostname: alpha.example.test
+      port: 5001
+      mode: default
+      environment:
+        TEST_MODE: "true"
+      extra_config: |
+        [test]
+        enabled = true
+    test_secondary_service:
+      name: beta
+      hostname: beta.example.test
+      port: 5002
+
   tasks:
     - name: Check retention conversions
       ansible.builtin.assert:
@@ -18,3 +35,74 @@
           - >-
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
+
+    - name: Render primary service configuration
+      ansible.builtin.set_fact:
+        test_pywps_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/pywps.cfg.j2') }}
+        test_gunicorn_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/gunicorn.py.j2') }}
+        test_supervisor_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/supervisor.conf.j2') }}
+        test_nginx_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
+      vars:
+        item: "{{ test_primary_service }}"
+        wps_enable_https: true
+        wps_enable_acl: true
+        wps_acl_allow:
+          - 192.0.2.0/24
+
+    - name: Render alternate configuration
+      ansible.builtin.set_fact:
+        test_sqlite_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/pywps.cfg.j2') }}
+        test_secondary_nginx_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
+        test_fileserver_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/nginx_fs.conf.j2') }}
+        test_roocs_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/roocs/templates/roocs.demo.ini.j2') }}
+      vars:
+        item: "{{ test_secondary_service }}"
+        db_install_sqlite: true
+        fs_enabled: true
+        fs_host: files.example.test
+        fs_port: 6000
+        roocs_demo_data_dir: /test/data
+
+    - name: Check rendered primary service configuration
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - "'url = https://alpha.example.test:5001/wps' in test_pywps_config"
+          - "'database = postgresql+psycopg2://' in test_pywps_config"
+          - "'[test]' in test_pywps_config"
+          - "'enabled = true' in test_pywps_config"
+          - "'unix:///run/pywps/alpha.sock' in test_gunicorn_config"
+          - "'TEST_MODE=true' in test_gunicorn_config"
+          - "'[program:alpha]' in test_supervisor_config"
+          - "'upstream alpha' in test_nginx_config"
+          - "'listen                 5001 ssl http2 default_server;' in test_nginx_config"
+          - "'allow 192.0.2.0/24;' in test_nginx_config"
+          - "'location /health' in test_nginx_config"
+
+    - name: Check rendered alternate configuration
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - "'sqlite:////var/lib/pywps/db/beta_log.db' in test_sqlite_config"
+          - "'http://files.example.test:6000/outputs/beta' in test_sqlite_config"
+          - "'upstream beta' in test_secondary_nginx_config"
+          - "'listen                 5002 default_server;' in test_secondary_nginx_config"
+          - "'listen 6000;' in test_fileserver_config"
+          - "'server_name files.example.test;' in test_fileserver_config"
+          - "'base_dir = /test/data/mini-esgf-data/' in test_roocs_config"

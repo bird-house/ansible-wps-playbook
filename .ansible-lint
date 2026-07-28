@@ -4,7 +4,6 @@ offline: true
 
 exclude_paths:
   - ansible_collections/
-  - tests/playbook.yml
   - roles/andrewrothstein.bash/
   - roles/andrewrothstein.miniconda/
   - roles/andrewrothstein.unarchivedeps/
