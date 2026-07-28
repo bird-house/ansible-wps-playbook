@@ -1,11 +1,16 @@
-- include_tasks: Debian.yml
+---
+- name: Include Debian tasks
+  include_tasks: Debian.yml
   when: ansible_os_family == "Debian"
 
-- include_tasks: RedHat.yml
+- name: Include Red Hat tasks
+  include_tasks: RedHat.yml
   when: ansible_os_family == "RedHat"
 
 - name: Install common packages
-  package: name={{ item }} state=latest
+  package:
+    name: "{{ item }}"
+    state: latest
   with_items:
     - wget
     - curl
@@ -28,8 +33,8 @@
     uid: "{{ service_uid | default(omit) }}"
     group: "{{ service_group }}"
     groups: "{{ service_groups }}"
-    system: yes
+    system: true
     shell: /sbin/nologin
-    createhome: no
+    createhome: false
     home: "{{ service_user_home }}"
   when: service_add_user

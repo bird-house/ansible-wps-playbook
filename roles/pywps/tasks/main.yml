@@ -1,5 +1,7 @@
 ---
-- include_tasks: base.yml
+- name: Include base installation tasks
+  include_tasks: base.yml
 
-- include_tasks: webservice.yml
-  when: wps_webservice_enabled
+- name: Include web service tasks
+  include_tasks: webservice.yml
+  when: pywps_webservice_enabled

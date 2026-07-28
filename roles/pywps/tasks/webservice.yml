@@ -1,20 +1,32 @@
 ---
-- include_tasks: clean.yml
-- include_tasks: cronjob.yml
-- include_tasks: webservice_config.yml
-- include_tasks: logrotate.yml
-- include_tasks: selinux.yml
+- name: Include cleanup tasks
+  include_tasks: clean.yml
+
+- name: Include cron tasks
+  include_tasks: cronjob.yml
+
+- name: Include web service configuration tasks
+  include_tasks: webservice_config.yml
+
+- name: Include log rotation tasks
+  include_tasks: logrotate.yml
+
+- name: Include SELinux tasks
+  include_tasks: selinux.yml
   when: selinux_enabled
 
-- include_tasks: slurm.yml
+- name: Include Slurm tasks
+  include_tasks: slurm.yml
   when: slurm_enabled
   tags:
     - slurm
 
-- include_tasks: sqlite.yml
+- name: Include SQLite tasks
+  include_tasks: sqlite.yml
   when: db_install_sqlite
 
-- include_tasks: fileserver.yml
+- name: Include file server tasks
+  include_tasks: fileserver.yml
   when: fs_enabled
 
 - name: Assure PyWPS running at end of playbook

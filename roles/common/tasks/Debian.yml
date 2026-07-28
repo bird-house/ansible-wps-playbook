@@ -1,3 +1,4 @@
+---
 - name: Install common packages on Debian
   apt:
     name: "{{ packages }}"

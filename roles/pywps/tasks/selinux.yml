@@ -6,7 +6,7 @@
 
 - name: Allow nginx to modify access socket files in /var/run/pywps
   community.general.sefcontext:
-    target: '/var/run/pywps(/.*)?'
+    target: "/var/run/pywps(/.*)?"
     setype: httpd_var_run_t
     state: present
 

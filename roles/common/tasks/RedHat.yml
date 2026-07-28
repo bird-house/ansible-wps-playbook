@@ -1,3 +1,4 @@
+---
 - name: Install common packages on RedHat
   yum:
     name: "{{ packages }}"

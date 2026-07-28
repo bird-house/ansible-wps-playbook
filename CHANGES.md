@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Changes:
+
+- raise maintained Ansible content to the `ansible-lint` basic profile
+
 ## 0.8.0 (2026-07-28)
 
 Changes:

@@ -1,8 +1,12 @@
 ---
-- include_tasks: source.yml
+- name: Include source tasks
+  include_tasks: source.yml
 
-- include_tasks: conda.yml
+- name: Include Conda tasks
+  include_tasks: conda.yml
 
-- include_tasks: folders.yml
+- name: Include folder tasks
+  include_tasks: folders.yml
 
-- include_tasks: config.yml
+- name: Include configuration tasks
+  include_tasks: config.yml

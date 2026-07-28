@@ -10,7 +10,7 @@
   find:
     path: "{{ nginx_conf_path }}"
     patterns: "*.conf"
-  register: nginx_files
+  register: pywps_nginx_files
   tags:
     - conf
 
@@ -18,7 +18,7 @@
   file:
     path: "{{ item.path }}"
     state: absent
-  with_items: "{{ nginx_files.files }}"
+  with_items: "{{ pywps_nginx_files.files }}"
   tags:
     - conf
 
@@ -26,7 +26,7 @@
   find:
     path: "{{ supervisor_config_path }}/conf.d"
     patterns: "*.conf"
-  register: supervisor_files
+  register: pywps_supervisor_files
   tags:
     - conf
 
@@ -34,7 +34,7 @@
   file:
     path: "{{ item.path }}"
     state: absent
-  with_items: "{{ supervisor_files.files }}"
+  with_items: "{{ pywps_supervisor_files.files }}"
   tags:
     - conf
 
