@@ -11,8 +11,10 @@ cleanup() {
   trap - EXIT
 
   if [[ $status -ne 0 ]]; then
-    docker exec "$container_name" systemctl status nginx supervisord --no-pager --full || true
-    docker exec "$container_name" journalctl -u nginx -u supervisord --no-pager -n 100 || true
+    docker exec "$container_name" \
+      systemctl status nginx supervisord postgresql --no-pager --full || true
+    docker exec "$container_name" \
+      journalctl -u nginx -u supervisord -u postgresql --no-pager -n 100 || true
     docker logs "$container_name" || true
   fi
 
@@ -83,6 +85,13 @@ docker exec "$container_name" bash -c '
   nginx -t
   systemctl is-active --quiet nginx
   systemctl is-active --quiet supervisord
+  systemctl is-active --quiet postgresql
+  runuser --user postgres -- psql --tuples-only --command \
+    "SELECT datname FROM pg_database WHERE datname = '\''pywps'\'';" \
+    | grep --quiet pywps
+  runuser --user postgres -- psql --tuples-only --command \
+    "SELECT rolname FROM pg_roles WHERE rolname = '\''pywps'\'';" \
+    | grep --quiet pywps
   wait_for_tiny_wps
   test "$(stat --format="%a:%U:%G" /etc/pywps/tiny.cfg)" = "640:root:wps"
   test "$(stat --format="%a:%U:%G" /etc/gunicorn/tiny.py)" = "640:root:wps"
@@ -96,5 +105,6 @@ docker exec "$container_name" bash -c '
 
   systemctl is-active --quiet nginx
   systemctl is-active --quiet supervisord
+  systemctl is-active --quiet postgresql
   wait_for_tiny_wps
 '

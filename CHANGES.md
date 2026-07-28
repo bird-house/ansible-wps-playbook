@@ -9,6 +9,7 @@ Changes:
 - drop support for Red Hat family releases older than 9
 - refresh Vagrant as an optional local AlmaLinux 9 sandbox
 - clarify test targets and cancel superseded CI runs
+- update the PostgreSQL role and maintained Ansible collections
 
 ## 0.8.0 (2026-07-28)
 

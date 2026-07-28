@@ -7,14 +7,14 @@ roles:
   - name: geerlingguy.nginx
     version: 3.3.0
   - name: geerlingguy.postgresql
-    version: 3.5.2
+    version: 4.1.0
   - name: galaxyproject.slurm
     version: 1.0.5
 
 collections:
   - name: community.general
-    version: 12.1.0
+    version: 13.2.0
   - name: community.postgresql
     version: 4.2.0
   - name: ansible.posix
-    version: 2.1.0
+    version: 2.2.2
