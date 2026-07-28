@@ -66,7 +66,8 @@ docker exec "$container_name" bash -c '
   ansible-galaxy role install --force --role-file requirements.yml
   ansible-galaxy collection install --force --requirements-file requirements.yml
 
-  cp --archive tests/fixtures/tiny-wps /tmp/tiny-wps-source
+  cp --recursive tests/fixtures/tiny-wps /tmp/tiny-wps-source
+  chown --recursive root:root /tmp/tiny-wps-source
   git -C /tmp/tiny-wps-source init --initial-branch=main
   git -C /tmp/tiny-wps-source config user.name "CI"
   git -C /tmp/tiny-wps-source config user.email "ci@example.invalid"
