@@ -50,17 +50,17 @@ conda env create --file environment.yml
 conda activate ansible-wps-playbook
 ```
 
-Install the external Ansible roles and collections once, then run the
-local syntax check:
+Run the same smoke tests used by GitHub Actions:
 
 ```sh
-make roles
-make check
+make test
 ```
 
-The syntax check parses the playbook without applying it to the local
-machine. The environment also includes `ansible-lint` and `yamllint` for
-additional checks while cleaning up the playbook.
+This installs the external Ansible roles and collections, checks the
+tracked YAML files, runs the minimum `ansible-lint` profile, and parses
+the playbook with `ansible-playbook --syntax-check`. It also runs a
+localhost-only assertion playbook for the default retention conversions.
+The checks do not apply the deployment playbook to the local machine.
 
 ## Testing with Vagrant
 

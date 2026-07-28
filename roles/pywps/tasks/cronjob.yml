@@ -47,14 +47,14 @@
     path: "{{ cron_script_dir }}"
     state: directory
     owner: root
-    mode: 0755
+    mode: "0755"
 
 - name: Copy restart script
   template:
     src: ./templates/restart-pywps.sh.j2
     dest: "{{ cron_script_dir }}/restart-pywps.sh"
     owner: root
-    mode: 0744
+    mode: "0744"
 
 - name: Restart pywps service and clean out old gunicorn processes every night
   cron:
@@ -73,4 +73,4 @@
     src: ./templates/smoke.sh.j2
     dest: "{{ cron_script_dir }}/smoke.sh"
     owner: root
-    mode: 0744
+    mode: "0744"

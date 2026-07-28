@@ -1,0 +1,20 @@
+---
+- name: Validate playbook defaults
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - ../group_vars/all.yml
+
+  tasks:
+    - name: Check retention conversions
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - >-
+            (wps_outputs_keep_minutes | int) ==
+            ((wps_outputs_keep_hours | int) * 60)
+          - >-
+            (wps_temp_keep_minutes | int) ==
+            ((wps_temp_keep_hours | int) * 60)

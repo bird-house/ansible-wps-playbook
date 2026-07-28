@@ -9,7 +9,10 @@ help:
 	@echo "  help        to print this help message. (Default)"
 	@echo "  roles       to install roles from ansible-galaxy."
 	@echo "  play        to run ansible playbook."
-	@echo "  check       to run a local Ansible syntax check."
+	@echo "  lint        to lint tracked YAML and Ansible files."
+	@echo "  check       to run an Ansible syntax check."
+	@echo "  smoke       to validate defaults without changing the host."
+	@echo "  test        to install dependencies and run all local checks."
 	@echo "  clean       to remove *all* files that are not controlled by 'git'. WARNING: use it *only* if you know what you do!"
 
 .PHONY: roles
@@ -31,6 +34,18 @@ play: roles
 .PHONY: check
 check:
 	ansible-playbook --syntax-check -i hosts playbook.yml
+
+.PHONY: lint
+lint:
+	git ls-files -z '*.yml' '*.yaml' | xargs -0 yamllint --config-file .yamllint.yml
+	ansible-lint playbook.yml tests/smoke.yml roles/common roles/pywps roles/roocs roles/slurm roles/supervisor
+
+.PHONY: test
+test: roles lint check smoke
+
+.PHONY: smoke
+smoke:
+	ansible-playbook -i localhost, tests/smoke.yml
 
 .PHONY: clean
 clean:

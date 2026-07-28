@@ -17,6 +17,9 @@ roles/grycap.*
 # ansible collections
 ansible_collections/
 
+# ansible local cache
+.ansible/
+
 # Sphinx docs
 docs/build
 

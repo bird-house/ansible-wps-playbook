@@ -47,13 +47,17 @@ Each generated service configuration declares the same `proxy_cache_path` and
 `keys_zone`. In addition, the shared-fileserver example assigns port `5001` to
 both the fileserver and one PyWPS service.
 
-## Finding: automated tests are stale
+## Finding: integration-test infrastructure is stale
 
 `tests/playbook.yml` refers to roles that are absent from the current
 requirements. The idempotence test only checks that the second run did not
 fail; it does not check that the run reported zero changes.
 
+The current GitHub Actions smoke test only installs dependencies, lints the
+playbook, checks its syntax, and validates a small set of defaults on localhost.
+A future PR should replace the retired Docker test shim with maintained Ansible
+integration infrastructure and meaningful convergence and idempotence tests.
+
 ## Review validation
 
-The tracked YAML files parsed successfully. An Ansible syntax check was not run
-because `ansible-playbook` was not installed in the review environment.
+The local `make test` smoke test passes with Ansible Core 2.19.
