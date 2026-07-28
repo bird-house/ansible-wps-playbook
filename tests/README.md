@@ -21,5 +21,8 @@ verifies sensitive file permissions, and runs the playbook a second time. The
 test defaults to `linux/amd64`, matching the deployment and GitHub runner;
 Docker Desktop can emulate this platform on Apple Silicon.
 
+Vagrant remains available as an optional AlmaLinux 9 x86_64 sandbox for
+manually trying larger configurations. It is not part of CI.
+
 Complete ROOK deployments and smoke tests with real data remain manual release
 checks.

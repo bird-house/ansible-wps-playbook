@@ -72,7 +72,7 @@ deployment model and are not TODOs:
 
 ## Current validation
 
-`make test` installs Galaxy dependencies, lints tracked YAML and maintained
+`make test` installs Galaxy dependencies, lints working-tree YAML and maintained
 Ansible content, checks playbook syntax, and validates defaults and rendered
 configuration on localhost. GitHub Actions also performs a minimal AlmaLinux 9
 deployment with a tiny fixture application. Complete ROOK deployment and
