@@ -29,6 +29,36 @@ the full PyWPS stack, including:
 Application repositories are fetched from GitHub, and each configured WPS
 service receives its own Conda environment.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    Client["WPS client"] --> Nginx["Nginx<br/>reverse proxy and optional TLS"]
+    Nginx --> WPS["Gunicorn + PyWPS<br/>one Conda environment per service"]
+    Supervisor["Supervisor"] --> WPS
+    WPS --> Database["PostgreSQL or SQLite"]
+    WPS --> Files["Outputs and temporary files"]
+    Cron["Optional hourly cleanup cron"] --> Files
+    Ansible["Ansible playbook<br/>local connection"] -. provisions .-> Nginx
+    Ansible -. configures .-> Supervisor
+    Ansible -. deploys .-> WPS
+    Ansible -. installs .-> Cron
+```
+
+## Compatibility and test coverage
+
+| Area | Current baseline | Coverage |
+| --- | --- | --- |
+| Local development | macOS and Linux | Conda environment; smoke tests run locally and on Ubuntu GitHub Actions |
+| Python and Ansible | Python 3.12, Ansible Core 2.19 | Pinned in `environment.yml`; lint, syntax, and assertion checks |
+| Deployment target | AlmaLinux 9 | Default Vagrant scenario |
+| Other Linux targets | Red Hat and Debian task paths exist | No automated convergence coverage; currently best effort |
+| Vagrant | 2.4 or newer | Enforced by `Vagrantfile` |
+
+This table describes the current test baseline rather than a compatibility
+guarantee. Full multi-platform convergence and idempotence testing remains
+future work.
+
 ## Local checks with Conda
 
 On macOS or Linux, create and activate the development environment from
@@ -105,6 +135,30 @@ host:
 ```sh
 make play
 ```
+
+### Start from a production-style example
+
+[`etc/sample-production.yml`](etc/sample-production.yml) demonstrates a
+single-host HTTPS deployment with:
+
+- explicit cleanup retention;
+- an external PostgreSQL database;
+- a pinned application revision and explicit Conda specification;
+- certificate paths for an existing TLS certificate;
+- conservative process limits and operator metadata.
+
+Copy it to an ignored local file and replace every `REPLACE_WITH_*`
+placeholder:
+
+```sh
+cp etc/sample-production.yml etc/custom-production.yml
+vim etc/custom-production.yml
+ln -s etc/custom-production.yml custom.yml
+```
+
+> [!IMPORTANT]
+> Do not commit database passwords, private keys, or other deployment secrets.
+> Store secrets in Ansible Vault or another untracked variables file.
 
 ### Configure output and temporary-file retention
 
