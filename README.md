@@ -110,6 +110,28 @@ or commit and use an explicit Conda specification. The
 [`etc/sample-production.yml`](etc/sample-production.yml) example follows this
 policy.
 
+## Release workflow
+
+1. Pin application revisions and Conda specifications used by the deployment.
+2. Update dependency versions when needed, then reinstall and test them:
+
+   ```sh
+   make roles-update
+   ```
+
+   If dependency versions did not change, run `make test` instead.
+
+3. Test one complete deployment with Vagrant or a test server.
+4. Move the entries in `CHANGES.md` from **Unreleased** to the new version and
+   date, then add a new empty **Unreleased** section.
+5. Merge the release changes and confirm GitHub Actions passes on `master`.
+6. Create and push an annotated release tag:
+
+   ```sh
+   git tag -a vX.Y.Z -m "Release X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
 ## Test a deployment with Vagrant
 
 The included [`Vagrantfile`](Vagrantfile) uses AlmaLinux 9 and requires
