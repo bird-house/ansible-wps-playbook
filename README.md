@@ -49,15 +49,15 @@ flowchart LR
 
 | Area | Current baseline | Coverage |
 | --- | --- | --- |
-| Local development | macOS and Linux | Conda environment; lint, render, and smoke tests run locally and on GitHub Actions |
+| Local development | macOS Intel/Apple Silicon and Linux | Conda environment; Apple Silicon runs the x86 test through Docker emulation |
 | Python and Ansible | Python 3.12, Ansible Core 2.19.11 | Pinned in `environment.yml`; lint, syntax, and assertion checks |
-| Deployment target | AlmaLinux 9 | Default Vagrant scenario; minimal container convergence on GitHub Actions |
-| Other Linux targets | Red Hat and Debian task paths exist | No automated convergence coverage; currently best effort |
+| Deployment target | AlmaLinux 9 x86_64 | Default Vagrant scenario; minimal container convergence on GitHub Actions |
+| Debian and Ubuntu | x86_64 task path retained | No automated convergence coverage; currently best effort |
 | Vagrant | 2.4 or newer | Enforced by `Vagrantfile` |
 
 This table describes the current test baseline rather than a compatibility
 guarantee. Full multi-platform convergence and idempotence testing remains
-future work.
+future work. Red Hat family releases older than 9 are not supported.
 
 ## Local checks with Conda
 

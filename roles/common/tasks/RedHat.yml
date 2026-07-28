@@ -12,17 +12,7 @@
       - /usr/bin/curl
       - cronie
 
-- name: Install packages on RedHat 7/8
-  yum:
-    name: "{{ packages }}"
-    state: present
-  vars:
-    packages:
-      - python2-pip
-  when:
-    - ansible_distribution_major_version|int <= 8
-
-- name: Install packages on RedHat 9
+- name: Install packages on RedHat 9 or newer
   yum:
     name: "{{ packages }}"
     state: present
@@ -31,8 +21,6 @@
       - python3-pip
       - langpacks-en
       - glibc-all-langpacks
-  when:
-    - ansible_distribution_major_version|int >= 9
 
 - name: Remove unwanted packages on RedHat
   yum:
