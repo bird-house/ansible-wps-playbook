@@ -59,13 +59,6 @@ clear preflight check before generating the Nginx configuration.
 Confirm which access is actually required and whether targeted policy rules can
 replace the broad exception.
 
-### Dependency reproducibility
-
-Galaxy roles and collections in `requirements.yml` are not version-pinned, and
-application repositories default to `master` when no revision is configured.
-Check whether production deployments always provide pinned application
-revisions and decide how Galaxy dependencies should be locked.
-
 ### Supervisor credentials
 
 The defaults include `supervisor_password: test`, while password protection and

@@ -7,7 +7,9 @@ all: help
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  help        to print this help message. (Default)"
-	@echo "  roles       to install roles from ansible-galaxy."
+	@echo "  roles       to install pinned Galaxy dependencies."
+	@echo "  roles-update"
+	@echo "              to reinstall edited dependency pins and test."
 	@echo "  play        to run ansible playbook."
 	@echo "  lint        to lint tracked YAML and Ansible files."
 	@echo "  check       to run an Ansible syntax check."
@@ -17,9 +19,16 @@ help:
 
 .PHONY: roles
 roles:
-	@echo "Installing required Ansible roles and collections from ansible-galaxy ..."
-	ansible-galaxy install -r requirements.yml
+	@echo "Installing pinned Ansible Galaxy dependencies ..."
+	ansible-galaxy role install -r requirements.yml
 	ansible-galaxy collection install -r requirements.yml
+
+.PHONY: roles-update
+roles-update:
+	@echo "Reinstalling pinned Ansible Galaxy dependencies ..."
+	ansible-galaxy role install --force -r requirements.yml
+	ansible-galaxy collection install --force -r requirements.yml
+	$(MAKE) test
 
 .PHONY: quick
 quick: roles

@@ -50,7 +50,7 @@ flowchart LR
 | Area | Current baseline | Coverage |
 | --- | --- | --- |
 | Local development | macOS and Linux | Conda environment; smoke tests run locally and on Ubuntu GitHub Actions |
-| Python and Ansible | Python 3.12, Ansible Core 2.19 | Pinned in `environment.yml`; lint, syntax, and assertion checks |
+| Python and Ansible | Python 3.12, Ansible Core 2.19.11 | Pinned in `environment.yml`; lint, syntax, and assertion checks |
 | Deployment target | AlmaLinux 9 | Default Vagrant scenario |
 | Other Linux targets | Red Hat and Debian task paths exist | No automated convergence coverage; currently best effort |
 | Vagrant | 2.4 or newer | Enforced by `Vagrantfile` |
@@ -80,6 +80,35 @@ tracked YAML files, runs the minimum `ansible-lint` profile, and parses
 the playbook with `ansible-playbook --syntax-check`. It also runs a
 localhost-only assertion playbook for the default retention conversions.
 The checks do not apply the deployment playbook to the local machine.
+
+## Dependency version policy
+
+[`requirements.yml`](requirements.yml) pins every Galaxy role and collection
+to an exact version. Normal development, CI, and deployments therefore use the
+same dependencies.
+
+Updating dependencies is an explicit, tested change:
+
+1. Edit the versions in `requirements.yml`.
+2. If Ansible Core is changing, also update `environment.yml` and run:
+
+   ```sh
+   conda env update --file environment.yml --prune
+   ```
+
+3. Reinstall the edited pins and run the complete test suite:
+
+   ```sh
+   make roles-update
+   ```
+
+4. Review and commit the version changes together.
+
+Development configurations may follow an application branch when desired. A
+deployment release should pin every `wps_services[].version` to a release tag
+or commit and use an explicit Conda specification. The
+[`etc/sample-production.yml`](etc/sample-production.yml) example follows this
+policy.
 
 ## Test a deployment with Vagrant
 

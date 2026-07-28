@@ -6,6 +6,6 @@ channels:
 
 dependencies:
   - python=3.12
-  - ansible-core=2.19
+  - ansible-core=2.19.11
   - ansible-lint
   - yamllint
