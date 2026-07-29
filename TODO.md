@@ -39,6 +39,20 @@ deployment.
 - Add focused Slurm validation and a manual job-submission smoke test before
   changing production behaviour.
 
+### Recover stalled WPS jobs
+
+- Add a standalone Python recovery script without changing PyWPS or Slurm.
+- Define conservative, configurable criteria for identifying jobs that have
+  stopped making progress and are no longer controlled by PyWPS or Slurm.
+- Support a report-only mode before optionally terminating remaining
+  processes or Slurm jobs and cleaning their temporary resources.
+- Parse the corresponding WPS status XML, change the stalled job to a clear
+  failed state, and replace the document atomically so clients stop polling.
+- Log every decision and action, prevent overlapping runs, and retain enough
+  information to diagnose likely causes such as Lustre problems.
+- Make installation and an hourly schedule configurable, and add fixture-based
+  tests for detection, XML namespaces and updates, cleanup, and failure cases.
+
 ### Refactor PyWPS deployment roles
 
 - Separate host-level resources such as Nginx, PostgreSQL, Supervisor, users,
