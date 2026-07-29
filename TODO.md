@@ -24,6 +24,17 @@ deployment.
 - Modernize maintained roles to use fully qualified collection names and
   current Ansible module syntax.
 
+### Refactor PyWPS deployment roles
+
+- Separate host-level resources such as Nginx, PostgreSQL, Supervisor, users,
+  and shared storage from individual PyWPS service configuration.
+- Move the PyWPS role into a reusable standalone location, potentially its own
+  Ansible collection or repository.
+- Provide a simple playbook for the usual single-service deployment and a
+  separate playbook for multiple services on one VM.
+- Preserve the current multi-service variables during a documented migration
+  period so existing deployments continue to work.
+
 ## Findings to investigate
 
 These observations look suspicious, but the intended behaviour or best fix
