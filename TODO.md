@@ -24,13 +24,16 @@ deployment.
 - Modernize maintained roles to use fully qualified collection names and
   current Ansible module syntax.
 
-### Make multi-service Nginx configuration safe
+### Refactor PyWPS deployment roles
 
-- Give each service a unique `proxy_cache_path` and `keys_zone`, or declare one
-  shared cache only once.
-- Remove the port collision between the file server and the second WPS service
-  in `etc/sample-multiple-with-shared-fileserver.yml`.
-- Add an `nginx -t` validation step before reloading Nginx.
+- Separate host-level resources such as Nginx, PostgreSQL, Supervisor, users,
+  and shared storage from individual PyWPS service configuration.
+- Move the PyWPS role into a reusable standalone location, potentially its own
+  Ansible collection or repository.
+- Provide a simple playbook for the usual single-service deployment and a
+  separate playbook for multiple services on one VM.
+- Preserve the current multi-service variables during a documented migration
+  period so existing deployments continue to work.
 
 ## Findings to investigate
 
