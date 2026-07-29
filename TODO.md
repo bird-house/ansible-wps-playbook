@@ -34,8 +34,8 @@ deployment.
   intentional.
 - Match the pinned `slurm-drmaa` release to the installed Slurm version before
   updating it.
-- Remove duplicate Munge setup and make the DRMAA build idempotent without
-  changing a working deployment unexpectedly.
+- Remove duplicate Munge setup without changing a working deployment
+  unexpectedly.
 - Add focused Slurm validation and a manual job-submission smoke test before
   changing production behaviour.
 

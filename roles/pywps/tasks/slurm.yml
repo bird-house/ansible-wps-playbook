@@ -1,23 +1,17 @@
 ---
 - name: Download and unarchive slurm-drmaa
-  unarchive:
+  ansible.builtin.unarchive:
     src: https://github.com/natefoo/slurm-drmaa/releases/download/{{ slurm_drmaa_version }}/slurm-drmaa-{{ slurm_drmaa_version }}.tar.gz
     dest: /usr/local/src
     remote_src: true
+    creates: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}/configure
   tags:
     - slurm
 
-- name: Configure slurm-drmaa
-  command: "./configure --prefix={{ conda_envs_dir }}/{{ item.name }}"
-  args:
-    chdir: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}
-  with_items: "{{ wps_services }}"
-  tags:
-    - slurm
-
-- name: Make slurm-drmaa
-  make:
-    chdir: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}
-    target: install
+- name: Install slurm-drmaa in each WPS environment
+  ansible.builtin.include_tasks: slurm_drmaa.yml
+  loop: "{{ wps_services }}"
+  loop_control:
+    loop_var: wps_service
   tags:
     - slurm

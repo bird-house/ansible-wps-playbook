@@ -291,6 +291,28 @@ Additional runtime packages installed with pip are configured through
 `wps_pip_packages`. The defaults provide Gunicorn and the packages used by the
 Birdhouse services; small test deployments can override the list.
 
+### Use the Slurm scheduler
+
+Slurm support has three layers: the `galaxyproject.slurm` role installs the
+local scheduler, `slurm-drmaa` provides its native DRMAA library, and the
+Python `drmaa` package lets PyWPS use that library. The playbook builds the
+pinned native library inside each service's Conda environment and sets
+`DRMAA_LIBRARY_PATH` for the service.
+
+Enable Slurm and select scheduler mode for the service:
+
+```yaml
+slurm_enabled: true
+wps_services:
+  - name: example
+    mode: scheduler
+    drmaa_native_specification: ""
+```
+
+Keep `slurm_drmaa_version` matched to the Slurm version installed on the host.
+Changing either version or the scheduler policy should be tested with a real
+job submission before production rollout.
+
 ### Configure the database
 
 #### SQLite
