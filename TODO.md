@@ -24,6 +24,21 @@ deployment.
 - Modernize maintained roles to use fully qualified collection names and
   current Ansible module syntax.
 
+### Audit Slurm configuration conservatively
+
+- Record `scontrol --version`, the effective `SchedulerType`, `SelectType`, and
+  `SelectTypeParameters`, and `sinfo -N -l` from a working production VM before
+  changing defaults.
+- Check whether the legacy `select/cons_res` setting should migrate to
+  `select/cons_tres` and whether strict FIFO `sched/builtin` remains
+  intentional.
+- Match the pinned `slurm-drmaa` release to the installed Slurm version before
+  updating it.
+- Remove duplicate Munge setup and make the DRMAA build idempotent without
+  changing a working deployment unexpectedly.
+- Add focused Slurm validation and a manual job-submission smoke test before
+  changing production behaviour.
+
 ### Refactor PyWPS deployment roles
 
 - Separate host-level resources such as Nginx, PostgreSQL, Supervisor, users,
