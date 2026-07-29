@@ -251,6 +251,19 @@ wps_temp_keep_hours: 12
 The playbook converts the hour values to the minutes consumed by the cleanup
 commands.
 
+### Configure scheduled service restarts
+
+PyWPS services restart daily by default when cron is enabled. The restart
+script and its cron entry can be disabled, or the schedule changed to hourly:
+
+```yaml
+pywps_restart_enabled: true
+pywps_restart_schedule: daily  # hourly or daily
+```
+
+Set `pywps_restart_enabled: false` to remove both the script and its cron
+entry.
+
 ### Use Conda to build identical environments
 
 By default, each WPS repository must contain the configured
