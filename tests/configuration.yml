@@ -36,6 +36,7 @@
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
           - pywps_restart_schedule in ['hourly', 'daily']
+          - not slurm_configure_munge
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:

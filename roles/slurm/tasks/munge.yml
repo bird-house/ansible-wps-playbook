@@ -1,25 +1,34 @@
 ---
-- name: Install munge
-  package:
-    name: "{{ item }}"
+- name: Install Slurm build and authentication prerequisites
+  ansible.builtin.package:
+    name:
+      - munge
+      - slurm-devel
     state: present
-  with_items:
-    - munge
-    - slurm-devel
 
-- name: Set munge log directory access rights
-  file:
+- name: Configure Munge directories
+  ansible.builtin.file:
     path: /var/log/munge
     state: directory
+    owner: munge
+    group: munge
     mode: "0700"
 
-- name: Set log directory access rights
-  file:
-    path: /var/log
-    state: directory
-    mode: "0755"
-
 - name: Generate munge key
-  shell:
+  ansible.builtin.command: create-munge-key
+  args:
     creates: "{{ slurm_munge_key }}"
-    cmd: create-munge-key < /dev/null
+
+- name: Secure munge key
+  ansible.builtin.file:
+    path: "{{ slurm_munge_key }}"
+    state: file
+    owner: munge
+    group: munge
+    mode: "0400"
+
+- name: Enable and start Munge
+  ansible.builtin.service:
+    name: munge
+    enabled: true
+    state: started

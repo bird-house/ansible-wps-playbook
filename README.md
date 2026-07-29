@@ -297,7 +297,8 @@ Slurm support has three layers: the `galaxyproject.slurm` role installs the
 local scheduler, `slurm-drmaa` provides its native DRMAA library, and the
 Python `drmaa` package lets PyWPS use that library. The playbook builds the
 pinned native library inside each service's Conda environment and sets
-`DRMAA_LIBRARY_PATH` for the service.
+`DRMAA_LIBRARY_PATH` for the service. A small local prerequisite role installs
+the Slurm development headers and manages the single-VM Munge key and service.
 
 Enable Slurm and select scheduler mode for the service:
 
@@ -311,7 +312,8 @@ wps_services:
 
 Keep `slurm_drmaa_version` matched to the Slurm version installed on the host.
 Changing either version or the scheduler policy should be tested with a real
-job submission before production rollout.
+job submission before production rollout. The existing PyWPS smoke tests
+provide this validation when the service runs in scheduler mode.
 
 ### Configure the database
 

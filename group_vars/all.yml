@@ -44,6 +44,8 @@ slurm_partitions:
     MaxTime: INFINITE
     Nodes: localhost
 slurm_munge_key: /etc/munge/munge.key
+# The local prerequisite role creates the key and manages the Munge service.
+slurm_configure_munge: false
 
 # miniconda: we need to use Miniforge! See extra_vars.yml
 miniconda_parent_dir: "{{ prefix }}"
