@@ -34,7 +34,17 @@ deployment.
 - Replace roles individually, document variable migrations, and require
   AlmaLinux convergence plus production smoke tests before release.
 
-### Next release: recover stalled WPS jobs
+### Next release
+
+- Deliver the stalled-job recovery script as the only substantial new feature.
+- Limit additional changes to lightweight documentation, tests, lint fixes,
+  and small cleanups that do not alter dependencies or deployment behaviour.
+- Defer external-role replacements, Slurm modernization, configuration
+  hardening, and architectural refactoring until after the release.
+- Run the full AlmaLinux deployment and scheduler-mode PyWPS smoke tests,
+  update the changelog, and prepare the release.
+
+#### Stalled-job recovery requirements
 
 - Add a standalone Python recovery script without changing PyWPS or Slurm.
 - Define conservative, configurable criteria for identifying jobs that have
