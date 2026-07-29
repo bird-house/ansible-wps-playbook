@@ -35,35 +35,18 @@ deployment.
 - Preserve the current multi-service variables during a documented migration
   period so existing deployments continue to work.
 
-## Findings to investigate
+### Configuration hardening
 
-These observations look suspicious, but the intended behaviour or best fix
-should be confirmed first.
-
-### HTTPS certificate lifecycle
-
-HTTPS expects certificate and private-key files to exist on the target host.
-Decide whether certificate provisioning remains an external prerequisite or
-whether the playbook should install and renew certificates. At minimum, add a
-clear preflight check before generating the Nginx configuration.
-
-### SELinux scope
-
-`roles/pywps/tasks/selinux.yml` makes the complete `httpd_t` domain permissive.
-Confirm which access is actually required and whether targeted policy rules can
-replace the broad exception.
-
-### Supervisor credentials
-
-The defaults include `supervisor_password: test`, while password protection and
-the inet interface are disabled by default. Confirm that enabling either
-interface cannot expose this placeholder credential.
-
-### Database URL encoding
-
-The PostgreSQL URL is assembled directly from `db_user` and `db_password`.
-Check how credentials containing URL-reserved characters such as `@`, `:`, or
-`/` should be encoded.
+- Add an HTTPS preflight check that verifies the configured certificate and
+  private key exist before Nginx configuration is activated. Keep certificate
+  provisioning and renewal as an external prerequisite unless requirements
+  change.
+- Remove the placeholder Supervisor password or fail clearly when a protected
+  interface is enabled without an explicitly configured secure password.
+- Safely encode PostgreSQL usernames and passwords containing URL-reserved
+  characters when constructing the default database URL.
+- Replace the broad permissive `httpd_t` SELinux setting with the smallest
+  targeted policy required on AlmaLinux 9, backed by convergence testing.
 
 ## Intentional behaviour
 
