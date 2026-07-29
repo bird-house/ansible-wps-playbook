@@ -12,6 +12,8 @@ deployment.
   stable.
 - Tighten the second convergence run to check idempotence for tasks intended
   to remain stable while allowing deliberate service restarts.
+- Speed up Docker convergence with a prebuilt test image containing Ansible
+  and Galaxy dependencies, while keeping the service deployment itself clean.
 - Add render cases when new optional configuration branches are introduced.
 
 ### Lint and Ansible modernization
