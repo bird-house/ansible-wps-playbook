@@ -11,6 +11,7 @@ Changes:
 - clarify test targets and cancel superseded CI runs
 - update the PostgreSQL role and maintained Ansible collections
 - improve Gunicorn shutdown, Supervisor process handling, and scheduled restarts
+- improve validation and diagnostics for manual smoke tests
 
 ## 0.8.0 (2026-07-28)
 

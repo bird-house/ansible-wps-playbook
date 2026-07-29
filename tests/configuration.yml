@@ -54,6 +54,9 @@
         test_restart_script: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/restart-pywps.sh.j2') }}
+        test_smoke_script: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/smoke.sh.j2') }}
         test_nginx_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
@@ -111,6 +114,9 @@
           - "'Found orphaned or zombie Gunicorn processes' in test_restart_script"
           - "'cleanup_orphaned_processes=false' in test_restart_script"
           - "'Sending TERM to orphaned Gunicorn process' in test_restart_script"
+          - "'set -euo pipefail' in test_smoke_script"
+          - "'local app_dir=\"/usr/local/src/$app\"' in test_smoke_script"
+          - "'exec \"$pytest\" -v -k smoke \"$smoke_tests\"' in test_smoke_script"
           - "'upstream alpha' in test_nginx_config"
           - "'listen                 5001 ssl http2 default_server;' in test_nginx_config"
           - "'allow 192.0.2.0/24;' in test_nginx_config"
