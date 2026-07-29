@@ -101,6 +101,10 @@ gunicorn_workers: 9  # rule of thumb: 2 * CPUs + 1
 gunicorn_worker_connections: 1000
 gunicorn_worker_class: 'gevent'  # "sync" or "gevent", needs gevent
 gunicorn_timeout: 30
+gunicorn_graceful_timeout: "{{ gunicorn_timeout }}"
+gunicorn_max_requests: 1000
+gunicorn_max_requests_jitter: 100
+gunicorn_cleanup_orphaned_processes: false
 
 # postgres
 # https://github.com/geerlingguy/ansible-role-postgresql
@@ -123,6 +127,8 @@ cron_enabled: false
 cron_disabled: "{{ cron_enabled | bool == false }}"
 cron_mailto: root
 cron_user: root
+pywps_restart_enabled: true
+pywps_restart_schedule: daily
 
 # selinux
 # https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html

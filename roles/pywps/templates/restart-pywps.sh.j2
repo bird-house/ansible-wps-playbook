@@ -1,21 +1,134 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Restart pywps service and clean out old gunicorn processes
-# Usage: restart-pywps [service_name]
-# Example: restart-pywps rook
+set -euo pipefail
 
-export PATH=/usr/local/bin:$PATH
+export PATH="/usr/local/bin:/usr/bin:/bin"
+cleanup_orphaned_processes={{ gunicorn_cleanup_orphaned_processes | bool | lower }}
+restart_enabled={{ pywps_restart_enabled | bool | lower }}
 
-APP="$1"
-echo "[INFO] Stopping $APP"
-supervisorctl stop $APP
-sleep 1
-echo "[INFO] Finding gunicorn processes..."
-gunicorn_pids=$(echo $(ps -eo pid,cmd | grep -i gunicorn | grep $APP | awk '{print $1}'))
-echo "[INFO] Found processes: $gunicorn_pids"
-if [ "$gunicorn_pids" ]; then
-    echo "[WARN] Killing processes: $gunicorn_pids"
-    kill $gunicorn_pids
-fi
-supervisorctl start $APP
-echo "[INFO] Restarted $APP"
+log_info() {
+    echo "[INFO] $*"
+}
+
+log_warning() {
+    echo "[WARN] $*" >&2
+}
+
+find_gunicorn_processes() {
+    ps -eo pid=,ppid=,pgid=,stat=,etime=,comm=,args= \
+        | awk '$6 ~ /^gunicorn/'
+}
+
+terminate_orphaned_processes() {
+    local processes=$1
+    local pid ppid stat
+
+    while read -r pid ppid _pgid stat _rest; do
+        if [[ $ppid == 1 && $stat != Z* ]]; then
+            log_warning "Sending TERM to orphaned Gunicorn process $pid"
+            kill -TERM "$pid" 2>/dev/null || true
+        fi
+    done <<< "$processes"
+}
+
+kill_remaining_orphaned_processes() {
+    local processes
+    local pid current_ppid current_stat current_command
+
+    processes=$(
+        find_gunicorn_processes \
+            | awk '$2 == 1 && $4 !~ /^Z/'
+    )
+
+    while read -r pid _rest; do
+        [[ -n $pid ]] || continue
+
+        current_ppid=
+        current_stat=
+        current_command=
+        read -r current_ppid current_stat current_command < <(
+            ps -o ppid=,stat=,comm= -p "$pid"
+        ) || true
+
+        if [[ $current_ppid == 1
+              && $current_stat != Z*
+              && $current_command == gunicorn* ]]; then
+            log_warning "Sending KILL to orphaned Gunicorn process $pid"
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    done <<< "$processes"
+}
+
+cleanup_orphans() {
+    local processes=$1
+
+    if [[ $cleanup_orphaned_processes != true ]]; then
+        log_info "Orphan cleanup is disabled"
+        return
+    fi
+
+    terminate_orphaned_processes "$processes"
+    sleep 5
+    kill_remaining_orphaned_processes
+}
+
+report_gunicorn_processes() {
+    local processes suspicious_processes
+
+    log_info "Gunicorn processes after restart:"
+    processes=$(find_gunicorn_processes)
+
+    if [[ -z $processes ]]; then
+        log_warning "No Gunicorn processes found"
+        return
+    fi
+
+    echo "PID PPID PGID STAT ELAPSED COMMAND"
+    echo "$processes"
+
+    suspicious_processes=$(
+        echo "$processes" \
+            | awk '$2 == 1 || $4 ~ /^Z/'
+    )
+    if [[ -z $suspicious_processes ]]; then
+        return
+    fi
+
+    log_warning "Found orphaned or zombie Gunicorn processes:"
+    echo "$suspicious_processes" >&2
+    cleanup_orphans "$suspicious_processes"
+}
+
+validate_service_name() {
+    if [[ $# -ne 1 || -z ${1:-} ]]; then
+        echo "Usage: restart-pywps [--force] SERVICE_NAME" >&2
+        exit 2
+    fi
+    if [[ ! $1 =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        echo "Invalid service name: $1" >&2
+        exit 2
+    fi
+}
+
+main() {
+    local force=false
+    if [[ ${1:-} == --force ]]; then
+        force=true
+        shift
+    fi
+
+    validate_service_name "$@"
+    local app=$1
+
+    if [[ $restart_enabled != true && $force != true ]]; then
+        log_info "Restart is disabled; use --force for a manual restart"
+        return
+    fi
+
+    log_info "Restarting $app"
+    supervisorctl restart "$app"
+    supervisorctl status "$app"
+    report_gunicorn_processes
+}
+
+main "$@"

@@ -65,8 +65,7 @@ docker exec "$container_name" bash -c '
 
   cp --archive /source /workspace
   cd /workspace
-  ansible-galaxy role install --force --role-file requirements.yml
-  ansible-galaxy collection install --force --requirements-file requirements.yml
+  scripts/install-ansible-dependencies.sh
 
   cp --recursive tests/fixtures/tiny-wps /tmp/tiny-wps-source
   chown --recursive root:root /tmp/tiny-wps-source

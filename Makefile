@@ -22,8 +22,7 @@ help:
 .PHONY: roles
 roles:
 	@echo "Installing pinned Ansible Galaxy dependencies ..."
-	ansible-galaxy role install --force -r requirements.yml
-	ansible-galaxy collection install --force -r requirements.yml
+	scripts/install-ansible-dependencies.sh
 
 .PHONY: roles-update
 roles-update: test
@@ -50,7 +49,7 @@ lint:
 		done; (("$${#files[@]}" == 0)) \
 			|| yamllint --config-file .yamllint.yml "$${files[@]}"' _
 	ansible-lint playbook.yml tests/configuration.yml roles/common roles/pywps roles/roocs roles/slurm roles/supervisor
-	bash -n tests/convergence/run.sh
+	bash -n scripts/install-ansible-dependencies.sh tests/convergence/run.sh
 
 .PHONY: test
 test: roles lint check config-check

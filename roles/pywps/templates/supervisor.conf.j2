@@ -2,9 +2,11 @@
 user={{ wps_user }}
 command=bash run.sh
 autostart=true
-autorestart=false
+autorestart=unexpected
 directory={{ src_dir }}/{{ item.name }}
 redirect_stderr=true
 stdout_logfile=/var/log/supervisor/{{ item.name }}.log
-killasgroup=false
+stopsignal=TERM
+stopwaitsecs={{ (gunicorn_graceful_timeout | int) + 10 }}
+killasgroup=true
 stopasgroup=false

@@ -3,6 +3,9 @@ workers = {{ gunicorn_workers }}
 worker_connections = {{ gunicorn_worker_connections }}
 worker_class = '{{ gunicorn_worker_class }}'
 timeout = {{ gunicorn_timeout }}
+graceful_timeout = {{ gunicorn_graceful_timeout }}
+max_requests = {{ gunicorn_max_requests }}
+max_requests_jitter = {{ gunicorn_max_requests_jitter }}
 
 # environment
 raw_env = [

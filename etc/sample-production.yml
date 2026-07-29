@@ -11,6 +11,8 @@ cron_mailto: ops@example.org
 cron_user: root
 wps_outputs_keep_hours: 24
 wps_temp_keep_hours: 12
+pywps_restart_enabled: true
+pywps_restart_schedule: daily
 
 # Use a separately managed PostgreSQL database.
 db_install_postgresql: false
@@ -37,6 +39,10 @@ slurm_enabled: false
 gunicorn_workers: 5
 gunicorn_worker_connections: 1000
 gunicorn_timeout: 120
+gunicorn_max_requests: 1000
+gunicorn_max_requests_jitter: 100
+# Temporary fallback for cleaning up live Gunicorn processes reparented to PID 1.
+gunicorn_cleanup_orphaned_processes: false
 
 wps_services:
   - name: emu
