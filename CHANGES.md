@@ -10,6 +10,7 @@ Changes:
 - refresh Vagrant as an optional local AlmaLinux 9 sandbox
 - clarify test targets and cancel superseded CI runs
 - update the PostgreSQL role and maintained Ansible collections
+- improve Gunicorn shutdown and Supervisor process handling
 
 ## 0.8.0 (2026-07-28)
 

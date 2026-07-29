@@ -101,6 +101,9 @@ gunicorn_workers: 9  # rule of thumb: 2 * CPUs + 1
 gunicorn_worker_connections: 1000
 gunicorn_worker_class: 'gevent'  # "sync" or "gevent", needs gevent
 gunicorn_timeout: 30
+gunicorn_graceful_timeout: "{{ gunicorn_timeout }}"
+gunicorn_max_requests: 1000
+gunicorn_max_requests_jitter: 100
 
 # postgres
 # https://github.com/geerlingguy/ansible-role-postgresql

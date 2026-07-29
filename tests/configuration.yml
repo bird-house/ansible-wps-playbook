@@ -47,6 +47,9 @@
         test_supervisor_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/supervisor.conf.j2') }}
+        test_run_script: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/run.sh.j2') }}
         test_nginx_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
@@ -88,8 +91,16 @@
           - "'[test]' in test_pywps_config"
           - "'enabled = true' in test_pywps_config"
           - "'unix:///run/pywps/alpha.sock' in test_gunicorn_config"
+          - "'graceful_timeout = 30' in test_gunicorn_config"
+          - "'max_requests = 1000' in test_gunicorn_config"
+          - "'max_requests_jitter = 100' in test_gunicorn_config"
           - "'TEST_MODE=true' in test_gunicorn_config"
           - "'[program:alpha]' in test_supervisor_config"
+          - "'autorestart=unexpected' in test_supervisor_config"
+          - "'stopsignal=TERM' in test_supervisor_config"
+          - "'stopwaitsecs=40' in test_supervisor_config"
+          - "'killasgroup=true' in test_supervisor_config"
+          - "'exec gunicorn -c /etc/gunicorn/alpha.py' in test_run_script"
           - "'upstream alpha' in test_nginx_config"
           - "'listen                 5001 ssl http2 default_server;' in test_nginx_config"
           - "'allow 192.0.2.0/24;' in test_nginx_config"

@@ -37,6 +37,8 @@ slurm_enabled: false
 gunicorn_workers: 5
 gunicorn_worker_connections: 1000
 gunicorn_timeout: 120
+gunicorn_max_requests: 1000
+gunicorn_max_requests_jitter: 100
 
 wps_services:
   - name: emu
