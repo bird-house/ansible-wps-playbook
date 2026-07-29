@@ -14,7 +14,13 @@
   when: ansible_service_mgr != "systemd"
   listen: restart supervisord
 
+- name: Validate nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  listen: restart nginx
+
 - name: Restart nginx
-  service:
+  ansible.builtin.service:
     name: nginx
     state: restarted
+  listen: restart nginx

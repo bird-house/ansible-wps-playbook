@@ -24,14 +24,6 @@ deployment.
 - Modernize maintained roles to use fully qualified collection names and
   current Ansible module syntax.
 
-### Make multi-service Nginx configuration safe
-
-- Give each service a unique `proxy_cache_path` and `keys_zone`, or declare one
-  shared cache only once.
-- Remove the port collision between the file server and the second WPS service
-  in `etc/sample-multiple-with-shared-fileserver.yml`.
-- Add an `nginx -t` validation step before reloading Nginx.
-
 ## Findings to investigate
 
 These observations look suspicious, but the intended behaviour or best fix

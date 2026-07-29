@@ -13,6 +13,7 @@ Changes:
 - improve Gunicorn shutdown, Supervisor process handling, and scheduled restarts
 - improve validation and diagnostics for manual smoke tests
 - retry transient Ansible Galaxy dependency download failures
+- make multi-service Nginx caching safe and validate configuration before restart
 
 ## 0.8.0 (2026-07-28)
 
