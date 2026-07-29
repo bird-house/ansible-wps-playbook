@@ -1,0 +1,55 @@
+---
+- name: Check installed slurm-drmaa version for {{ wps_service.name }}
+  ansible.builtin.stat:
+    path: >-
+      {{ [conda_envs_dir, wps_service.name,
+          '.slurm-drmaa-' ~ slurm_drmaa_version] | path_join }}
+  register: pywps_slurm_drmaa_marker
+
+- name: Check slurm-drmaa library for {{ wps_service.name }}
+  ansible.builtin.stat:
+    path: >-
+      {{ [conda_envs_dir, wps_service.name, 'lib', 'libdrmaa.so']
+         | path_join }}
+  register: pywps_slurm_drmaa_library
+
+- name: Configure slurm-drmaa for {{ wps_service.name }}
+  ansible.builtin.command:
+    argv:
+      - ./configure
+      - "--prefix={{ conda_envs_dir }}/{{ wps_service.name }}"
+    chdir: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}
+  when: >-
+    not pywps_slurm_drmaa_marker.stat.exists
+    or not pywps_slurm_drmaa_library.stat.exists
+
+- name: Install slurm-drmaa for {{ wps_service.name }}
+  community.general.make:
+    chdir: /usr/local/src/slurm-drmaa-{{ slurm_drmaa_version }}
+    target: install
+  when: >-
+    not pywps_slurm_drmaa_marker.stat.exists
+    or not pywps_slurm_drmaa_library.stat.exists
+
+- name: Record installed slurm-drmaa version for {{ wps_service.name }}
+  ansible.builtin.file:
+    path: >-
+      {{ [conda_envs_dir, wps_service.name,
+          '.slurm-drmaa-' ~ slurm_drmaa_version] | path_join }}
+    state: touch
+    mode: "0644"
+  when: >-
+    not pywps_slurm_drmaa_marker.stat.exists
+    or not pywps_slurm_drmaa_library.stat.exists
+
+- name: Verify Python DRMAA integration for {{ wps_service.name }}
+  ansible.builtin.command:
+    argv:
+      - "{{ conda_envs_dir }}/{{ wps_service.name }}/bin/python"
+      - -c
+      - import drmaa
+  environment:
+    DRMAA_LIBRARY_PATH: >-
+      {{ [conda_envs_dir, wps_service.name, 'lib', 'libdrmaa.so']
+         | path_join }}
+  changed_when: false

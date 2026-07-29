@@ -14,6 +14,7 @@ Changes:
 - improve validation and diagnostics for manual smoke tests
 - retry transient Ansible Galaxy dependency download failures
 - make multi-service Nginx caching safe and validate configuration before restart
+- make the pinned Slurm DRMAA integration explicit and verifiable
 
 ## 0.8.0 (2026-07-28)
 

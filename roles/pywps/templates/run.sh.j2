@@ -1,4 +1,7 @@
 #!/bin/bash
 {% set _app = item.app | default(item.name+":application") %}
 source {{ conda_location }}/bin/activate {{ item.name }}
+{% if slurm_enabled %}
+export DRMAA_LIBRARY_PATH={{ conda_envs_dir }}/{{ item.name }}/lib/libdrmaa.so
+{% endif %}
 exec gunicorn -c /etc/gunicorn/{{ item.name }}.py {{ _app }}

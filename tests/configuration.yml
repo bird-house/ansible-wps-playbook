@@ -36,6 +36,7 @@
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
           - pywps_restart_schedule in ['hourly', 'daily']
+          - not slurm_configure_munge
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -66,6 +67,16 @@
         wps_enable_acl: true
         wps_acl_allow:
           - 192.0.2.0/24
+        slurm_enabled: false
+
+    - name: Render Slurm service launcher
+      ansible.builtin.set_fact:
+        test_slurm_run_script: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/run.sh.j2') }}
+      vars:
+        item: "{{ test_primary_service }}"
+        slurm_enabled: true
 
     - name: Render alternate configuration
       ansible.builtin.set_fact:
@@ -108,6 +119,10 @@
           - "'stopwaitsecs=40' in test_supervisor_config"
           - "'killasgroup=true' in test_supervisor_config"
           - "'exec gunicorn -c /etc/gunicorn/alpha.py' in test_run_script"
+          - "'DRMAA_LIBRARY_PATH' not in test_run_script"
+          - >-
+            'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
+            in test_slurm_run_script
           - "'set -euo pipefail' in test_restart_script"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"

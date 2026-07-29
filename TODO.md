@@ -24,22 +24,7 @@ deployment.
 - Modernize maintained roles to use fully qualified collection names and
   current Ansible module syntax.
 
-### Audit Slurm configuration conservatively
-
-- Record `scontrol --version`, the effective `SchedulerType`, `SelectType`, and
-  `SelectTypeParameters`, and `sinfo -N -l` from a working production VM before
-  changing defaults.
-- Check whether the legacy `select/cons_res` setting should migrate to
-  `select/cons_tres` and whether strict FIFO `sched/builtin` remains
-  intentional.
-- Match the pinned `slurm-drmaa` release to the installed Slurm version before
-  updating it.
-- Remove duplicate Munge setup and make the DRMAA build idempotent without
-  changing a working deployment unexpectedly.
-- Add focused Slurm validation and a manual job-submission smoke test before
-  changing production behaviour.
-
-### Recover stalled WPS jobs
+### Next release: recover stalled WPS jobs
 
 - Add a standalone Python recovery script without changing PyWPS or Slurm.
 - Define conservative, configurable criteria for identifying jobs that have
@@ -52,6 +37,17 @@ deployment.
   information to diagnose likely causes such as Lustre problems.
 - Make installation and an hourly schedule configurable, and add fixture-based
   tests for detection, XML namespaces and updates, cleanup, and failure cases.
+
+### Follow-up release: modernize Slurm conservatively
+
+- Make the AlmaLinux Slurm RPM version reproducible or at least report the
+  installed version clearly during deployment.
+- Update the pinned Galaxy Slurm role and `slurm-drmaa` together, keeping them
+  compatible with the installed Slurm release.
+- Migrate legacy `select/cons_res` to `select/cons_tres` if supported and
+  decide whether strict FIFO `sched/builtin` remains intentional.
+- Use the existing scheduler-mode PyWPS smoke tests as the required
+  job-submission validation before releasing changed production behaviour.
 
 ### Refactor PyWPS deployment roles
 
