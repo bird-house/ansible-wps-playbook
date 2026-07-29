@@ -43,6 +43,18 @@
     - pywps
     - conf
 
+- name: Create Nginx cache folders for PyWPS services
+  ansible.builtin.file:
+    path: "{{ wps_cache_dir }}/{{ item.name }}"
+    state: directory
+    owner: "{{ wps_user }}"
+    group: "{{ wps_group }}"
+    mode: "0755"
+  loop: "{{ wps_services }}"
+  tags:
+    - pywps
+    - conf
+
 - name: Update log file permissions
   file:
     path: "/var/log/pywps/{{ item.name }}.log"

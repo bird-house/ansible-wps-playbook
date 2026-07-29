@@ -93,6 +93,7 @@ docker exec "$container_name" bash -c '
     | grep --quiet pywps
   wait_for_tiny_wps
   test "$(stat --format="%a:%U:%G" /etc/pywps/tiny.cfg)" = "640:root:wps"
+  test "$(stat --format="%a:%U:%G" /var/lib/pywps/cache/tiny)" = "755:wps:wps"
   test "$(stat --format="%a:%U:%G" /etc/gunicorn/tiny.py)" = "640:root:wps"
 
   ansible-playbook \
