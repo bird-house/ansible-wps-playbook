@@ -24,6 +24,16 @@ deployment.
 - Modernize maintained roles to use fully qualified collection names and
   current Ansible module syntax.
 
+### Review external Ansible roles
+
+- Migrate from `geerlingguy.nginx` to the official NGINX Ansible role or
+  collection because the current role is not actively maintained enough.
+- Audit the remaining external roles for recent releases, supported platforms,
+  security updates, and active maintenance; prefer official or
+  community-supported replacements where appropriate.
+- Replace roles individually, document variable migrations, and require
+  AlmaLinux convergence plus production smoke tests before release.
+
 ### Next release: recover stalled WPS jobs
 
 - Add a standalone Python recovery script without changing PyWPS or Slurm.
