@@ -4,6 +4,7 @@ set -euo pipefail
 
 export PATH="/usr/local/bin:/usr/bin:/bin"
 cleanup_orphaned_processes={{ gunicorn_cleanup_orphaned_processes | bool | lower }}
+restart_enabled={{ pywps_restart_enabled | bool | lower }}
 
 log_info() {
     echo "[INFO] $*"
@@ -100,7 +101,7 @@ report_gunicorn_processes() {
 
 validate_service_name() {
     if [[ $# -ne 1 || -z ${1:-} ]]; then
-        echo "Usage: restart-pywps SERVICE_NAME" >&2
+        echo "Usage: restart-pywps [--force] SERVICE_NAME" >&2
         exit 2
     fi
     if [[ ! $1 =~ ^[A-Za-z0-9_.-]+$ ]]; then
@@ -110,8 +111,19 @@ validate_service_name() {
 }
 
 main() {
+    local force=false
+    if [[ ${1:-} == --force ]]; then
+        force=true
+        shift
+    fi
+
     validate_service_name "$@"
     local app=$1
+
+    if [[ $restart_enabled != true && $force != true ]]; then
+        log_info "Restart is disabled; use --force for a manual restart"
+        return
+    fi
 
     log_info "Restarting $app"
     supervisorctl restart "$app"

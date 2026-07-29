@@ -57,7 +57,6 @@
     that:
       - pywps_restart_schedule in ['hourly', 'daily']
     fail_msg: pywps_restart_schedule must be hourly or daily.
-  when: pywps_restart_enabled | bool
 
 - name: Copy restart script
   template:
@@ -65,13 +64,6 @@
     dest: "{{ cron_script_dir }}/restart-pywps.sh"
     owner: root
     mode: "0744"
-  when: pywps_restart_enabled | bool
-
-- name: Remove restart script when disabled
-  file:
-    path: "{{ cron_script_dir }}/restart-pywps.sh"
-    state: absent
-  when: not (pywps_restart_enabled | bool)
 
 - name: Schedule PyWPS service restarts
   cron:
@@ -80,8 +72,9 @@
     user: root
     job: "{{ cron_script_dir }}/restart-pywps.sh {{ item.name }} > /var/log/pywps/restart-{{ item.name }}.log 2>&1"
     cron_file: ansible_pywps
-    disabled: "{{ cron_disabled }}"
-    state: "{{ 'present' if (pywps_restart_enabled | bool) else 'absent' }}"
+    disabled: >-
+      {{ (cron_disabled | bool) or not (pywps_restart_enabled | bool) }}
+    state: present
   with_items:
     - "{{ wps_services }}"
 
