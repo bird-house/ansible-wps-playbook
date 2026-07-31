@@ -19,6 +19,7 @@ Changes:
 - make the pinned Slurm DRMAA integration explicit and verifiable
 - install shared service runtime packages through Conda instead of binary pip
   wheels
+- add a short service-aware helper for manual stalled-job checks and cleanup
 - remove obsolete deployment debug output and unreferenced helper artifacts
 
 ## 0.8.0 (2026-07-28)

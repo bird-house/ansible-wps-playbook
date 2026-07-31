@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+    echo "[ERROR] $*" >&2
+    exit 1
+}
+
+usage() {
+    echo "Usage: recover SERVICE_NAME [monitor|cleanup] [OPTIONS]" >&2
+    exit 2
+}
+
+validate_service_name() {
+    if [[ -z ${1:-} || ! $1 =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        usage
+    fi
+}
+
+main() {
+    [[ $# -ge 1 ]] || usage
+    validate_service_name "$1"
+
+    local app=$1
+    shift
+
+    local mode=monitor
+    if [[ ${1:-} == monitor || ${1:-} == cleanup ]]; then
+        mode=$1
+        shift
+    fi
+
+    local python="{{ conda_envs_dir }}/$app/bin/python"
+    local config_file="/etc/pywps/$app.cfg"
+    local recovery_script="{{ cron_script_dir }}/recover-stalled-jobs.py"
+
+    [[ -x $python ]] || fail "Python not found or not executable: $python"
+    [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"
+    [[ -x $recovery_script ]] \
+        || fail "Recovery script not found or not executable: $recovery_script"
+
+    exec "$python" "$recovery_script" \
+        --config "$config_file" "$mode" "$@"
+}
+
+main "$@"

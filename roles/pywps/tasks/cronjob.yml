@@ -77,6 +77,14 @@
     group: root
     mode: "0755"
 
+- name: Copy stalled-job recovery helper
+  ansible.builtin.template:
+    src: ./templates/recover.sh.j2
+    dest: "{{ cron_script_dir }}/recover"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Schedule stalled-job checks
   ansible.builtin.cron:
     name: "monitor stalled pywps jobs for {{ item.name }}"

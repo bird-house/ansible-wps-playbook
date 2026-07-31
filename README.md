@@ -307,12 +307,17 @@ the other PyWPS logs.
 
 Individual stalled findings are written to the log file. Scheduled runs emit
 a single warning summary for each layer containing stalled jobs, rather than
-sending every matching UUID through cron mail. Clean both layers manually with:
+sending every matching UUID through cron mail. Run a manual read-only check
+for a service with the installed helper:
 
 ```sh
-sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
-  /var/lib/pywps/recover-stalled-jobs.py \
-  --config /etc/pywps/SERVICE_NAME.cfg cleanup
+sudo /var/lib/pywps/recover SERVICE_NAME
+```
+
+Clean both layers manually by selecting cleanup explicitly:
+
+```sh
+sudo /var/lib/pywps/recover SERVICE_NAME cleanup
 ```
 
 Cleanup atomically changes stalled XML documents to `ProcessFailed`. In the
@@ -323,12 +328,8 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
-  /var/lib/pywps/recover-stalled-jobs.py \
-  --config /etc/pywps/SERVICE_NAME.cfg monitor --layer xml
-sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
-  /var/lib/pywps/recover-stalled-jobs.py \
-  --config /etc/pywps/SERVICE_NAME.cfg cleanup \
+sudo /var/lib/pywps/recover SERVICE_NAME --layer xml
+sudo /var/lib/pywps/recover SERVICE_NAME cleanup \
   --layer database --stale-after-hours 12
 ```
 
