@@ -39,6 +39,7 @@
           - pywps_stalled_jobs_schedule | type_debug == 'dict'
           - pywps_stalled_jobs_schedule.hour == '*'
           - pywps_stalled_jobs_age_hours | int > 0
+          - pywps_stalled_jobs_cleanup_limit == 100
           - pywps_stalled_jobs_age_hours | int < wps_outputs_keep_hours | int
           - not pywps_stalled_jobs_enabled
           - pywps_stalled_jobs_layers == ['xml', 'database']
@@ -152,19 +153,22 @@
           - "'exec \"$pytest\" -v -k smoke \"$smoke_tests\"' in test_smoke_script"
           - "'monitor)' in test_stalled_jobs_helper"
           - "'recover-xml)' in test_stalled_jobs_helper"
-          - "'layers=(--layer xml)' in test_stalled_jobs_helper"
+          - "'script_options=(--layer xml)' in test_stalled_jobs_helper"
           - "'recover-all)' in test_stalled_jobs_helper"
           - >-
-            'layers=(--layer xml --layer database)'
+            'script_options=(--layer all)'
+            in test_stalled_jobs_helper
+          - >-
+            'script_options=(--layer all --show-summaries)'
             in test_stalled_jobs_helper
           - >-
             'exec "$python" "$recovery_script"'
             in test_stalled_jobs_helper
           - >-
-            '--config "$config_file" "$mode" "${layers[@]}" "$@"'
+            '--config "$config_file" "$mode" "${script_options[@]}" "$@"'
             in test_stalled_jobs_helper
           - >-
-            '$command_name has a fixed cleanup scope; --layer is not allowed'
+            '$command_name has a fixed layer scope; --layer is not allowed'
             in test_stalled_jobs_helper
           - "'upstream alpha' in test_nginx_config"
           - "'proxy_cache_path /var/lib/pywps/cache/alpha' in test_nginx_config"
@@ -178,6 +182,7 @@
           - "'[stalled_jobs]' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
+          - "'cleanup_limit = 100' in test_pywps_config"
 
     - name: Check rendered alternate configuration
       ansible.builtin.assert:

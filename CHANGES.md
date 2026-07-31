@@ -21,6 +21,9 @@ Changes:
   wheels
 - add short service-aware helpers for monitoring, XML recovery, and full
   stalled-job recovery
+- add an `all` layer shortcut and show every summary in the manual monitor
+- add `--hours` as a concise stalled-job threshold option
+- add bounded, oldest-first stalled-job recovery batches with `--limit`
 - remove obsolete deployment debug output and unreferenced helper artifacts
 
 ## 0.8.0 (2026-07-28)

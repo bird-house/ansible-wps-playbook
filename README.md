@@ -280,6 +280,7 @@ pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
 pywps_stalled_jobs_age_hours: 6
+pywps_stalled_jobs_cleanup_limit: 100
 pywps_stalled_jobs_layers:
   - xml
   - database
@@ -314,6 +315,10 @@ for a service with the installed helper:
 sudo /var/lib/pywps/monitor SERVICE_NAME
 ```
 
+The helper explicitly checks both layers and prints their informational
+summaries to the terminal. The scheduled monitor remains quiet unless it finds
+stalled jobs or errors.
+
 Clean only stalled XML documents with:
 
 ```sh
@@ -334,10 +339,21 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME --layer xml
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12
-sudo /var/lib/pywps/recover-all SERVICE_NAME --stale-after-hours 12
+sudo /var/lib/pywps/monitor SERVICE_NAME --hours 12
+sudo /var/lib/pywps/recover-xml SERVICE_NAME --hours 12 --limit 500
+sudo /var/lib/pywps/recover-all SERVICE_NAME --hours 12 --limit 500
 ```
+
+The underlying script also accepts `--layer all` as a shortcut for selecting
+both XML and database layers. `--hours` is an alias for the existing
+`--stale-after-hours` option; both override the configured threshold.
+`--limit` caps the number of stalled jobs processed in each selected layer.
+The database applies a limit oldest-first in SQL, which keeps initial recovery
+batches bounded even when years of unfinished requests have accumulated.
+Cleanup defaults to `pywps_stalled_jobs_cleanup_limit`, which is 100. Monitoring
+remains unlimited unless `--limit` is explicitly supplied, so an old backlog
+cannot hide newer stalled requests. An explicit `--limit` overrides the
+configured cleanup default.
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.
 

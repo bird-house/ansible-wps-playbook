@@ -25,6 +25,7 @@ UUID_RE = re.compile(
 )
 FINAL_XML_STATES = {"ProcessSucceeded", "ProcessFailed"}
 SUPPORTED_LAYERS = ("xml", "database")
+LAYER_CHOICES = (*SUPPORTED_LAYERS, "all")
 UTC = timezone.utc
 
 
@@ -37,6 +38,8 @@ class Settings:
     pywps_config: Path | None
     lock_file: Path
     log_file: Path | None
+    show_summaries: bool = False
+    limit: int | None = None
 
 
 @dataclass
@@ -46,6 +49,15 @@ class LayerSummary:
     stalled: int = 0
     cleaned: int = 0
     errors: int = 0
+
+
+class SummaryConsoleFilter(logging.Filter):
+    """Keep console output compact while allowing informational summaries."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= logging.WARNING or record.getMessage().startswith(
+            "summary "
+        )
 
 
 @dataclass
@@ -255,6 +267,8 @@ def run_xml_layer(
                 write_failed_xml(document, tree, message, now)
                 summary.cleaned += 1
                 logger.warning("layer=xml job=%s decision=cleaned", document.job_uuid)
+            if settings.limit is not None and summary.stalled >= settings.limit:
+                break
         except Exception as error:
             summary.errors += 1
             logger.exception("layer=xml status=%s decision=error reason=%s", path, error)
@@ -283,7 +297,7 @@ def run_database_layer(
     try:
         from pywps import configuration, dblog
         from pywps.response.status import WPS_STATUS
-        from sqlalchemy import create_engine, inspect, or_
+        from sqlalchemy import create_engine, func, inspect, or_
         from sqlalchemy.orm import sessionmaker
     except ImportError as error:
         raise RuntimeError(
@@ -300,14 +314,26 @@ def run_database_layer(
         )
     session = sessionmaker(bind=engine)()
     try:
-        records = session.query(dblog.ProcessInstance).filter(
+        query = session.query(dblog.ProcessInstance).filter(
             or_(
                 dblog.ProcessInstance.status.is_(None),
                 dblog.ProcessInstance.status.notin_(
                     [WPS_STATUS.SUCCEEDED, WPS_STATUS.FAILED]
                 ),
             )
-        ).all()
+        )
+        if settings.limit is not None:
+            cutoff = (now - threshold).astimezone(UTC).replace(tzinfo=None)
+            last_update = func.coalesce(
+                dblog.ProcessInstance.time_end,
+                dblog.ProcessInstance.time_start,
+            )
+            query = (
+                query.filter(last_update <= cutoff)
+                .order_by(last_update, dblog.ProcessInstance.uuid)
+                .limit(settings.limit)
+            )
+        records = query.all()
         for record in records:
             summary.checked += 1
             try:
@@ -392,13 +418,25 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--layer",
         action="append",
-        choices=SUPPORTED_LAYERS,
-        help="run only this layer; repeat to select more than one",
+        choices=LAYER_CHOICES,
+        help="run only this layer; repeat to select more than one; all selects both",
+    )
+    parser.add_argument(
+        "--show-summaries",
+        action="store_true",
+        help="write every layer summary to the console",
     )
     parser.add_argument(
         "--stale-after-hours",
+        "--hours",
         type=float,
         default=float(stalled_config.get("stale_after_hours", "6")),
+        help="consider nonfinal jobs stalled after this many hours",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="process at most this many stalled jobs in each selected layer",
     )
     parser.add_argument(
         "--output-dir",
@@ -423,14 +461,21 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         default=stalled_jobs_log_file(config),
     )
     args = parser.parse_args(argv)
+    limit = args.limit
+    if limit is None and args.mode == "cleanup":
+        limit = int(stalled_config.get("cleanup_limit", "100"))
     layers = args.layer or configured_layers
-    invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
+    invalid = sorted(set(layers) - set(LAYER_CHOICES))
     if invalid:
         parser.error(f"unsupported configured layers: {', '.join(invalid)}")
     if not layers:
         parser.error("at least one layer must be configured")
+    if "all" in layers:
+        layers = list(SUPPORTED_LAYERS)
     if args.stale_after_hours <= 0:
-        parser.error("--stale-after-hours must be greater than zero")
+        parser.error("--stale-after-hours/--hours must be greater than zero")
+    if limit is not None and limit <= 0:
+        parser.error("--limit must be greater than zero")
     return Settings(
         mode=args.mode,
         layers=list(dict.fromkeys(layers)),
@@ -439,12 +484,18 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         pywps_config=args.pywps_config,
         lock_file=args.lock_file,
         log_file=args.log_file,
+        show_summaries=args.show_summaries,
+        limit=limit,
     )
 
 
-def configure_logging(log_file: Path | None) -> logging.Logger:
+def configure_logging(
+    log_file: Path | None, show_summaries: bool = False
+) -> logging.Logger:
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.WARNING)
+    stream_handler.setLevel(logging.INFO if show_summaries else logging.WARNING)
+    if show_summaries:
+        stream_handler.addFilter(SummaryConsoleFilter())
     handlers: list[logging.Handler] = [stream_handler]
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -481,13 +532,15 @@ def execute_layers(
         else:
             log_summary = logger.info
         log_summary(
-            "summary layer=%s checked=%d stalled=%d cleaned=%d errors=%d mode=%s",
+            "summary layer=%s checked=%d stalled=%d cleaned=%d errors=%d "
+            "mode=%s limit=%s",
             summary.name,
             summary.checked,
             summary.stalled,
             summary.cleaned,
             summary.errors,
             settings.mode,
+            settings.limit if settings.limit is not None else "none",
         )
     return summaries
 
@@ -495,7 +548,7 @@ def execute_layers(
 def main(argv: list[str] | None = None) -> int:
     try:
         settings = parse_args(argv)
-        logger = configure_logging(settings.log_file)
+        logger = configure_logging(settings.log_file, settings.show_summaries)
         settings.lock_file.parent.mkdir(parents=True, exist_ok=True)
         with settings.lock_file.open("w") as lock:
             try:

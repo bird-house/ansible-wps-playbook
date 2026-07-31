@@ -116,6 +116,21 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(self.status.read_bytes(), before)
 
+    def test_limit_caps_stalled_xml_jobs(self):
+        self.write_status("ProcessAccepted")
+        second_status = self.outputs / "223e4567-e89b-42d3-a456-426614174000.xml"
+        second_status.write_text(
+            status_xml("ProcessAccepted", self.now - timedelta(hours=8)),
+            encoding="utf-8",
+        )
+        old = (self.now - timedelta(hours=8)).timestamp()
+        os.utime(second_status, (old, old))
+
+        settings = self.settings()
+        settings.limit = 1
+        summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
+        self.assertEqual((summary.checked, summary.stalled), (1, 1))
+
     def test_cleanup_changes_any_old_nonfinal_status_to_failed(self):
         self.write_status("ProcessAccepted")
         summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, mock.Mock())
@@ -209,12 +224,14 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "[stalled_jobs]\n"
             "layers = xml, database\n"
             "stale_after_hours = 6\n"
+            "cleanup_limit = 100\n"
             f"lock_file = {self.root / 'configured.lock'}\n",
             encoding="utf-8",
         )
         settings = MODULE.parse_args(["--config", str(config), "monitor"])
         self.assertEqual(settings.layers, ["xml", "database"])
         self.assertEqual(settings.stale_after_hours, 6)
+        self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
         self.assertEqual(settings.pywps_config, config)
         self.assertEqual(
@@ -233,6 +250,30 @@ class RecoverStalledJobsTests(unittest.TestCase):
         ])
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_hours, 12)
+        self.assertEqual(overridden.limit, 100)
+
+        all_layers = MODULE.parse_args([
+            "--config",
+            str(config),
+            "monitor",
+            "--layer",
+            "all",
+            "--show-summaries",
+        ])
+        self.assertEqual(all_layers.layers, ["xml", "database"])
+        self.assertTrue(all_layers.show_summaries)
+
+        hours_alias = MODULE.parse_args([
+            "--config",
+            str(config),
+            "monitor",
+            "--hours",
+            "3.5",
+            "--limit",
+            "500",
+        ])
+        self.assertEqual(hours_alias.stale_after_hours, 3.5)
+        self.assertEqual(hours_alias.limit, 500)
 
     def test_layers_run_independently(self):
         def broken(*_args):
@@ -267,13 +308,14 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 )
                 getattr(logger, expected_method).assert_called_once_with(
                     "summary layer=%s checked=%d stalled=%d cleaned=%d "
-                    "errors=%d mode=%s",
+                    "errors=%d mode=%s limit=%s",
                     summary.name,
                     summary.checked,
                     summary.stalled,
                     summary.cleaned,
                     summary.errors,
                     "monitor",
+                    "none",
                 )
 
     def test_logging_keeps_info_in_file_and_only_warns_on_stderr(self):
@@ -295,6 +337,26 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(stream_handler.level, MODULE.logging.WARNING)
         self.assertEqual(file_handler.level, MODULE.logging.INFO)
         file_handler.close()
+
+    def test_show_summaries_filters_non_summary_info_from_stderr(self):
+        with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
+            MODULE.configure_logging(None, show_summaries=True)
+
+        handlers = basic_config.call_args.kwargs["handlers"]
+        handler = handlers[0]
+        self.assertEqual(handler.level, MODULE.logging.INFO)
+        summary = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "summary layer=xml", (), None
+        )
+        finding = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "layer=xml job=1", (), None
+        )
+        warning = MODULE.logging.LogRecord(
+            "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
+        )
+        self.assertTrue(handler.filter(summary))
+        self.assertFalse(handler.filter(finding))
+        self.assertTrue(handler.filter(warning))
 
     def test_database_timestamp_uses_last_update_then_start_time(self):
         start = datetime(2026, 7, 30, 8, 0)
