@@ -338,13 +338,14 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-hours 12
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12
-sudo /var/lib/pywps/recover-all SERVICE_NAME --stale-after-hours 12
+sudo /var/lib/pywps/monitor SERVICE_NAME --hours 12
+sudo /var/lib/pywps/recover-xml SERVICE_NAME --hours 12
+sudo /var/lib/pywps/recover-all SERVICE_NAME --hours 12
 ```
 
 The underlying script also accepts `--layer all` as a shortcut for selecting
-both XML and database layers.
+both XML and database layers. `--hours` is an alias for the existing
+`--stale-after-hours` option; both override the configured threshold.
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.
 

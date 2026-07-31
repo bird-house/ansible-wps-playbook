@@ -245,6 +245,15 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(all_layers.layers, ["xml", "database"])
         self.assertTrue(all_layers.show_summaries)
 
+        hours_alias = MODULE.parse_args([
+            "--config",
+            str(config),
+            "monitor",
+            "--hours",
+            "3.5",
+        ])
+        self.assertEqual(hours_alias.stale_after_hours, 3.5)
+
     def test_layers_run_independently(self):
         def broken(*_args):
             raise RuntimeError("broken XML layer")

@@ -413,8 +413,10 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     )
     parser.add_argument(
         "--stale-after-hours",
+        "--hours",
         type=float,
         default=float(stalled_config.get("stale_after_hours", "6")),
+        help="consider nonfinal jobs stalled after this many hours",
     )
     parser.add_argument(
         "--output-dir",
@@ -448,7 +450,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     if "all" in layers:
         layers = list(SUPPORTED_LAYERS)
     if args.stale_after_hours <= 0:
-        parser.error("--stale-after-hours must be greater than zero")
+        parser.error("--stale-after-hours/--hours must be greater than zero")
     return Settings(
         mode=args.mode,
         layers=list(dict.fromkeys(layers)),
