@@ -176,15 +176,11 @@ def write_failed_xml(
     for child in list(status):
         status.remove(child)
     failed = ET.SubElement(status, qualified("ProcessFailed", wps_uri))
-    report = ET.SubElement(
-        failed,
-        qualified("ExceptionReport", ows_uri),
-        {"version": "1.0.0"},
-    )
+    report = ET.SubElement(failed, qualified("ExceptionReport", wps_uri))
     exception = ET.SubElement(
         report,
         qualified("Exception", ows_uri),
-        {"exceptionCode": "NoApplicableCode"},
+        {"exceptionCode": "NoApplicableCode", "locator": "None"},
     )
     exception_text = ET.SubElement(exception, qualified("ExceptionText", ows_uri))
     exception_text.text = message

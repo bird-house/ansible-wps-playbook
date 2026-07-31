@@ -23,12 +23,20 @@ WPS = "http://www.opengis.net/wps/1.0.0"
 OWS = "http://www.opengis.net/ows/1.1"
 UTC = timezone.utc
 JOB_UUID = "123e4567-e89b-42d3-a456-426614174000"
+OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
 def status_xml(state: str, creation_time: datetime) -> str:
     timestamp = creation_time.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<wps:ExecuteResponse xmlns:wps="{WPS}" xmlns:ows="{OWS}">
+<wps:ExecuteResponse xmlns:wps="{WPS}" xmlns:ows="{OWS}"
+  service="WPS" version="1.0.0" serviceInstance="https://example.test/wps"
+  statusLocation="https://example.test/outputs/{JOB_UUID}.xml">
+  <wps:Process wps:processVersion="1.0.0">
+    <ows:Identifier>test-process</ows:Identifier>
+    <ows:Title>Test process</ows:Title>
+    <ows:Abstract>Test process for stalled-job recovery</ows:Abstract>
+  </wps:Process>
   <wps:Status creationTime="{timestamp}">
     <wps:{state} percentCompleted="10">Working</wps:{state}>
   </wps:Status>
@@ -118,16 +126,48 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(status.attrib["creationTime"], "2026-07-31T10:00:00Z")
         failed = status.find(f"{{{WPS}}}ProcessFailed")
         self.assertIsNotNone(failed)
-        report = failed.find(f"{{{OWS}}}ExceptionReport")
+        report = failed.find(f"{{{WPS}}}ExceptionReport")
         self.assertIsNotNone(report)
-        self.assertEqual(report.attrib["version"], "1.0.0")
         exception = report.find(f"{{{OWS}}}Exception")
         self.assertEqual(exception.attrib["exceptionCode"], "NoApplicableCode")
-        self.assertNotIn("locator", exception.attrib)
+        self.assertEqual(exception.attrib["locator"], "None")
         self.assertIn(
             "at least 6 hours",
             status.find(f".//{{{OWS}}}ExceptionText").text,
         )
+
+    @unittest.skipUnless(
+        OWSLIB_AVAILABLE,
+        "OWSLib is not installed",
+    )
+    def test_rewritten_xml_round_trips_as_a_pywps_execute_response(self):
+        from owslib.wps import WPSExecution
+
+        self.write_status("ProcessStarted")
+        summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, mock.Mock())
+        self.assertEqual((summary.cleaned, summary.errors), (1, 0))
+
+        document, _ = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessFailed")
+        self.assertEqual(document.creation_time, self.now)
+
+        root = ET.parse(self.status).getroot()
+        self.assertEqual(root.attrib["service"], "WPS")
+        self.assertEqual(root.attrib["version"], "1.0.0")
+        self.assertEqual(
+            root.findtext(f".//{{{OWS}}}Identifier"),
+            "test-process",
+        )
+
+        execution = WPSExecution()
+        execution.checkStatus(response=self.status.read_bytes(), sleepSecs=0)
+        # OWSLib reports an embedded ProcessFailed exception as "Exception".
+        self.assertEqual(execution.status, "Exception")
+        self.assertTrue(execution.isComplete())
+        self.assertEqual(len(execution.errors), 1)
+        self.assertEqual(execution.errors[0].code, "NoApplicableCode")
+        self.assertEqual(execution.errors[0].locator, "None")
+        self.assertIn("at least 6 hours", execution.errors[0].text)
 
     def test_final_statuses_are_never_stalled(self):
         for state in ("ProcessSucceeded", "ProcessFailed"):
