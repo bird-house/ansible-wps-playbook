@@ -19,6 +19,7 @@ pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
 pywps_stalled_jobs_age_hours: 6
+pywps_stalled_jobs_cleanup_limit: 100
 pywps_stalled_jobs_layers:
   - xml
   - database

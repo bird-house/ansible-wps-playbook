@@ -57,6 +57,7 @@
     that:
       - pywps_stalled_jobs_schedule | type_debug == 'dict'
       - pywps_stalled_jobs_age_hours | float > 0
+      - pywps_stalled_jobs_cleanup_limit | int > 0
       - pywps_stalled_jobs_layers | length > 0
       - pywps_stalled_jobs_layers | difference(['xml', 'database', 'all']) | length == 0
       - >-
@@ -68,7 +69,8 @@
     fail_msg: >-
       The stalled-job schedule must be a cron-field mapping, age must be
       positive and shorter than output retention for scheduled XML checks,
-      and layers must contain xml, database, or all.
+      cleanup limit must be positive, and layers must contain xml, database,
+      or all.
 
 - name: Copy stalled-job recovery script
   ansible.builtin.copy:

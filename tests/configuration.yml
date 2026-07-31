@@ -39,6 +39,7 @@
           - pywps_stalled_jobs_schedule | type_debug == 'dict'
           - pywps_stalled_jobs_schedule.hour == '*'
           - pywps_stalled_jobs_age_hours | int > 0
+          - pywps_stalled_jobs_cleanup_limit == 100
           - pywps_stalled_jobs_age_hours | int < wps_outputs_keep_hours | int
           - not pywps_stalled_jobs_enabled
           - pywps_stalled_jobs_layers == ['xml', 'database']
@@ -181,6 +182,7 @@
           - "'[stalled_jobs]' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
+          - "'cleanup_limit = 100' in test_pywps_config"
 
     - name: Check rendered alternate configuration
       ansible.builtin.assert:
