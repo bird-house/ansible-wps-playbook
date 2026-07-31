@@ -53,6 +53,10 @@ deployment.
 
 #### Stalled-job follow-up
 
+- Move the playbook-added runtime Conda packages into the application Conda
+  specifications during the longer PyWPS environment update. In particular,
+  retain the Conda-linked `psycopg2` build: the pip `psycopg2-binary` wheel's
+  bundled libraries segfaulted on a fresh Python 3.13 connection.
 - Add a Slurm monitoring and cleanup layer after a reliable mapping between a
   WPS request UUID and its Slurm job ID has been identified.
 - Consider temporary-work-directory cleanup only after it can be associated

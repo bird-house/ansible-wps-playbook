@@ -29,8 +29,26 @@
     - pywps
     - conda
 
+- name: Install additional Conda packages.
+  ansible.builtin.command:
+    argv: >-
+      {{ [conda_bin, 'install', '--yes', '--freeze-installed',
+          '--channel', wps_conda_channel,
+          '--prefix', conda_envs_dir + '/' + item.name]
+         + wps_conda_packages }}
+  with_items: "{{ wps_services }}"
+  when:
+    - pywps_conda_env.changed or pywps_conda_env_spec.changed
+    - wps_conda_packages | length > 0
+  tags:
+    - pywps
+    - conda
+
 - name: Install WPS package.
-  command: "{{ conda_envs_dir }}/{{ item.name }}/bin/pip install ."
+  ansible.builtin.command:
+    argv: >-
+      {{ [conda_envs_dir + '/' + item.name + '/bin/python',
+          '-m', 'pip', 'install', '.'] }}
   args:
     chdir: "{{ src_dir }}/{{ item.name }}"
   with_items: "{{ wps_services }}"
@@ -40,11 +58,45 @@
     - conda
 
 - name: Install additional pip packages.
-  command: >-
-    {{ conda_envs_dir }}/{{ item.name }}/bin/pip install
-    {{ wps_pip_packages | join(' ') }}
+  ansible.builtin.command:
+    argv: >-
+      {{ [conda_envs_dir + '/' + item.name + '/bin/python',
+          '-m', 'pip', 'install'] + wps_pip_packages }}
   with_items: "{{ wps_services }}"
-  when: pywps_conda_env.changed or pywps_conda_env_spec.changed
+  when:
+    - pywps_conda_env.changed or pywps_conda_env_spec.changed
+    - wps_pip_packages | length > 0
+  tags:
+    - pywps
+    - conda
+
+- name: Check for the unsafe binary PostgreSQL wheel.
+  ansible.builtin.command:
+    argv:
+      - "{{ conda_envs_dir }}/{{ item.name }}/bin/python"
+      - -m
+      - pip
+      - show
+      - psycopg2-binary
+  with_items: "{{ wps_services }}"
+  when: "'psycopg2=2.9.12' in wps_conda_packages"
+  register: pywps_psycopg2_binary
+  changed_when: false
+  failed_when: false
+  tags:
+    - pywps
+    - conda
+
+- name: Reject the unsafe binary PostgreSQL wheel.
+  ansible.builtin.assert:
+    that: item.rc != 0
+    fail_msg: >-
+      The {{ item.item.name }} environment contains psycopg2-binary; use the
+      Conda-linked psycopg2 package instead.
+  loop: "{{ pywps_psycopg2_binary.results }}"
+  when:
+    - "'psycopg2=2.9.12' in wps_conda_packages"
+    - not item.skipped | default(false)
   tags:
     - pywps
     - conda

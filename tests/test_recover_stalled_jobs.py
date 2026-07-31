@@ -250,6 +250,32 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(summaries[0].errors, 1)
         self.assertEqual((summaries[1].checked, summaries[1].stalled), (2, 1))
 
+    def test_summary_severity_reflects_layer_result(self):
+        cases = (
+            (MODULE.LayerSummary("xml", checked=2), "info"),
+            (MODULE.LayerSummary("xml", checked=2, stalled=1), "warning"),
+            (MODULE.LayerSummary("xml", checked=2, errors=1), "error"),
+        )
+        for summary, expected_method in cases:
+            with self.subTest(expected_method=expected_method):
+                logger = mock.Mock()
+                MODULE.execute_layers(
+                    self.settings(layers=["xml"]),
+                    self.now,
+                    logger,
+                    runners={"xml": lambda *_args, result=summary: result},
+                )
+                getattr(logger, expected_method).assert_called_once_with(
+                    "summary layer=%s checked=%d stalled=%d cleaned=%d "
+                    "errors=%d mode=%s",
+                    summary.name,
+                    summary.checked,
+                    summary.stalled,
+                    summary.cleaned,
+                    summary.errors,
+                    "monitor",
+                )
+
     def test_logging_keeps_info_in_file_and_only_warns_on_stderr(self):
         log_file = self.root / "stalled.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:

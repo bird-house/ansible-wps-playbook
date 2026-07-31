@@ -303,12 +303,27 @@ Monitoring never changes state. After reviewing
 `/var/log/pywps/stalled-jobs-SERVICE_NAME.log`, clean both layers manually.
 This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard rotates this log together with
-the other PyWPS logs:
+the other PyWPS logs.
+
+Individual stalled findings are written to the log file. Scheduled runs emit
+a single warning summary for each layer containing stalled jobs, rather than
+sending every matching UUID through cron mail. Run a manual read-only check
+for a service with the installed helper:
 
 ```sh
-sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
-  /var/lib/pywps/recover-stalled-jobs.py \
-  --config /etc/pywps/SERVICE_NAME.cfg cleanup
+sudo /var/lib/pywps/monitor SERVICE_NAME
+```
+
+Clean only stalled XML documents with:
+
+```sh
+sudo /var/lib/pywps/recover-xml SERVICE_NAME
+```
+
+Clean both the XML and database layers explicitly with:
+
+```sh
+sudo /var/lib/pywps/recover-all SERVICE_NAME
 ```
 
 Cleanup atomically changes stalled XML documents to `ProcessFailed`. In the
@@ -319,13 +334,9 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
-  /var/lib/pywps/recover-stalled-jobs.py \
-  --config /etc/pywps/SERVICE_NAME.cfg monitor --layer xml
-sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
-  /var/lib/pywps/recover-stalled-jobs.py \
-  --config /etc/pywps/SERVICE_NAME.cfg cleanup \
-  --layer database --stale-after-hours 12
+sudo /var/lib/pywps/monitor SERVICE_NAME --layer xml
+sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12
+sudo /var/lib/pywps/recover-all SERVICE_NAME --stale-after-hours 12
 ```
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.
@@ -349,9 +360,15 @@ for an example.
 > `conda_env_use_spec` and `conda_env_spec_file` apply to all configured WPS
 > services.
 
-Additional runtime packages installed with pip are configured through
-`wps_pip_packages`. The defaults provide Gunicorn and the packages used by the
-Birdhouse services; small test deployments can override the list.
+Additional runtime packages are installed from `wps_conda_channel` through
+`wps_conda_packages`, using `--freeze-installed` to minimize changes to the
+freshly created application environment. The defaults provide Gunicorn,
+gevent, a Conda-linked PostgreSQL driver, and the packages used by Birdhouse
+services. Small test deployments can override the list.
+
+`wps_pip_packages` remains available for packages which are not published on
+the configured Conda channel, but is empty by default. Pip is still used to
+install the checked-out WPS application itself.
 
 ### Use the Slurm scheduler
 

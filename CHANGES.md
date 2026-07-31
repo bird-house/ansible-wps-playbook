@@ -17,6 +17,10 @@ Changes:
 - retry transient Ansible Galaxy dependency download failures
 - make multi-service Nginx caching safe and validate configuration before restart
 - make the pinned Slurm DRMAA integration explicit and verifiable
+- install shared service runtime packages through Conda instead of binary pip
+  wheels
+- add short service-aware helpers for monitoring, XML recovery, and full
+  stalled-job recovery
 - remove obsolete deployment debug output and unreferenced helper artifacts
 
 ## 0.8.0 (2026-07-28)
