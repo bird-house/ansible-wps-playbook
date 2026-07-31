@@ -175,7 +175,6 @@ wps_services: []
   #   repo: https://github.com/bird-house/emu.git
   #   version: master
   #   hostname: "{{ server_name }}"
-  #   output_hostname: "{{ server_name }}"
   #   port: 5000
   #   maxsingleinputsize: 200mb
   #   maxrequestsize: 200mb
