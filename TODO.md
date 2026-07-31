@@ -34,6 +34,36 @@ deployment.
 - Replace roles individually, document variable migrations, and require
   AlmaLinux convergence plus production smoke tests before release.
 
+### Patch release: stalled-job command polish
+
+- Smooth and consistently document the installed command names
+  (`monitor`, `recover-xml`, and `recover-all`), the underlying script name,
+  and the distinction between monitoring and cleanup. Preserve compatibility
+  with the 0.9.0 commands when names are adjusted.
+- Align the command-line arguments and `[stalled_jobs]` configuration names for
+  layers, age thresholds, cleanup limits, summaries, and database status
+  counts. Define one clear precedence order for configured defaults, helper
+  defaults, and explicit command-line overrides, backed by parsing and rendered
+  configuration tests.
+- Add a report-only Nginx access-log discovery layer for clients repeatedly
+  polling a UUID status document that returns `404`. Make the log path, minimum
+  request count, observation window, and request age configurable, and account
+  for rotated logs without counting a request twice.
+- Before recovering a status document discovered from access logs, validate the
+  UUID and service path, confirm the XML file is still absent immediately before
+  creation, and avoid replacing any document created concurrently. Investigate
+  whether the PyWPS database can provide additional evidence that the request
+  is no longer active without requiring a schema change.
+- Add an explicit cleanup mode for confirmed missing status documents. Write a
+  WPS 1.0 `ProcessFailed` response atomically, with a UTC creation time, useful
+  failure notice, correct ownership and permissions, and enough response
+  metadata for OWSLib clients to stop polling. Cover the generated document
+  with XML round-trip tests and record every discovery and recovery in the
+  existing stalled-job log.
+- Bound access-log recovery with the existing age and limit concepts, deploy it
+  in monitoring mode first, and keep it independent of the XML, database, and
+  future Slurm layers so one failure does not block the others.
+
 ### Stalled-job follow-up
 
 - Move the playbook-added runtime Conda packages into the application Conda
