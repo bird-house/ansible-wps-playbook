@@ -259,9 +259,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "--layer",
             "all",
             "--show-summaries",
+            "--status-counts",
         ])
         self.assertEqual(all_layers.layers, ["xml", "database"])
         self.assertTrue(all_layers.show_summaries)
+        self.assertTrue(all_layers.status_counts)
 
         hours_alias = MODULE.parse_args([
             "--config",
@@ -354,9 +356,41 @@ class RecoverStalledJobsTests(unittest.TestCase):
         warning = MODULE.logging.LogRecord(
             "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
         )
+        database_status = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "database_status total=5", (), None
+        )
         self.assertTrue(handler.filter(summary))
+        self.assertTrue(handler.filter(database_status))
         self.assertFalse(handler.filter(finding))
         self.assertTrue(handler.filter(warning))
+
+    def test_database_status_summary_counts_final_and_nonfinal_rows(self):
+        statuses = argparse.Namespace(
+            ACCEPTED=0,
+            STARTED=1,
+            PAUSED=2,
+            SUCCEEDED=3,
+            FAILED=4,
+        )
+        summary = MODULE.summarize_database_statuses(
+            [(None, 2), (0, 3), (1, 5), (2, 7), (3, 11), (4, 13), (99, 17)],
+            statuses,
+        )
+        self.assertEqual(
+            summary,
+            {
+                "accepted": 3,
+                "started": 5,
+                "paused": 7,
+                "succeeded": 11,
+                "failed": 13,
+                "null": 2,
+                "total": 58,
+                "final": 24,
+                "nonfinal": 34,
+                "other": 17,
+            },
+        )
 
     def test_database_timestamp_uses_last_update_then_start_time(self):
         start = datetime(2026, 7, 30, 8, 0)

@@ -40,6 +40,7 @@ class Settings:
     log_file: Path | None
     show_summaries: bool = False
     limit: int | None = None
+    status_counts: bool = False
 
 
 @dataclass
@@ -56,7 +57,7 @@ class SummaryConsoleFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return record.levelno >= logging.WARNING or record.getMessage().startswith(
-            "summary "
+            ("summary ", "database_status ")
         )
 
 
@@ -284,6 +285,39 @@ def database_last_update(record: object) -> datetime:
     return value.astimezone(UTC)
 
 
+def summarize_database_statuses(
+    rows: Iterable[tuple[object, int]], wps_status: object
+) -> dict[str, int]:
+    counts = {status: count for status, count in rows}
+
+    def named(name: str) -> int:
+        value = getattr(wps_status, name, object())
+        return counts.get(value, 0)
+
+    known_values = {
+        getattr(wps_status, name)
+        for name in ("ACCEPTED", "STARTED", "PAUSED", "SUCCEEDED", "FAILED")
+        if hasattr(wps_status, name)
+    }
+    result = {
+        "accepted": named("ACCEPTED"),
+        "started": named("STARTED"),
+        "paused": named("PAUSED"),
+        "succeeded": named("SUCCEEDED"),
+        "failed": named("FAILED"),
+        "null": counts.get(None, 0),
+    }
+    result["total"] = sum(counts.values())
+    result["final"] = result["succeeded"] + result["failed"]
+    result["nonfinal"] = result["total"] - result["final"]
+    result["other"] = sum(
+        count
+        for status, count in counts.items()
+        if status is not None and status not in known_values
+    )
+    return result
+
+
 def run_database_layer(
     settings: Settings,
     now: datetime,
@@ -314,6 +348,30 @@ def run_database_layer(
         )
     session = sessionmaker(bind=engine)()
     try:
+        if settings.status_counts:
+            status_counts = summarize_database_statuses(
+                session.query(
+                    dblog.ProcessInstance.status,
+                    func.count(),
+                )
+                .group_by(dblog.ProcessInstance.status)
+                .all(),
+                WPS_STATUS,
+            )
+            logger.info(
+                "database_status total=%d final=%d nonfinal=%d succeeded=%d "
+                "failed=%d accepted=%d started=%d paused=%d null=%d other=%d",
+                status_counts["total"],
+                status_counts["final"],
+                status_counts["nonfinal"],
+                status_counts["succeeded"],
+                status_counts["failed"],
+                status_counts["accepted"],
+                status_counts["started"],
+                status_counts["paused"],
+                status_counts["null"],
+                status_counts["other"],
+            )
         query = session.query(dblog.ProcessInstance).filter(
             or_(
                 dblog.ProcessInstance.status.is_(None),
@@ -427,6 +485,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="write every layer summary to the console",
     )
     parser.add_argument(
+        "--status-counts",
+        action="store_true",
+        help="show complete database status counts; intended for manual monitoring",
+    )
+    parser.add_argument(
         "--stale-after-hours",
         "--hours",
         type=float,
@@ -476,6 +539,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("--stale-after-hours/--hours must be greater than zero")
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
+    if args.status_counts and args.mode != "monitor":
+        parser.error("--status-counts is only available in monitor mode")
     return Settings(
         mode=args.mode,
         layers=list(dict.fromkeys(layers)),
@@ -486,6 +551,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         log_file=args.log_file,
         show_summaries=args.show_summaries,
         limit=limit,
+        status_counts=args.status_counts,
     )
 
 

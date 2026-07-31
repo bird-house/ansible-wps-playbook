@@ -159,7 +159,7 @@
             'script_options=(--layer all)'
             in test_stalled_jobs_helper
           - >-
-            'script_options=(--layer all --show-summaries)'
+            'script_options=(--layer all --show-summaries --status-counts)'
             in test_stalled_jobs_helper
           - >-
             'exec "$python" "$recovery_script"'
