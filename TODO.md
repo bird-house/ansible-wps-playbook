@@ -45,6 +45,15 @@ deployment.
   counts. Define one clear precedence order for configured defaults, helper
   defaults, and explicit command-line overrides, backed by parsing and rendered
   configuration tests.
+- Treat database requests with `status IS NULL` as an explicit monitored state.
+  Confirm with tests that an old row with a usable start or update timestamp is
+  reported as stalled and recovered as failed, and keep the complete database
+  status summary's `null` count visible.
+- Define a conservative fallback for database requests that have neither a
+  status nor a usable start/update timestamp, so they do not remain permanent
+  errors. Investigate access-log evidence or another existing timestamp before
+  recovery; do not introduce a database schema change or mark an undated row
+  failed without a reliable minimum age signal.
 - Add a report-only Nginx access-log discovery layer for clients repeatedly
   polling a UUID status document that returns `404`. Make the log path, minimum
   request count, observation window, and request age configurable, and account
