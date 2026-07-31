@@ -5,14 +5,7 @@ etc/custom*.yml
 # external roles from ansible-galaxy
 roles/andrewrothstein.*
 roles/geerlingguy.*
-roles/ANXS.*
-roles/anxs.*
-roles/ansible-role-supervisor
-roles/jdauphant.ssl-certs
-roles/nginxinc.nginx
-roles/arillso.logrotate
 roles/galaxyproject.*
-roles/grycap.*
 
 # ansible collections
 ansible_collections/
@@ -20,8 +13,8 @@ ansible_collections/
 # ansible local cache
 .ansible/
 
-# Sphinx docs
-docs/build
+# MkDocs output
+site/
 
 # temp files
 __pycache__/
@@ -35,9 +28,6 @@ caps.xml
 
 # Shared local folder
 .local
-
-# CEDA submodule for local modifcations
-ansible-birdhouse-content
 
 # macos
 .DS_Store
