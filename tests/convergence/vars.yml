@@ -13,8 +13,10 @@ fs_enabled: false
 
 conda_env_use_spec: false
 conda_env_file: environment.yml
-wps_pip_packages:
-  - gunicorn[gevent]
+wps_conda_packages:
+  - gunicorn
+  - gevent
+wps_pip_packages: []
 
 gunicorn_workers: 1
 wps_services:

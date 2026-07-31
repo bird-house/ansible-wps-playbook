@@ -42,6 +42,12 @@
           - pywps_stalled_jobs_age_hours | int < wps_outputs_keep_hours | int
           - not pywps_stalled_jobs_enabled
           - pywps_stalled_jobs_layers == ['xml', 'database']
+          - wps_conda_channel == 'conda-forge'
+          - "'psycopg2=2.9.12' in wps_conda_packages"
+          - "'drmaa=0.7.9' in wps_conda_packages"
+          - "'gunicorn' in wps_conda_packages"
+          - "'gevent' in wps_conda_packages"
+          - wps_pip_packages == []
           - not slurm_configure_munge
 
     - name: Render primary service configuration

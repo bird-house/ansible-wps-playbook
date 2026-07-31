@@ -353,9 +353,15 @@ for an example.
 > `conda_env_use_spec` and `conda_env_spec_file` apply to all configured WPS
 > services.
 
-Additional runtime packages installed with pip are configured through
-`wps_pip_packages`. The defaults provide Gunicorn and the packages used by the
-Birdhouse services; small test deployments can override the list.
+Additional runtime packages are installed from `wps_conda_channel` through
+`wps_conda_packages`, using `--freeze-installed` to minimize changes to the
+freshly created application environment. The defaults provide Gunicorn,
+gevent, a Conda-linked PostgreSQL driver, and the packages used by Birdhouse
+services. Small test deployments can override the list.
+
+`wps_pip_packages` remains available for packages which are not published on
+the configured Conda channel, but is empty by default. Pip is still used to
+install the checked-out WPS application itself.
 
 ### Use the Slurm scheduler
 

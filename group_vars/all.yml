@@ -59,13 +59,16 @@ conda_envs_dir: "{{ conda_location }}/envs"
 conda_env_file: environment.yml
 conda_env_use_spec: false
 conda_env_spec_file: spec-list.txt
-wps_pip_packages:
-  - gunicorn[gevent]
-  - psycopg2-binary
-  - drmaa==0.7.9
+wps_conda_channel: conda-forge
+wps_conda_packages:
+  - gunicorn
+  - gevent
+  - psycopg2=2.9.12
+  - drmaa=0.7.9
   - dill
   - pytest
   - pytest-cov
+wps_pip_packages: []
 
 # supervisor
 # https://github.com/geerlingguy/ansible-role-supervisor
