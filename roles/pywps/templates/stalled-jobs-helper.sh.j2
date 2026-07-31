@@ -18,6 +18,17 @@ validate_service_name() {
     fi
 }
 
+reject_layer_options() {
+    local argument
+    for argument in "$@"; do
+        case $argument in
+            --layer | --layer=*)
+                fail "$command_name has a fixed cleanup scope; --layer is not allowed"
+                ;;
+        esac
+    done
+}
+
 main() {
     local command_name=${0##*/}
     local mode
@@ -45,6 +56,10 @@ main() {
 
     local app=$1
     shift
+
+    if [[ $mode == cleanup ]]; then
+        reject_layer_options "$@"
+    fi
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"

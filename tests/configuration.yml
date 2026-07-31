@@ -163,6 +163,9 @@
           - >-
             '--config "$config_file" "$mode" "${layers[@]}" "$@"'
             in test_stalled_jobs_helper
+          - >-
+            '$command_name has a fixed cleanup scope; --layer is not allowed'
+            in test_stalled_jobs_helper
           - "'upstream alpha' in test_nginx_config"
           - "'proxy_cache_path /var/lib/pywps/cache/alpha' in test_nginx_config"
           - "'keys_zone=pywps_alpha:10m' in test_nginx_config"
