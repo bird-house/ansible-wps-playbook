@@ -56,7 +56,6 @@ http_log_path = {{ wps_http_log_dir | default('/var/log/nginx') }}
 layers = {{ pywps_stalled_jobs_layers | join(',') }}
 stale_after_hours = {{ pywps_stalled_jobs_age_hours }}
 lock_file = /run/lock/pywps-stalled-jobs-{{ item.name }}.lock
-log_file = {{ pywps_stalled_jobs_log_dir }}/stalled-jobs-{{ item.name }}.log
 
 {% if item.extra_config is defined %}
 {{ item.extra_config }}

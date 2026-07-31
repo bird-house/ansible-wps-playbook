@@ -368,6 +368,13 @@ def optional_path(value: str | None) -> Path | None:
     return Path(value) if value else None
 
 
+def stalled_jobs_log_file(config: configparser.ConfigParser) -> Path | None:
+    pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
+    if pywps_log_file is None:
+        return None
+    return pywps_log_file.with_name(f"stalled-jobs-{pywps_log_file.name}")
+
+
 def parse_args(argv: list[str] | None = None) -> Settings:
     pre_parser = argparse.ArgumentParser(add_help=False)
     pre_parser.add_argument("--config", type=Path)
@@ -413,7 +420,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--log-file",
         type=Path,
-        default=optional_path(stalled_config.get("log_file")),
+        default=stalled_jobs_log_file(config),
     )
     args = parser.parse_args(argv)
     layers = args.layer or configured_layers

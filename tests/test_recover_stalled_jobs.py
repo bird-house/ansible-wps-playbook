@@ -204,6 +204,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
         config.write_text(
             "[server]\n"
             f"outputpath = {self.outputs}\n"
+            "[logging]\n"
+            f"file = {self.root / 'logs' / 'alpha.log'}\n"
             "[stalled_jobs]\n"
             "layers = xml, database\n"
             "stale_after_hours = 6\n"
@@ -215,6 +217,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.stale_after_hours, 6)
         self.assertEqual(settings.output_dir, self.outputs)
         self.assertEqual(settings.pywps_config, config)
+        self.assertEqual(
+            settings.log_file,
+            self.root / "logs" / "stalled-jobs-alpha.log",
+        )
 
         overridden = MODULE.parse_args([
             "--config",

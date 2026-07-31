@@ -142,7 +142,6 @@ pywps_stalled_jobs_age_hours: 6
 pywps_stalled_jobs_layers:
   - xml
   - database
-pywps_stalled_jobs_log_dir: /var/log/pywps
 
 # selinux
 # https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html

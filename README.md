@@ -301,6 +301,7 @@ the deployment host should therefore keep its clock and timezone consistent.
 
 Monitoring never changes state. After reviewing
 `/var/log/pywps/stalled-jobs-SERVICE_NAME.log`, clean both layers manually.
+This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard rotates this log together with
 the other PyWPS logs:
 
