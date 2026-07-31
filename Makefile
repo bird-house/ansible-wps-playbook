@@ -15,6 +15,7 @@ help:
 	@echo "  check       to run an Ansible syntax check."
 	@echo "  config-check"
 	@echo "              to validate defaults and rendered configuration."
+	@echo "  script-test to test standalone maintenance scripts."
 	@echo "  convergence to deploy the tiny test service in AlmaLinux 9 with Docker."
 	@echo "  test        to install dependencies and run all local checks."
 	@echo "  clean       to remove *all* files that are not controlled by 'git'. WARNING: use it *only* if you know what you do!"
@@ -51,8 +52,12 @@ lint:
 	ansible-lint playbook.yml tests/configuration.yml roles/common roles/pywps roles/roocs roles/slurm roles/supervisor
 	bash -n scripts/install-ansible-dependencies.sh tests/convergence/run.sh
 
+.PHONY: script-test
+script-test:
+	python3 -m unittest discover -s tests -p 'test_*.py'
+
 .PHONY: test
-test: roles lint check config-check
+test: roles lint check config-check script-test
 
 .PHONY: config-check
 config-check:

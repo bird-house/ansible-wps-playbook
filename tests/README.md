@@ -7,7 +7,8 @@ make test
 ```
 
 These checks lint the maintained Ansible content, validate playbook syntax,
-and test defaults and rendered configuration without changing the host.
+test defaults and rendered configuration without changing the host, and run
+fixture-based tests for the standalone stalled-job recovery script.
 
 With Docker running, execute the same minimal convergence test used by GitHub:
 

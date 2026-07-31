@@ -131,6 +131,17 @@ cron_mailto: root
 cron_user: root
 pywps_restart_enabled: true
 pywps_restart_schedule: daily
+pywps_stalled_jobs_enabled: false
+pywps_stalled_jobs_schedule:
+  minute: "15"
+  hour: "*"
+  day: "*"
+  month: "*"
+  weekday: "*"
+pywps_stalled_jobs_age_hours: 6
+pywps_stalled_jobs_layers:
+  - xml
+  - database
 
 # selinux
 # https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html

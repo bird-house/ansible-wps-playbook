@@ -36,6 +36,12 @@
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
           - pywps_restart_schedule in ['hourly', 'daily']
+          - pywps_stalled_jobs_schedule | type_debug == 'dict'
+          - pywps_stalled_jobs_schedule.hour == '*'
+          - pywps_stalled_jobs_age_hours | int > 0
+          - pywps_stalled_jobs_age_hours | int < wps_outputs_keep_hours | int
+          - not pywps_stalled_jobs_enabled
+          - pywps_stalled_jobs_layers == ['xml', 'database']
           - not slurm_configure_munge
 
     - name: Render primary service configuration
@@ -143,6 +149,9 @@
           - "'listen                 5001 ssl http2 default_server;' in test_nginx_config"
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location /health' in test_nginx_config"
+          - "'[stalled_jobs]' in test_pywps_config"
+          - "'layers = xml,database' in test_pywps_config"
+          - "'stale_after_hours = 6' in test_pywps_config"
 
     - name: Check rendered alternate configuration
       ansible.builtin.assert:

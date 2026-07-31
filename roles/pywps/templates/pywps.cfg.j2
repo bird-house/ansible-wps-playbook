@@ -52,6 +52,11 @@ database = {{ item.database | default(wps_database) }}
 format = %(asctime)s] [%(levelname)s] %(message)s
 http_log_path = {{ wps_http_log_dir | default('/var/log/nginx') }}
 
+[stalled_jobs]
+layers = {{ pywps_stalled_jobs_layers | join(',') }}
+stale_after_hours = {{ pywps_stalled_jobs_age_hours }}
+lock_file = /run/lock/pywps-stalled-jobs-{{ item.name }}.lock
+
 {% if item.extra_config is defined %}
 {{ item.extra_config }}
 {% endif %}

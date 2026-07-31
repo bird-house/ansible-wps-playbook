@@ -4,6 +4,8 @@
 
 Changes:
 
+- add independent monitoring and cleanup layers for stalled PyWPS XML and
+  database records
 - raise maintained Ansible content to the `ansible-lint` safety profile
 - add rendered-configuration tests and minimal AlmaLinux 9 CI convergence
 - drop support for Red Hat family releases older than 9
