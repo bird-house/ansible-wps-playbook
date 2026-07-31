@@ -15,11 +15,13 @@ pywps_restart_enabled: true
 pywps_restart_schedule: daily
 # First deploy stalled-job checks in report-only mode and review their log.
 pywps_stalled_jobs_enabled: true
-pywps_stalled_jobs_schedule: hourly
-pywps_stalled_jobs_age_hours: 24
-pywps_stalled_jobs_recover: false
-pywps_stalled_jobs_terminate: false
-pywps_stalled_jobs_cleanup: false
+pywps_stalled_jobs_schedule:
+  minute: "15"
+  hour: "*"
+pywps_stalled_jobs_age_hours: 6
+pywps_stalled_jobs_layers:
+  - xml
+  - database
 
 # Use a separately managed PostgreSQL database.
 db_install_postgresql: false

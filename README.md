@@ -268,50 +268,66 @@ remains available and can still be run manually:
 /var/lib/pywps/restart-pywps.sh --force SERVICE_NAME
 ```
 
-### Report and recover stalled jobs
+### Monitor and clean stalled jobs
 
-The playbook installs `recover-stalled-jobs.py` in `cron_script_dir`. Its
-scheduled entry is disabled by default. Start with hourly report-only checks:
+The playbook installs the stalled-job recovery script once. Its scheduled
+entries are disabled by default and always run in read-only monitoring mode:
 
 ```yaml
 cron_enabled: true
 pywps_stalled_jobs_enabled: true
-pywps_stalled_jobs_schedule: hourly  # hourly or daily
-pywps_stalled_jobs_age_hours: 24
-pywps_stalled_jobs_recover: false
+pywps_stalled_jobs_schedule:
+  minute: "15"
+  hour: "*"
+pywps_stalled_jobs_age_hours: 6
+pywps_stalled_jobs_layers:
+  - xml
+  - database
 ```
 
-The script considers only UUID-named status XML files that are older than the
-threshold and still contain `ProcessAccepted`, `ProcessStarted`, or
-`ProcessPaused`. It logs terminal and recent files as skipped. Recovery
-requires a `ProcessStarted` or `ProcessPaused` status plus a historical
-UUID-to-PID entry in the service log; accepted jobs are only reported because
-they may still be in PyWPS's queue. When Slurm is enabled, the script also
-checks `squeue` for a job ID or job metadata containing the WPS UUID. A live
-control prevents recovery unless termination is explicitly enabled.
+The default runs hourly at 15 minutes past the hour. Standard cron fields
+`minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
+layer and scheduled output cleanup are enabled, the stale threshold must be
+shorter than `wps_outputs_keep_hours`; otherwise status files could be removed
+before the monitor sees them.
 
-Review `/var/log/pywps/stalled-jobs-SERVICE_NAME.log` before enabling changes:
+The XML and database layers run independently. The XML layer examines both
+`Status@creationTime` and the file modification time, using the newer value as
+the last update. Only `ProcessSucceeded` and `ProcessFailed` are final; every
+other state older than the threshold is stalled. The database layer uses the
+last database status time, falling back to the request start time. Timestamps
+with `Z`, and database timestamps without an offset, are interpreted as UTC;
+the deployment host should therefore keep its clock and timezone consistent.
 
-```yaml
-pywps_stalled_jobs_recover: true
-pywps_stalled_jobs_terminate: false
-pywps_stalled_jobs_cleanup: false
-```
-
-Recovery atomically changes a confirmed stale status to `ProcessFailed`, so
-clients stop polling. `pywps_stalled_jobs_terminate` allows the script to stop
-a PID or Slurm job confidently associated through the service log, and
-`pywps_stalled_jobs_cleanup` removes only `pywps_process_*` directories
-associated through the status XML. Both options require recovery mode and
-remain off by default. Run a report manually with:
+Monitoring never changes state. After reviewing
+`/var/log/pywps/stalled-jobs-SERVICE_NAME.log`, clean both layers manually.
+The existing `/etc/logrotate.d/pywps` wildcard rotates this log together with
+the other PyWPS logs:
 
 ```sh
-/var/lib/pywps/recover-stalled-jobs.py \
-  --output-dir /var/lib/pywps/outputs/SERVICE_NAME \
-  --work-dir /var/lib/pywps/tmp/SERVICE_NAME \
-  --service-log /var/log/pywps/SERVICE_NAME.log \
-  --age-hours 24 --user wps
+sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
+  /var/lib/pywps/recover-stalled-jobs.py \
+  --config /etc/pywps/SERVICE_NAME.cfg cleanup
 ```
+
+Cleanup atomically changes stalled XML documents to `ProcessFailed`. In the
+database it marks the existing request failed and removes a matching stored
+queue entry; it does not change the database schema. The generated
+`[stalled_jobs]` section lives in the service's existing PyWPS configuration,
+and each cron entry uses that service's Conda environment and configuration.
+Command-line options override those defaults, for example:
+
+```sh
+sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
+  /var/lib/pywps/recover-stalled-jobs.py \
+  --config /etc/pywps/SERVICE_NAME.cfg monitor --layer xml
+sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \
+  /var/lib/pywps/recover-stalled-jobs.py \
+  --config /etc/pywps/SERVICE_NAME.cfg cleanup \
+  --layer database --stale-after-hours 12
+```
+
+Slurm inspection and cleanup are intentionally deferred to a later iteration.
 
 ### Use Conda to build identical environments
 
