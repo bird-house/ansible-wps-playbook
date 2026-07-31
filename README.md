@@ -314,6 +314,10 @@ for a service with the installed helper:
 sudo /var/lib/pywps/monitor SERVICE_NAME
 ```
 
+The helper explicitly checks both layers and prints their informational
+summaries to the terminal. The scheduled monitor remains quiet unless it finds
+stalled jobs or errors.
+
 Clean only stalled XML documents with:
 
 ```sh
@@ -334,10 +338,13 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME --layer xml
+sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-hours 12
 sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12
 sudo /var/lib/pywps/recover-all SERVICE_NAME --stale-after-hours 12
 ```
+
+The underlying script also accepts `--layer all` as a shortcut for selecting
+both XML and database layers.
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.
 

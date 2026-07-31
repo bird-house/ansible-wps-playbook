@@ -25,6 +25,7 @@ UUID_RE = re.compile(
 )
 FINAL_XML_STATES = {"ProcessSucceeded", "ProcessFailed"}
 SUPPORTED_LAYERS = ("xml", "database")
+LAYER_CHOICES = (*SUPPORTED_LAYERS, "all")
 UTC = timezone.utc
 
 
@@ -37,6 +38,7 @@ class Settings:
     pywps_config: Path | None
     lock_file: Path
     log_file: Path | None
+    show_summaries: bool = False
 
 
 @dataclass
@@ -46,6 +48,15 @@ class LayerSummary:
     stalled: int = 0
     cleaned: int = 0
     errors: int = 0
+
+
+class SummaryConsoleFilter(logging.Filter):
+    """Keep console output compact while allowing informational summaries."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= logging.WARNING or record.getMessage().startswith(
+            "summary "
+        )
 
 
 @dataclass
@@ -392,8 +403,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--layer",
         action="append",
-        choices=SUPPORTED_LAYERS,
-        help="run only this layer; repeat to select more than one",
+        choices=LAYER_CHOICES,
+        help="run only this layer; repeat to select more than one; all selects both",
+    )
+    parser.add_argument(
+        "--show-summaries",
+        action="store_true",
+        help="write every layer summary to the console",
     )
     parser.add_argument(
         "--stale-after-hours",
@@ -424,11 +440,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     )
     args = parser.parse_args(argv)
     layers = args.layer or configured_layers
-    invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
+    invalid = sorted(set(layers) - set(LAYER_CHOICES))
     if invalid:
         parser.error(f"unsupported configured layers: {', '.join(invalid)}")
     if not layers:
         parser.error("at least one layer must be configured")
+    if "all" in layers:
+        layers = list(SUPPORTED_LAYERS)
     if args.stale_after_hours <= 0:
         parser.error("--stale-after-hours must be greater than zero")
     return Settings(
@@ -439,12 +457,17 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         pywps_config=args.pywps_config,
         lock_file=args.lock_file,
         log_file=args.log_file,
+        show_summaries=args.show_summaries,
     )
 
 
-def configure_logging(log_file: Path | None) -> logging.Logger:
+def configure_logging(
+    log_file: Path | None, show_summaries: bool = False
+) -> logging.Logger:
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.WARNING)
+    stream_handler.setLevel(logging.INFO if show_summaries else logging.WARNING)
+    if show_summaries:
+        stream_handler.addFilter(SummaryConsoleFilter())
     handlers: list[logging.Handler] = [stream_handler]
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -495,7 +518,7 @@ def execute_layers(
 def main(argv: list[str] | None = None) -> int:
     try:
         settings = parse_args(argv)
-        logger = configure_logging(settings.log_file)
+        logger = configure_logging(settings.log_file, settings.show_summaries)
         settings.lock_file.parent.mkdir(parents=True, exist_ok=True)
         with settings.lock_file.open("w") as lock:
             try:

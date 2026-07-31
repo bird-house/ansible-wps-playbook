@@ -23,7 +23,7 @@ reject_layer_options() {
     for argument in "$@"; do
         case $argument in
             --layer | --layer=*)
-                fail "$command_name has a fixed cleanup scope; --layer is not allowed"
+                fail "$command_name has a fixed layer scope; --layer is not allowed"
                 ;;
         esac
     done
@@ -32,19 +32,20 @@ reject_layer_options() {
 main() {
     local command_name=${0##*/}
     local mode
-    local -a layers=()
+    local -a script_options=()
 
     case $command_name in
         monitor)
             mode=monitor
+            script_options=(--layer all --show-summaries)
             ;;
         recover-xml)
             mode=cleanup
-            layers=(--layer xml)
+            script_options=(--layer xml)
             ;;
         recover-all)
             mode=cleanup
-            layers=(--layer xml --layer database)
+            script_options=(--layer all)
             ;;
         *)
             fail "Unsupported command name: $command_name"
@@ -57,9 +58,7 @@ main() {
     local app=$1
     shift
 
-    if [[ $mode == cleanup ]]; then
-        reject_layer_options "$@"
-    fi
+    reject_layer_options "$@"
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"
@@ -71,7 +70,7 @@ main() {
         || fail "Recovery script not found or not executable: $recovery_script"
 
     exec "$python" "$recovery_script" \
-        --config "$config_file" "$mode" "${layers[@]}" "$@"
+        --config "$config_file" "$mode" "${script_options[@]}" "$@"
 }
 
 main "$@"

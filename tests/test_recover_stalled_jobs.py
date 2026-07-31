@@ -234,6 +234,17 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_hours, 12)
 
+        all_layers = MODULE.parse_args([
+            "--config",
+            str(config),
+            "monitor",
+            "--layer",
+            "all",
+            "--show-summaries",
+        ])
+        self.assertEqual(all_layers.layers, ["xml", "database"])
+        self.assertTrue(all_layers.show_summaries)
+
     def test_layers_run_independently(self):
         def broken(*_args):
             raise RuntimeError("broken XML layer")
@@ -295,6 +306,26 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(stream_handler.level, MODULE.logging.WARNING)
         self.assertEqual(file_handler.level, MODULE.logging.INFO)
         file_handler.close()
+
+    def test_show_summaries_filters_non_summary_info_from_stderr(self):
+        with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
+            MODULE.configure_logging(None, show_summaries=True)
+
+        handlers = basic_config.call_args.kwargs["handlers"]
+        handler = handlers[0]
+        self.assertEqual(handler.level, MODULE.logging.INFO)
+        summary = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "summary layer=xml", (), None
+        )
+        finding = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "layer=xml job=1", (), None
+        )
+        warning = MODULE.logging.LogRecord(
+            "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
+        )
+        self.assertTrue(handler.filter(summary))
+        self.assertFalse(handler.filter(finding))
+        self.assertTrue(handler.filter(warning))
 
     def test_database_timestamp_uses_last_update_then_start_time(self):
         start = datetime(2026, 7, 30, 8, 0)
