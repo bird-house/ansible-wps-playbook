@@ -34,24 +34,7 @@ deployment.
 - Replace roles individually, document variable migrations, and require
   AlmaLinux convergence plus production smoke tests before release.
 
-### Next release
-
-- Validate the stalled-job recovery script in report-only mode on a test
-  deployment, compare its XML and database findings, then exercise each
-  cleanup layer independently against a deliberately stalled job.
-- Verify timestamp handling on a production host, including the relationship
-  between UTC `Status@creationTime`, file modification time, and database
-  timestamps.
-- Confirm the monitoring schedule and stale threshold leave enough time before
-  the configured status-file retention removes old XML documents.
-- Limit additional changes to lightweight documentation, tests, lint fixes,
-  and small cleanups that do not alter dependencies or deployment behaviour.
-- Defer external-role replacements, Slurm modernization, configuration
-  hardening, and architectural refactoring until after the release.
-- Run the full AlmaLinux deployment and scheduler-mode PyWPS smoke tests,
-  update the changelog, and prepare the release.
-
-#### Stalled-job follow-up
+### Stalled-job follow-up
 
 - Move the playbook-added runtime Conda packages into the application Conda
   specifications during the longer PyWPS environment update. In particular,

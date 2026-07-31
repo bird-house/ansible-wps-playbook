@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.0 (2026-07-31)
+
 Changes:
 
 - add independent monitoring and cleanup layers for stalled PyWPS XML and
