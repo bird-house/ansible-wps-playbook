@@ -311,13 +311,19 @@ sending every matching UUID through cron mail. Run a manual read-only check
 for a service with the installed helper:
 
 ```sh
-sudo /var/lib/pywps/recover SERVICE_NAME
+sudo /var/lib/pywps/monitor SERVICE_NAME
 ```
 
-Clean both layers manually by selecting cleanup explicitly:
+Clean only stalled XML documents with:
 
 ```sh
-sudo /var/lib/pywps/recover SERVICE_NAME cleanup
+sudo /var/lib/pywps/recover-xml SERVICE_NAME
+```
+
+Clean both the XML and database layers explicitly with:
+
+```sh
+sudo /var/lib/pywps/recover-all SERVICE_NAME
 ```
 
 Cleanup atomically changes stalled XML documents to `ProcessFailed`. In the
@@ -328,9 +334,9 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/recover SERVICE_NAME --layer xml
-sudo /var/lib/pywps/recover SERVICE_NAME cleanup \
-  --layer database --stale-after-hours 12
+sudo /var/lib/pywps/monitor SERVICE_NAME --layer xml
+sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12
+sudo /var/lib/pywps/recover-all SERVICE_NAME --stale-after-hours 12
 ```
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.

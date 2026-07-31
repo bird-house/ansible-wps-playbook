@@ -70,9 +70,10 @@
         test_smoke_script: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/smoke.sh.j2') }}
-        test_recover_script: >-
+        test_stalled_jobs_helper: >-
           {{ lookup('ansible.builtin.template',
-                    playbook_dir + '/../roles/pywps/templates/recover.sh.j2') }}
+                    playbook_dir
+                    + '/../roles/pywps/templates/stalled-jobs-helper.sh.j2') }}
         test_nginx_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
@@ -149,14 +150,19 @@
           - "'set -euo pipefail' in test_smoke_script"
           - "'local app_dir=\"/usr/local/src/$app\"' in test_smoke_script"
           - "'exec \"$pytest\" -v -k smoke \"$smoke_tests\"' in test_smoke_script"
-          - "'local mode=monitor' in test_recover_script"
+          - "'monitor)' in test_stalled_jobs_helper"
+          - "'recover-xml)' in test_stalled_jobs_helper"
+          - "'layers=(--layer xml)' in test_stalled_jobs_helper"
+          - "'recover-all)' in test_stalled_jobs_helper"
           - >-
-            'Usage: recover SERVICE_NAME [monitor|cleanup] [OPTIONS]'
-            in test_recover_script
+            'layers=(--layer xml --layer database)'
+            in test_stalled_jobs_helper
           - >-
             'exec "$python" "$recovery_script"'
-            in test_recover_script
-          - "'--config \"$config_file\" \"$mode\" \"$@\"' in test_recover_script"
+            in test_stalled_jobs_helper
+          - >-
+            '--config "$config_file" "$mode" "${layers[@]}" "$@"'
+            in test_stalled_jobs_helper
           - "'upstream alpha' in test_nginx_config"
           - "'proxy_cache_path /var/lib/pywps/cache/alpha' in test_nginx_config"
           - "'keys_zone=pywps_alpha:10m' in test_nginx_config"
