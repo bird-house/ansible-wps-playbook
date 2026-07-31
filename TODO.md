@@ -53,6 +53,11 @@ deployment.
 
 #### Stalled-job follow-up
 
+- Move the PostgreSQL driver from the playbook's pip-installed
+  `psycopg2-binary` wheel into the application Conda specifications. The wheel's
+  bundled native libraries segfaulted on a fresh Python 3.13 connection while
+  the Conda-forge `psycopg2` build worked; coordinate this with the longer
+  PyWPS environment update.
 - Add a Slurm monitoring and cleanup layer after a reliable mapping between a
   WPS request UUID and its Slurm job ID has been identified.
 - Consider temporary-work-directory cleanup only after it can be associated

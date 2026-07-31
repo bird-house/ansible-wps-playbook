@@ -303,7 +303,11 @@ Monitoring never changes state. After reviewing
 `/var/log/pywps/stalled-jobs-SERVICE_NAME.log`, clean both layers manually.
 This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard rotates this log together with
-the other PyWPS logs:
+the other PyWPS logs.
+
+Individual stalled findings are written to the log file. Scheduled runs emit
+a single warning summary for each layer containing stalled jobs, rather than
+sending every matching UUID through cron mail. Clean both layers manually with:
 
 ```sh
 sudo /usr/local/anaconda/envs/SERVICE_NAME/bin/python \

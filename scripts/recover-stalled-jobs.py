@@ -229,10 +229,10 @@ def run_xml_layer(
         try:
             document, tree = read_xml_status(path)
             if document.state in FINAL_XML_STATES:
-                logger.info("layer=xml job=%s state=%s decision=final", document.job_uuid, document.state)
+                logger.debug("layer=xml job=%s state=%s decision=final", document.job_uuid, document.state)
                 continue
             if not is_stalled(document.last_update, now, threshold):
-                logger.info(
+                logger.debug(
                     "layer=xml job=%s state=%s decision=recent creation=%s mtime=%s",
                     document.job_uuid,
                     document.state,
@@ -241,7 +241,7 @@ def run_xml_layer(
                 )
                 continue
             summary.stalled += 1
-            logger.warning(
+            logger.info(
                 "layer=xml job=%s state=%s decision=stalled last_update=%s",
                 document.job_uuid,
                 document.state,
@@ -313,7 +313,7 @@ def run_database_layer(
             try:
                 last_update = database_last_update(record)
                 if not is_stalled(last_update, now, threshold):
-                    logger.info(
+                    logger.debug(
                         "layer=database job=%s status=%s decision=recent last_update=%s",
                         record.uuid,
                         record.status,
@@ -321,7 +321,7 @@ def run_database_layer(
                     )
                     continue
                 summary.stalled += 1
-                logger.warning(
+                logger.info(
                     "layer=database job=%s status=%s decision=stalled last_update=%s",
                     record.uuid,
                     record.status,
@@ -474,7 +474,13 @@ def execute_layers(
             logger.exception("layer=%s decision=error reason=%s", layer, error)
             summary = LayerSummary(layer, errors=1)
         summaries.append(summary)
-        logger.info(
+        if summary.errors:
+            log_summary = logger.error
+        elif summary.stalled:
+            log_summary = logger.warning
+        else:
+            log_summary = logger.info
+        log_summary(
             "summary layer=%s checked=%d stalled=%d cleaned=%d errors=%d mode=%s",
             summary.name,
             summary.checked,
