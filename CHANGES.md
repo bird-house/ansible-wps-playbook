@@ -24,6 +24,7 @@ Changes:
 - add an `all` layer shortcut and show every summary in the manual monitor
 - add `--hours` as a concise stalled-job threshold option
 - add bounded, oldest-first stalled-job recovery batches with `--limit`
+- report complete database status counts during manual monitoring
 - remove obsolete deployment debug output and unreferenced helper artifacts
 
 ## 0.8.0 (2026-07-28)

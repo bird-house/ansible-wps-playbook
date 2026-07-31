@@ -37,7 +37,7 @@ main() {
     case $command_name in
         monitor)
             mode=monitor
-            script_options=(--layer all --show-summaries)
+            script_options=(--layer all --show-summaries --status-counts)
             ;;
         recover-xml)
             mode=cleanup

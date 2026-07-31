@@ -316,8 +316,11 @@ sudo /var/lib/pywps/monitor SERVICE_NAME
 ```
 
 The helper explicitly checks both layers and prints their informational
-summaries to the terminal. The scheduled monitor remains quiet unless it finds
-stalled jobs or errors.
+summaries to the terminal. It also prints one complete database status line
+with total, final, non-final, succeeded, failed, accepted, started, paused,
+null, and unknown-status counts. These counts cover the complete request table
+and are not affected by `--limit`. The scheduled monitor omits this full-table
+aggregate and remains quiet unless it finds stalled jobs or errors.
 
 Clean only stalled XML documents with:
 
@@ -353,7 +356,8 @@ batches bounded even when years of unfinished requests have accumulated.
 Cleanup defaults to `pywps_stalled_jobs_cleanup_limit`, which is 100. Monitoring
 remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
-configured cleanup default.
+configured cleanup default. The underlying `--status-counts` option enables the
+complete database aggregate used by the manual monitor helper.
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.
 
