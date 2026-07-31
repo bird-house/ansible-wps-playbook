@@ -268,6 +268,51 @@ remains available and can still be run manually:
 /var/lib/pywps/restart-pywps.sh --force SERVICE_NAME
 ```
 
+### Report and recover stalled jobs
+
+The playbook installs `recover-stalled-jobs.py` in `cron_script_dir`. Its
+scheduled entry is disabled by default. Start with hourly report-only checks:
+
+```yaml
+cron_enabled: true
+pywps_stalled_jobs_enabled: true
+pywps_stalled_jobs_schedule: hourly  # hourly or daily
+pywps_stalled_jobs_age_hours: 24
+pywps_stalled_jobs_recover: false
+```
+
+The script considers only UUID-named status XML files that are older than the
+threshold and still contain `ProcessAccepted`, `ProcessStarted`, or
+`ProcessPaused`. It logs terminal and recent files as skipped. Recovery
+requires a `ProcessStarted` or `ProcessPaused` status plus a historical
+UUID-to-PID entry in the service log; accepted jobs are only reported because
+they may still be in PyWPS's queue. When Slurm is enabled, the script also
+checks `squeue` for a job ID or job metadata containing the WPS UUID. A live
+control prevents recovery unless termination is explicitly enabled.
+
+Review `/var/log/pywps/stalled-jobs-SERVICE_NAME.log` before enabling changes:
+
+```yaml
+pywps_stalled_jobs_recover: true
+pywps_stalled_jobs_terminate: false
+pywps_stalled_jobs_cleanup: false
+```
+
+Recovery atomically changes a confirmed stale status to `ProcessFailed`, so
+clients stop polling. `pywps_stalled_jobs_terminate` allows the script to stop
+a PID or Slurm job confidently associated through the service log, and
+`pywps_stalled_jobs_cleanup` removes only `pywps_process_*` directories
+associated through the status XML. Both options require recovery mode and
+remain off by default. Run a report manually with:
+
+```sh
+/var/lib/pywps/recover-stalled-jobs.py \
+  --output-dir /var/lib/pywps/outputs/SERVICE_NAME \
+  --work-dir /var/lib/pywps/tmp/SERVICE_NAME \
+  --service-log /var/log/pywps/SERVICE_NAME.log \
+  --age-hours 24 --user wps
+```
+
 ### Use Conda to build identical environments
 
 By default, each WPS repository must contain the configured

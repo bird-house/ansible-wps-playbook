@@ -52,6 +52,49 @@
     owner: root
     mode: "0755"
 
+- name: Validate stalled-job recovery settings
+  ansible.builtin.assert:
+    that:
+      - pywps_stalled_jobs_schedule in ['hourly', 'daily']
+      - pywps_stalled_jobs_age_hours | float > 0
+      - not (pywps_stalled_jobs_terminate | bool) or (pywps_stalled_jobs_recover | bool)
+      - not (pywps_stalled_jobs_cleanup | bool) or (pywps_stalled_jobs_recover | bool)
+    fail_msg: >-
+      The stalled-job schedule must be hourly or daily, age must be positive,
+      and termination or cleanup requires recovery mode.
+
+- name: Copy stalled-job recovery script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scripts/recover-stalled-jobs.py"
+    dest: "{{ cron_script_dir }}/recover-stalled-jobs.py"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Schedule stalled-job checks
+  ansible.builtin.cron:
+    name: "recover stalled pywps jobs for {{ item.name }}"
+    special_time: "{{ pywps_stalled_jobs_schedule }}"
+    user: root
+    job: >-
+      {{ cron_script_dir }}/recover-stalled-jobs.py
+      --output-dir {{ wps_basedir }}/outputs/{{ item.name }}
+      --work-dir {{ wps_basedir }}/tmp/{{ item.name }}
+      --service-log {{ wps_log_dir }}/{{ item.name }}.log
+      --age-hours {{ pywps_stalled_jobs_age_hours }}
+      --user {{ wps_user }}
+      --lock-file /run/lock/pywps-stalled-jobs-{{ item.name }}.lock
+      --log-file {{ pywps_stalled_jobs_log_dir }}/stalled-jobs-{{ item.name }}.log
+      {{ '--slurm' if slurm_enabled | bool else '' }}
+      {{ '--recover' if pywps_stalled_jobs_recover | bool else '' }}
+      {{ '--terminate' if pywps_stalled_jobs_terminate | bool else '' }}
+      {{ '--cleanup' if pywps_stalled_jobs_cleanup | bool else '' }}
+    cron_file: ansible_pywps
+    disabled: >-
+      {{ (cron_disabled | bool) or not (pywps_stalled_jobs_enabled | bool) }}
+    state: present
+  loop: "{{ wps_services }}"
+
 - name: Validate PyWPS restart schedule
   ansible.builtin.assert:
     that:

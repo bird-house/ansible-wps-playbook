@@ -24,6 +24,7 @@ ansible_collections/
 docs/build
 
 # temp files
+__pycache__/
 *.retry
 *.log
 out.xml

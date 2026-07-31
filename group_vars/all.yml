@@ -131,6 +131,13 @@ cron_mailto: root
 cron_user: root
 pywps_restart_enabled: true
 pywps_restart_schedule: daily
+pywps_stalled_jobs_enabled: false
+pywps_stalled_jobs_schedule: hourly
+pywps_stalled_jobs_age_hours: 24
+pywps_stalled_jobs_recover: false
+pywps_stalled_jobs_terminate: false
+pywps_stalled_jobs_cleanup: false
+pywps_stalled_jobs_log_dir: /var/log/pywps
 
 # selinux
 # https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html

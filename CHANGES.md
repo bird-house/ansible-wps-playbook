@@ -4,6 +4,7 @@
 
 Changes:
 
+- add conservative report-only and opt-in recovery for stalled PyWPS jobs
 - raise maintained Ansible content to the `ansible-lint` safety profile
 - add rendered-configuration tests and minimal AlmaLinux 9 CI convergence
 - drop support for Red Hat family releases older than 9

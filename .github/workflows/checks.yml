@@ -67,3 +67,6 @@ jobs:
 
       - name: Validate defaults and rendered configuration
         run: make config-check
+
+      - name: Test standalone maintenance scripts
+        run: make script-test

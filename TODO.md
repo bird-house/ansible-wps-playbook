@@ -36,27 +36,14 @@ deployment.
 
 ### Next release
 
-- Deliver the stalled-job recovery script as the only substantial new feature.
+- Validate the stalled-job recovery script in report-only mode on a test
+  deployment, then exercise recovery against a deliberately stalled job.
 - Limit additional changes to lightweight documentation, tests, lint fixes,
   and small cleanups that do not alter dependencies or deployment behaviour.
 - Defer external-role replacements, Slurm modernization, configuration
   hardening, and architectural refactoring until after the release.
 - Run the full AlmaLinux deployment and scheduler-mode PyWPS smoke tests,
   update the changelog, and prepare the release.
-
-#### Stalled-job recovery requirements
-
-- Add a standalone Python recovery script without changing PyWPS or Slurm.
-- Define conservative, configurable criteria for identifying jobs that have
-  stopped making progress and are no longer controlled by PyWPS or Slurm.
-- Support a report-only mode before optionally terminating remaining
-  processes or Slurm jobs and cleaning their temporary resources.
-- Parse the corresponding WPS status XML, change the stalled job to a clear
-  failed state, and replace the document atomically so clients stop polling.
-- Log every decision and action, prevent overlapping runs, and retain enough
-  information to diagnose likely causes such as Lustre problems.
-- Make installation and an hourly schedule configurable, and add fixture-based
-  tests for detection, XML namespaces and updates, cleanup, and failure cases.
 
 ### Follow-up release: modernize Slurm conservatively
 
