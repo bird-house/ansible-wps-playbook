@@ -176,6 +176,9 @@ def write_failed_xml(
     for child in list(status):
         status.remove(child)
     failed = ET.SubElement(status, qualified("ProcessFailed", wps_uri))
+    # Match the WPS 1.0.0 status documents emitted by PyWPS. OWSLib accepts
+    # this mixed wps:ExceptionReport/ows:Exception structure, so recovery must
+    # not try to normalize it to a different namespace layout.
     report = ET.SubElement(failed, qualified("ExceptionReport", wps_uri))
     exception = ET.SubElement(
         report,
