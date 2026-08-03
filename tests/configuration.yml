@@ -41,7 +41,9 @@
           - pywps_stalled_jobs_age_hours | int > 0
           - pywps_stalled_jobs_cleanup_limit == 100
           - pywps_stalled_jobs_age_hours | int < wps_outputs_keep_hours | int
-          - not pywps_stalled_jobs_enabled
+          - pywps_stalled_jobs_enabled
+          - pywps_stalled_jobs_monitor_enabled
+          - not pywps_stalled_jobs_cleanup_enabled
           - pywps_stalled_jobs_layers == ['xml', 'database']
           - not pywps_missing_status_recovery_enabled
           - pywps_missing_status_recovery_schedule.minute == '*/10'
@@ -187,6 +189,9 @@
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location /health' in test_nginx_config"
           - "'[stalled_jobs]' in test_pywps_config"
+          - "'monitor_enabled = true' in test_pywps_config"
+          - "'cleanup_enabled = false' in test_pywps_config"
+          - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
           - "'cleanup_limit = 100' in test_pywps_config"

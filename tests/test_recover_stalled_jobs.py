@@ -414,6 +414,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "[logging]\n"
             f"file = {self.root / 'logs' / 'alpha.log'}\n"
             "[stalled_jobs]\n"
+            "monitor_enabled = false\n"
+            "cleanup_enabled = true\n"
+            "missing_status_recovery_enabled = true\n"
             "layers = xml, database\n"
             "stale_after_hours = 6\n"
             "cleanup_limit = 100\n"
@@ -437,6 +440,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.min_poll_count, 4)
         self.assertEqual(settings.min_poll_duration_minutes, 7)
         self.assertTrue(settings.database_guard)
+        self.assertFalse(settings.monitor_enabled)
+        self.assertTrue(settings.cleanup_enabled)
+        self.assertTrue(settings.missing_status_recovery_enabled)
         self.assertEqual(
             settings.log_file,
             self.root / "logs" / "stalled-jobs-alpha.log",
@@ -495,6 +501,25 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(summaries[0].errors, 1)
         self.assertEqual((summaries[1].checked, summaries[1].stalled), (2, 1))
+
+    def test_operation_flags_select_monitor_cleanup_and_missing_status(self):
+        settings = self.settings("monitor", ["xml", "database"])
+        settings.monitor_enabled = False
+        self.assertFalse(MODULE.operation_is_enabled(settings))
+        settings.monitor_enabled = True
+        self.assertTrue(MODULE.operation_is_enabled(settings))
+
+        settings.mode = "cleanup"
+        settings.cleanup_enabled = False
+        self.assertFalse(MODULE.operation_is_enabled(settings))
+        settings.cleanup_enabled = True
+        self.assertTrue(MODULE.operation_is_enabled(settings))
+
+        settings.layers = ["access-log"]
+        settings.missing_status_recovery_enabled = False
+        self.assertFalse(MODULE.operation_is_enabled(settings))
+        settings.missing_status_recovery_enabled = True
+        self.assertTrue(MODULE.operation_is_enabled(settings))
 
     def test_summary_severity_reflects_layer_result(self):
         cases = (

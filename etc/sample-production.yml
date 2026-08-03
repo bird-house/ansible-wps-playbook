@@ -14,7 +14,10 @@ wps_temp_keep_hours: 12
 pywps_restart_enabled: true
 pywps_restart_schedule: daily
 # First deploy stalled-job checks in report-only mode and review their log.
-pywps_stalled_jobs_enabled: true
+# Report stalled requests without changing them.
+pywps_stalled_jobs_monitor_enabled: true
+# Allow commands that change stalled requests or status documents.
+pywps_stalled_jobs_cleanup_enabled: false
 pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
@@ -23,8 +26,8 @@ pywps_stalled_jobs_cleanup_limit: 100
 pywps_stalled_jobs_layers:
   - xml
   - database
-# Recover a missing status document only after repeated recent Nginx 404s.
-pywps_missing_status_recovery_enabled: true
+# Create failure XML for repeated Nginx 404 status polling.
+pywps_missing_status_recovery_enabled: false
 pywps_missing_status_recovery_schedule:
   minute: "*/10"
   hour: "*"

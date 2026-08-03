@@ -275,7 +275,8 @@ entries are disabled by default and always run in read-only monitoring mode:
 
 ```yaml
 cron_enabled: true
-pywps_stalled_jobs_enabled: true
+pywps_stalled_jobs_monitor_enabled: true
+pywps_stalled_jobs_cleanup_enabled: false
 pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
@@ -291,6 +292,21 @@ The default runs hourly at 15 minutes past the hour. Standard cron fields
 layer and scheduled output cleanup are enabled, the stale threshold must be
 shorter than `wps_outputs_keep_hours`; otherwise status files could be removed
 before the monitor sees them.
+
+The playbook renders the operation switches into every service configuration:
+
+```ini
+[stalled_jobs]
+monitor_enabled = true
+cleanup_enabled = false
+missing_status_recovery_enabled = false
+```
+
+The cron entries are controlled globally by `cron_enabled`; when invoked, the
+script reads these per-service switches from `/etc/pywps/SERVICE.cfg`. Disabled
+operations exit successfully without inspecting or changing jobs. The older
+`pywps_stalled_jobs_enabled` Ansible variable remains a compatibility alias for
+`pywps_stalled_jobs_monitor_enabled`.
 
 The XML and database layers run independently. The XML layer examines both
 `Status@creationTime` and the file modification time, using the newer value as
@@ -365,11 +381,12 @@ Slurm inspection and cleanup are intentionally deferred to a later iteration.
 
 An independent, opt-in cron job can inspect recent Nginx access logs for WPS
 clients repeatedly polling a status URL that returns `404`. Once the same valid
-UUID has reached the configured request count and minimum age, the job creates
+UUID has reached the configured request count and polling duration, the job creates
 a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
 instead of polling forever.
 
 ```yaml
+pywps_stalled_jobs_cleanup_enabled: true
 pywps_missing_status_recovery_enabled: true
 pywps_missing_status_recovery_schedule:
   minute: "*/10"

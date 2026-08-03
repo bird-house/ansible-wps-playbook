@@ -70,7 +70,7 @@
       - pywps_missing_status_recovery_limit | int > 0
       - >-
         not (cron_enabled | bool)
-        or not (pywps_stalled_jobs_enabled | bool)
+        or not (pywps_stalled_jobs_monitor_enabled | bool)
         or ('xml' not in pywps_stalled_jobs_layers
             and 'all' not in pywps_stalled_jobs_layers)
         or (pywps_stalled_jobs_age_hours | float) < (wps_outputs_keep_hours | float)
@@ -117,7 +117,7 @@
       --config /etc/pywps/{{ item.name }}.cfg monitor
     cron_file: ansible_pywps
     disabled: >-
-      {{ (cron_disabled | bool) or not (pywps_stalled_jobs_enabled | bool) }}
+      {{ cron_disabled }}
     state: present
   loop: "{{ wps_services }}"
 
@@ -138,8 +138,7 @@
       --limit {{ pywps_missing_status_recovery_limit }}
     cron_file: ansible_pywps
     disabled: >-
-      {{ (cron_disabled | bool)
-         or not (pywps_missing_status_recovery_enabled | bool) }}
+      {{ cron_disabled }}
     state: present
   loop: "{{ wps_services }}"
 

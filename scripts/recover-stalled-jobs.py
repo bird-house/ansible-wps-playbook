@@ -56,6 +56,9 @@ class Settings:
     min_poll_count: int = 3
     min_poll_duration_minutes: float = 15
     database_guard: bool = True
+    monitor_enabled: bool = True
+    cleanup_enabled: bool = False
+    missing_status_recovery_enabled: bool = False
 
 
 @dataclass
@@ -926,6 +929,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         min_poll_count=args.min_poll_count,
         min_poll_duration_minutes=args.min_poll_duration_minutes,
         database_guard=args.database_guard,
+        monitor_enabled=stalled_config.getboolean("monitor_enabled", fallback=True),
+        cleanup_enabled=stalled_config.getboolean("cleanup_enabled", fallback=False),
+        missing_status_recovery_enabled=stalled_config.getboolean(
+            "missing_status_recovery_enabled", fallback=False
+        ),
     )
 
 
@@ -948,6 +956,16 @@ def configure_logging(
         handlers=handlers,
     )
     return logging.getLogger("pywps-stalled-jobs")
+
+
+def operation_is_enabled(settings: Settings) -> bool:
+    if settings.mode == "monitor":
+        return settings.monitor_enabled
+    if not settings.cleanup_enabled:
+        return False
+    if "access-log" in settings.layers:
+        return settings.missing_status_recovery_enabled
+    return True
 
 
 def execute_layers(
@@ -993,6 +1011,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         settings = parse_args(argv)
         logger = configure_logging(settings.log_file, settings.show_summaries)
+        if not operation_is_enabled(settings):
+            logger.info(
+                "decision=skip reason=operation-disabled mode=%s layers=%s",
+                settings.mode,
+                ",".join(settings.layers),
+            )
+            return 0
         settings.lock_file.parent.mkdir(parents=True, exist_ok=True)
         with settings.lock_file.open("w") as lock:
             try:
