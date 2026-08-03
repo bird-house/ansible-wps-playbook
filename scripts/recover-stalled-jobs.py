@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monitor or clean stalled PyWPS jobs in independent storage layers."""
+"""Monitor, recover, or summarize PyWPS jobs in independent storage layers."""
 
 from __future__ import annotations
 
@@ -57,6 +57,8 @@ class Settings:
     monitor_enabled: bool = True
     cleanup_enabled: bool = False
     missing_status_recovery_enabled: bool = False
+    statistics_enabled: bool = True
+    service_name: str = "unknown"
 
 
 @dataclass
@@ -296,7 +298,11 @@ def run_xml_layer(
                 )
                 write_failed_xml(document, tree, message, now)
                 summary.cleaned += 1
-                logger.warning("layer=xml job=%s decision=cleaned", document.job_uuid)
+                logger.warning(
+                    "service=%s layer=xml job=%s action=recovered-as-failed",
+                    settings.service_name,
+                    document.job_uuid,
+                )
             if settings.limit is not None and summary.stalled >= settings.limit:
                 break
         except Exception as error:
@@ -547,7 +553,9 @@ def run_access_log_layer(
                 if create_missing_status_file(status_path, contents):
                     summary.cleaned += 1
                     logger.warning(
-                        "layer=access-log job=%s decision=created-failure-status polls=%d",
+                        "service=%s layer=access-log job=%s "
+                        "action=created-failure-status polls=%d",
+                        settings.service_name,
                         candidate.job_uuid,
                         candidate.count,
                     )
@@ -651,8 +659,9 @@ def run_database_layer(
                 WPS_STATUS,
             )
             logger.info(
-                "database_status total=%d final=%d nonfinal=%d succeeded=%d "
+                "database_status service=%s total=%d final=%d nonfinal=%d succeeded=%d "
                 "failed=%d accepted=%d started=%d paused=%d null=%d other=%d",
+                settings.service_name,
                 status_counts["total"],
                 status_counts["final"],
                 status_counts["nonfinal"],
@@ -714,7 +723,11 @@ def run_database_layer(
                     session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
                     session.commit()
                     summary.cleaned += 1
-                    logger.warning("layer=database job=%s decision=cleaned", record.uuid)
+                    logger.warning(
+                        "service=%s layer=database job=%s action=recovered-as-failed",
+                        settings.service_name,
+                        record.uuid,
+                    )
             except Exception as error:
                 session.rollback()
                 summary.errors += 1
@@ -751,6 +764,13 @@ def stalled_jobs_log_file(config: configparser.ConfigParser) -> Path | None:
     return pywps_log_file.with_name(f"stalled-jobs-{pywps_log_file.name}")
 
 
+def job_statistics_log_file(config: configparser.ConfigParser) -> Path | None:
+    pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
+    if pywps_log_file is None:
+        return None
+    return pywps_log_file.with_name(f"job-statistics-{pywps_log_file.name}")
+
+
 def parse_args(argv: list[str] | None = None) -> Settings:
     pre_parser = argparse.ArgumentParser(add_help=False)
     pre_parser.add_argument("--config", type=Path)
@@ -764,7 +784,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         if layer.strip()
     ]
     parser = argparse.ArgumentParser(description=__doc__, parents=[pre_parser])
-    parser.add_argument("mode", choices=("monitor", "cleanup"))
+    parser.add_argument("mode", choices=("monitor", "cleanup", "statistics"))
     parser.add_argument(
         "--layer",
         action="append",
@@ -813,7 +833,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--log-file",
         type=Path,
-        default=stalled_jobs_log_file(config),
+        default=None,
     )
     parser.add_argument(
         "--access-log",
@@ -854,10 +874,14 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="allow access-log recovery without checking active database requests",
     )
     args = parser.parse_args(argv)
+    if args.mode == "statistics":
+        args.status_counts = True
     limit = args.limit
     if limit is None and args.mode == "cleanup":
         limit = int(stalled_config.get("cleanup_limit", "100"))
     layers = args.layer or configured_layers
+    if args.mode == "statistics" and args.layer is None:
+        layers = list(LEGACY_ALL_LAYERS)
     invalid = sorted(set(layers) - set(LAYER_CHOICES))
     if invalid:
         parser.error(f"unsupported configured layers: {', '.join(invalid)}")
@@ -869,8 +893,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("--stale-after-hours/--hours must be greater than zero")
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
-    if args.status_counts and args.mode != "monitor":
-        parser.error("--status-counts is only available in monitor mode")
+    if args.status_counts and args.mode not in {"monitor", "statistics"}:
+        parser.error("--status-counts is only available in monitor or statistics mode")
     if args.poll_window_minutes <= 0:
         parser.error("--poll-window-minutes must be greater than zero")
     if args.min_poll_count <= 0:
@@ -886,7 +910,14 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         output_dir=args.output_dir,
         pywps_config=args.pywps_config,
         lock_file=args.lock_file,
-        log_file=args.log_file,
+        log_file=(
+            args.log_file
+            or (
+                job_statistics_log_file(config)
+                if args.mode == "statistics"
+                else stalled_jobs_log_file(config)
+            )
+        ),
         show_summaries=args.show_summaries,
         limit=limit,
         status_counts=args.status_counts,
@@ -901,14 +932,20 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         missing_status_recovery_enabled=stalled_config.getboolean(
             "missing_status_recovery_enabled", fallback=False
         ),
+        statistics_enabled=stalled_config.getboolean("statistics_enabled", fallback=True),
+        service_name=stalled_config.get("service_name", "unknown"),
     )
 
 
 def configure_logging(
-    log_file: Path | None, show_summaries: bool = False
+    log_file: Path | None,
+    show_summaries: bool = False,
+    statistics_only: bool = False,
 ) -> logging.Logger:
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO if show_summaries else logging.WARNING)
+    stream_handler.setLevel(
+        logging.INFO if show_summaries else logging.ERROR if statistics_only else logging.WARNING
+    )
     if show_summaries:
         stream_handler.addFilter(SummaryConsoleFilter())
     handlers: list[logging.Handler] = [stream_handler]
@@ -916,16 +953,20 @@ def configure_logging(
         log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.INFO)
+        if statistics_only:
+            file_handler.addFilter(SummaryConsoleFilter())
         handlers.append(file_handler)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         handlers=handlers,
     )
-    return logging.getLogger("pywps-stalled-jobs")
+    return logging.getLogger("pywps-job-control")
 
 
 def operation_is_enabled(settings: Settings) -> bool:
+    if settings.mode == "statistics":
+        return settings.statistics_enabled
     if settings.mode == "monitor":
         return settings.monitor_enabled
     if not settings.cleanup_enabled:
@@ -961,8 +1002,9 @@ def execute_layers(
         else:
             log_summary = logger.info
         log_summary(
-            "summary layer=%s checked=%d stalled=%d cleaned=%d errors=%d "
+            "summary service=%s layer=%s checked=%d stalled=%d cleaned=%d errors=%d "
             "mode=%s limit=%s",
+            settings.service_name,
             summary.name,
             summary.checked,
             summary.stalled,
@@ -977,7 +1019,11 @@ def execute_layers(
 def main(argv: list[str] | None = None) -> int:
     try:
         settings = parse_args(argv)
-        logger = configure_logging(settings.log_file, settings.show_summaries)
+        logger = configure_logging(
+            settings.log_file,
+            settings.show_summaries,
+            statistics_only=settings.mode == "statistics",
+        )
         if not operation_is_enabled(settings):
             logger.info(
                 "decision=skip reason=operation-disabled mode=%s layers=%s",
@@ -998,7 +1044,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if any(summary.errors for summary in summaries) else 0
     except (OSError, ValueError) as error:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        logging.getLogger("pywps-stalled-jobs").error("%s", error)
+        logging.getLogger("pywps-job-control").error("%s", error)
         return 2
 
 

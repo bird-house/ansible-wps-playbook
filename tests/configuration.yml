@@ -37,6 +37,9 @@
             ((wps_temp_keep_hours | int) * 60)
           - pywps_restart_schedule in ['hourly', 'daily']
           - pywps_stalled_jobs_schedule | type_debug == 'dict'
+          - pywps_job_statistics_schedule | type_debug == 'dict'
+          - pywps_job_statistics_schedule.hour == '0'
+          - pywps_job_statistics_enabled
           - pywps_stalled_jobs_schedule.hour == '*'
           - pywps_stalled_jobs_age_hours | int > 0
           - pywps_stalled_jobs_cleanup_limit == 100
@@ -164,6 +167,8 @@
           - "'recover-xml)' in test_stalled_jobs_helper"
           - "'script_options=(--layer xml)' in test_stalled_jobs_helper"
           - "'recover-all)' in test_stalled_jobs_helper"
+          - "'statistics)' in test_stalled_jobs_helper"
+          - "'mode=statistics' in test_stalled_jobs_helper"
           - >-
             'script_options=(--layer all)'
             in test_stalled_jobs_helper
@@ -171,7 +176,7 @@
             'script_options=(--layer all --show-summaries --status-counts)'
             in test_stalled_jobs_helper
           - >-
-            'exec "$python" "$recovery_script"'
+            'exec "$python" "$job_control_script"'
             in test_stalled_jobs_helper
           - >-
             '--config "$config_file" "$mode" "${script_options[@]}" "$@"'
@@ -189,9 +194,11 @@
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location /health' in test_nginx_config"
           - "'[stalled_jobs]' in test_pywps_config"
+          - "'service_name = alpha' in test_pywps_config"
           - "'monitor_enabled = true' in test_pywps_config"
           - "'cleanup_enabled = false' in test_pywps_config"
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
+          - "'statistics_enabled = true' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
           - "'cleanup_limit = 100' in test_pywps_config"

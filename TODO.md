@@ -34,30 +34,8 @@ deployment.
 - Replace roles individually, document variable migrations, and require
   AlmaLinux convergence plus production smoke tests before release.
 
-### Patch release: stalled-job command polish
+### Patch release: remaining stalled-job edge cases
 
-- Clean up the cron-job and helper-command vocabulary so names use consistent
-  WPS/PyWPS terminology and clearly distinguish observation, reporting, and
-  state-changing recovery. Rename Ansible task and cron entry descriptions at
-  the same time, while preserving compatibility aliases for installed commands
-  where necessary.
-- Run the complete all-layer and database-status summary as a separate daily
-  statistics cron job. Keep the frequent operational check quiet, write the
-  daily report to a dedicated per-service statistics log, and include its
-  retention or logrotate policy in the managed configuration.
-- Emit every state-changing cleanup/recovery event at warning level, with the
-  service, layer, request identifier, and action in a consistent structured
-  message, so operational cleanup can be filtered independently from routine
-  monitoring and daily statistics.
-- Smooth and consistently document the installed command names
-  (`monitor`, `recover-xml`, and `recover-all`), the underlying script name,
-  and the distinction between monitoring and cleanup. Preserve compatibility
-  with the 0.9.0 commands when names are adjusted.
-- Align the command-line arguments and `[stalled_jobs]` configuration names for
-  layers, age thresholds, cleanup limits, summaries, and database status
-  counts. Define one clear precedence order for configured defaults, helper
-  defaults, and explicit command-line overrides, backed by parsing and rendered
-  configuration tests.
 - Treat database requests with `status IS NULL` as an explicit monitored state.
   Confirm with tests that an old row with a usable start or update timestamp is
   reported as stalled and recovered as failed, and keep the complete database
@@ -67,6 +45,7 @@ deployment.
   errors. Investigate access-log evidence or another existing timestamp before
   recovery; do not introduce a database schema change or mark an undated row
   failed without a reliable minimum age signal.
+
 ### Patch release: host resource monitoring
 
 - Inventory and review the manually installed production scripts for disk

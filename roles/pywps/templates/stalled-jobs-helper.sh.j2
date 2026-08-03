@@ -47,6 +47,10 @@ main() {
             mode=cleanup
             script_options=(--layer all)
             ;;
+        statistics)
+            mode=statistics
+            script_options=(--show-summaries)
+            ;;
         *)
             fail "Unsupported command name: $command_name"
             ;;
@@ -62,14 +66,14 @@ main() {
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"
-    local recovery_script="{{ cron_script_dir }}/recover-stalled-jobs.py"
+    local job_control_script="{{ cron_script_dir }}/pywps-job-control.py"
 
     [[ -x $python ]] || fail "Python not found or not executable: $python"
     [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"
-    [[ -x $recovery_script ]] \
-        || fail "Recovery script not found or not executable: $recovery_script"
+    [[ -x $job_control_script ]] \
+        || fail "PyWPS job-control script not found or not executable: $job_control_script"
 
-    exec "$python" "$recovery_script" \
+    exec "$python" "$job_control_script" \
         --config "$config_file" "$mode" "${script_options[@]}" "$@"
 }
 

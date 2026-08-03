@@ -53,12 +53,15 @@ format = %(asctime)s] [%(levelname)s] %(message)s
 http_log_path = {{ wps_http_log_dir | default('/var/log/nginx') }}
 
 [stalled_jobs]
+service_name = {{ item.name }}
 # Report stalled requests without changing them.
 monitor_enabled = {{ pywps_stalled_jobs_monitor_enabled | bool | lower }}
 # Allow commands that change stalled requests or status documents.
 cleanup_enabled = {{ pywps_stalled_jobs_cleanup_enabled | bool | lower }}
 # Create failure XML for repeated Nginx 404 status polling.
 missing_status_recovery_enabled = {{ pywps_missing_status_recovery_enabled | bool | lower }}
+# Write a complete daily job statistics report.
+statistics_enabled = {{ pywps_job_statistics_enabled | bool | lower }}
 layers = {{ pywps_stalled_jobs_layers | join(',') }}
 stale_after_hours = {{ pywps_stalled_jobs_age_hours }}
 cleanup_limit = {{ pywps_stalled_jobs_cleanup_limit }}

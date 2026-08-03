@@ -297,9 +297,11 @@ The playbook renders the operation switches into every service configuration:
 
 ```ini
 [stalled_jobs]
+service_name = example
 monitor_enabled = true
 cleanup_enabled = false
 missing_status_recovery_enabled = false
+statistics_enabled = true
 ```
 
 The cron entries are controlled globally by `cron_enabled`; when invoked, the
@@ -363,6 +365,11 @@ sudo /var/lib/pywps/recover-xml SERVICE_NAME --hours 12 --limit 500
 sudo /var/lib/pywps/recover-all SERVICE_NAME --hours 12 --limit 500
 ```
 
+The concise command names are intentionally scoped by their installation in
+`/var/lib/pywps`. The deployed implementation is `pywps-job-control.py`;
+`recover-stalled-jobs.py` remains as a compatibility alias for existing
+automation.
+
 The underlying script also accepts `--layer all` as a shortcut for selecting
 both XML and database layers. `--hours` is an alias for the existing
 `--stale-after-hours` option; both override the configured threshold.
@@ -376,6 +383,28 @@ configured cleanup default. The underlying `--status-counts` option enables the
 complete database aggregate used by the manual monitor helper.
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.
+
+### Record daily PyWPS job statistics
+
+When cron is enabled, a separate read-only statistics job runs daily at 00:05
+by default:
+
+```yaml
+pywps_job_statistics_enabled: true
+pywps_job_statistics_schedule:
+  minute: "5"
+  hour: "0"
+```
+
+It records complete XML and database layer summaries plus full database status
+counts in `/var/log/pywps/job-statistics-SERVICE_NAME.log`. Routine individual
+findings are excluded from this statistics log, and only errors are written to
+the cron console. The existing PyWPS logrotate wildcard rotates the statistics
+log daily with the other service logs. Run the same report manually with:
+
+```sh
+sudo /var/lib/pywps/statistics SERVICE_NAME
+```
 
 ### Recover repeatedly polled missing status documents
 
@@ -428,10 +457,10 @@ output directory, is mode `0644`, contains a UTC creation time and useful
 failure message, and is recorded as a warning in the existing per-service
 stalled-job log. Each run recovers at most 20 documents by default.
 
-This recovery is deliberately not included in `recover-all` or the scheduled
-read-only stalled-job monitor. To inspect candidates without creating files,
-run the underlying script in monitor mode with `--layer access-log`; select
-cleanup mode only when recovery is intended.
+This recovery is deliberately not included in `recover-all` or the
+scheduled read-only stalled-job monitor. To inspect candidates without creating
+files, run `pywps-job-control.py` in monitor mode with `--layer access-log`;
+select cleanup mode only when recovery is intended.
 
 ### Use Conda to build identical environments
 

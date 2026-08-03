@@ -18,6 +18,11 @@ pywps_restart_schedule: daily
 pywps_stalled_jobs_monitor_enabled: true
 # Allow commands that change stalled requests or status documents.
 pywps_stalled_jobs_cleanup_enabled: false
+# Write a complete daily job statistics report.
+pywps_job_statistics_enabled: true
+pywps_job_statistics_schedule:
+  minute: "5"
+  hour: "0"
 pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"

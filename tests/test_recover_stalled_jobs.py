@@ -158,8 +158,14 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
     def test_cleanup_changes_any_old_nonfinal_status_to_failed(self):
         self.write_status("ProcessAccepted")
-        summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, mock.Mock())
+        logger = mock.Mock()
+        summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, logger)
         self.assertEqual((summary.stalled, summary.cleaned, summary.errors), (1, 1, 0))
+        logger.warning.assert_called_once_with(
+            "service=%s layer=xml job=%s action=recovered-as-failed",
+            "unknown",
+            JOB_UUID,
+        )
 
         root = ET.parse(self.status).getroot()
         status = root.find(f".//{{{WPS}}}Status")
@@ -261,7 +267,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(document.creation_time, self.now)
         self.assertEqual(self.status.stat().st_mode & 0o777, 0o644)
         logger.warning.assert_called_once_with(
-            "layer=access-log job=%s decision=created-failure-status polls=%d",
+            "service=%s layer=access-log job=%s "
+            "action=created-failure-status polls=%d",
+            "unknown",
             JOB_UUID,
             3,
         )
@@ -399,9 +407,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "[logging]\n"
             f"file = {self.root / 'logs' / 'alpha.log'}\n"
             "[stalled_jobs]\n"
+            "service_name = alpha\n"
             "monitor_enabled = false\n"
             "cleanup_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
+            "statistics_enabled = true\n"
             "layers = xml, database\n"
             "stale_after_hours = 6\n"
             "cleanup_limit = 100\n"
@@ -428,6 +438,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertFalse(settings.monitor_enabled)
         self.assertTrue(settings.cleanup_enabled)
         self.assertTrue(settings.missing_status_recovery_enabled)
+        self.assertTrue(settings.statistics_enabled)
+        self.assertEqual(settings.service_name, "alpha")
         self.assertEqual(
             settings.log_file,
             self.root / "logs" / "stalled-jobs-alpha.log",
@@ -458,6 +470,18 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(all_layers.layers, ["xml", "database"])
         self.assertTrue(all_layers.show_summaries)
         self.assertTrue(all_layers.status_counts)
+
+        statistics = MODULE.parse_args([
+            "--config",
+            str(config),
+            "statistics",
+        ])
+        self.assertEqual(statistics.layers, ["xml", "database"])
+        self.assertTrue(statistics.status_counts)
+        self.assertEqual(
+            statistics.log_file,
+            self.root / "logs" / "job-statistics-alpha.log",
+        )
 
         hours_alias = MODULE.parse_args([
             "--config",
@@ -506,6 +530,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         settings.missing_status_recovery_enabled = True
         self.assertTrue(MODULE.operation_is_enabled(settings))
 
+        settings.mode = "statistics"
+        settings.statistics_enabled = False
+        self.assertFalse(MODULE.operation_is_enabled(settings))
+        settings.statistics_enabled = True
+        self.assertTrue(MODULE.operation_is_enabled(settings))
+
     def test_summary_severity_reflects_layer_result(self):
         cases = (
             (MODULE.LayerSummary("xml", checked=2), "info"),
@@ -522,8 +552,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     runners={"xml": lambda *_args, result=summary: result},
                 )
                 getattr(logger, expected_method).assert_called_once_with(
-                    "summary layer=%s checked=%d stalled=%d cleaned=%d "
+                    "summary service=%s layer=%s checked=%d stalled=%d cleaned=%d "
                     "errors=%d mode=%s limit=%s",
+                    "unknown",
                     summary.name,
                     summary.checked,
                     summary.stalled,
@@ -576,6 +607,37 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertTrue(handler.filter(database_status))
         self.assertFalse(handler.filter(finding))
         self.assertTrue(handler.filter(warning))
+
+    def test_statistics_log_keeps_only_summaries_status_counts_and_warnings(self):
+        log_file = self.root / "statistics.log"
+        with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
+            MODULE.configure_logging(log_file, statistics_only=True)
+
+        handlers = basic_config.call_args.kwargs["handlers"]
+        stream_handler = next(
+            handler
+            for handler in handlers
+            if type(handler) is MODULE.logging.StreamHandler
+        )
+        file_handler = next(
+            handler
+            for handler in handlers
+            if isinstance(handler, MODULE.logging.FileHandler)
+        )
+        self.assertEqual(stream_handler.level, MODULE.logging.ERROR)
+        summary = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "summary layer=xml", (), None
+        )
+        finding = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "layer=xml job=1", (), None
+        )
+        database_status = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "database_status total=5", (), None
+        )
+        self.assertTrue(file_handler.filter(summary))
+        self.assertTrue(file_handler.filter(database_status))
+        self.assertFalse(file_handler.filter(finding))
+        file_handler.close()
 
     def test_database_status_summary_counts_final_and_nonfinal_rows(self):
         statuses = argparse.Namespace(
@@ -719,8 +781,14 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
         settings = self.settings("cleanup", ["database"])
         settings.pywps_config = pywps_config
-        summary = MODULE.run_database_layer(settings, self.now, mock.Mock())
+        logger = mock.Mock()
+        summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual((summary.stalled, summary.cleaned, summary.errors), (1, 1, 0))
+        logger.warning.assert_called_once_with(
+            "service=%s layer=database job=%s action=recovered-as-failed",
+            "unknown",
+            JOB_UUID,
+        )
 
         session = dblog.get_session()
         record = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()
