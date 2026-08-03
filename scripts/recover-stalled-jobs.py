@@ -39,6 +39,7 @@ ACCESS_LOG_RE = re.compile(
     r'"(?P<method>\S+) (?P<target>\S+) (?P<protocol>[^"]+)" '
     r'(?P<status>\d{3})(?:\s|$)'
 )
+ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
 
 
 @dataclass
@@ -351,6 +352,26 @@ def parse_access_log_line(line: str) -> tuple[str, datetime, str, str, int] | No
     )
 
 
+def iter_lines_reverse(path: Path, block_size: int = 64 * 1024) -> Iterable[str]:
+    """Read a potentially large log from newest to oldest without loading it."""
+    with path.open("rb") as stream:
+        stream.seek(0, os.SEEK_END)
+        position = stream.tell()
+        remainder = b""
+        while position > 0:
+            read_size = min(block_size, position)
+            position -= read_size
+            stream.seek(position)
+            chunk = stream.read(read_size)
+            parts = (chunk + remainder).split(b"\n")
+            remainder = parts[0]
+            for line in reversed(parts[1:]):
+                if line:
+                    yield line.decode("utf-8", errors="replace")
+        if remainder:
+            yield remainder.decode("utf-8", errors="replace")
+
+
 def find_missing_status_polls(settings: Settings, now: datetime) -> list[MissingStatusPolls]:
     if settings.access_log is None:
         raise ValueError("the polling layer requires access_log")
@@ -369,36 +390,42 @@ def find_missing_status_polls(settings: Settings, now: datetime) -> list[Missing
         raise FileNotFoundError(f"access log does not exist: {settings.access_log}")
 
     polls: dict[str, MissingStatusPolls] = {}
-    with settings.access_log.open("rt", encoding="utf-8", errors="replace") as stream:
-        for line in stream:
-            parsed = parse_access_log_line(line)
-            if parsed is None:
-                continue
-            _, timestamp, method, target, status = parsed
-            if method not in {"GET", "HEAD"} or status != 404:
-                continue
-            if timestamp < window_start or timestamp > future_limit:
-                continue
-            request_path = unquote(urlsplit(target).path)
-            match = status_path_re.fullmatch(request_path)
-            if match is None:
-                continue
-            job_uuid = match.group("uuid")
-            if UUID_RE.fullmatch(job_uuid) is None:
-                continue
-            candidate = polls.get(job_uuid)
-            if candidate is None:
-                polls[job_uuid] = MissingStatusPolls(
-                    job_uuid=job_uuid,
-                    request_path=request_path,
-                    first_seen=timestamp,
-                    last_seen=timestamp,
-                    count=1,
-                )
-            else:
-                candidate.first_seen = min(candidate.first_seen, timestamp)
-                candidate.last_seen = max(candidate.last_seen, timestamp)
-                candidate.count += 1
+    consecutive_old_lines = 0
+    for line in iter_lines_reverse(settings.access_log):
+        parsed = parse_access_log_line(line)
+        if parsed is None:
+            continue
+        _, timestamp, method, target, status = parsed
+        if timestamp < window_start:
+            consecutive_old_lines += 1
+            if consecutive_old_lines >= ACCESS_LOG_OLD_LINE_STOP_COUNT:
+                break
+            continue
+        consecutive_old_lines = 0
+        if timestamp > future_limit:
+            continue
+        if method not in {"GET", "HEAD"} or status != 404:
+            continue
+        request_path = unquote(urlsplit(target).path)
+        match = status_path_re.fullmatch(request_path)
+        if match is None:
+            continue
+        job_uuid = match.group("uuid")
+        if UUID_RE.fullmatch(job_uuid) is None:
+            continue
+        candidate = polls.get(job_uuid)
+        if candidate is None:
+            polls[job_uuid] = MissingStatusPolls(
+                job_uuid=job_uuid,
+                request_path=request_path,
+                first_seen=timestamp,
+                last_seen=timestamp,
+                count=1,
+            )
+        else:
+            candidate.first_seen = min(candidate.first_seen, timestamp)
+            candidate.last_seen = max(candidate.last_seen, timestamp)
+            candidate.count += 1
 
     minimum_duration = timedelta(minutes=settings.min_poll_duration_minutes)
     return sorted(
@@ -542,7 +569,7 @@ def run_polling_layer(
         [candidate.job_uuid for candidate in candidates],
     )
     for candidate in candidates:
-        summary.checked += candidate.count
+        summary.checked += 1
         try:
             if candidate.job_uuid in vetoes:
                 logger.info(
@@ -966,7 +993,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
             "missing_status_recovery_enabled", fallback=False
         ),
         statistics_enabled=stalled_config.getboolean("statistics_enabled", fallback=True),
-        service_name=stalled_config.get("service_name", "unknown"),
+        service_name=(preliminary.config.stem if preliminary.config else "unknown"),
     )
 
 

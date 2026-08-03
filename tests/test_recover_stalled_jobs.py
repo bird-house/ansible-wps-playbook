@@ -260,7 +260,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (3, 1, 1, 0),
+            (1, 1, 1, 0),
         )
         document, _ = MODULE.read_xml_status(self.status)
         self.assertEqual(document.state, "ProcessFailed")
@@ -351,6 +351,45 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(candidates[0].request_path, f"/outputs/alpha/{JOB_UUID}.xml")
         self.assertEqual(candidates[0].count, 3)
 
+    def test_access_log_reader_reads_newest_lines_first(self):
+        access_log = self.root / "reverse.log"
+        access_log.write_text("first\nsecond\nthird\n", encoding="utf-8")
+
+        self.assertEqual(
+            list(MODULE.iter_lines_reverse(access_log, block_size=5)),
+            ["third", "second", "first"],
+        )
+
+    def test_access_log_scan_stops_after_old_log_region(self):
+        settings = self.polling_settings("monitor")
+        ignored_prefix = "not an access log line\n" * 1000
+        old_lines = "".join(
+            self.access_log_line(self.now - timedelta(minutes=70))
+            for _ in range(MODULE.ACCESS_LOG_OLD_LINE_STOP_COUNT)
+        )
+        recent_lines = "".join(
+            self.access_log_line(self.now - timedelta(minutes=minutes))
+            for minutes in (12, 8, 2)
+        )
+        settings.access_log.write_text(
+            ignored_prefix + old_lines + recent_lines,
+            encoding="utf-8",
+        )
+
+        with mock.patch.object(
+            MODULE,
+            "parse_access_log_line",
+            wraps=MODULE.parse_access_log_line,
+        ) as parser:
+            candidates = MODULE.find_missing_status_polls(settings, self.now)
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].count, 3)
+        self.assertEqual(
+            parser.call_count,
+            MODULE.ACCESS_LOG_OLD_LINE_STOP_COUNT + 3,
+        )
+
     def test_access_log_requires_polls_spanning_the_minimum_age(self):
         settings = self.polling_settings()
         line = self.access_log_line(self.now - timedelta(minutes=10))
@@ -397,7 +436,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertIn("can no longer be monitored", execution.errors[0].text)
 
     def test_generated_configuration_supplies_defaults_and_cli_overrides(self):
-        config = self.root / "stalled.ini"
+        config = self.root / "alpha.cfg"
         config.write_text(
             "[server]\n"
             f"outputpath = {self.outputs}\n"
@@ -405,7 +444,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "[logging]\n"
             f"file = {self.root / 'logs' / 'alpha.log'}\n"
             "[stalled_jobs]\n"
-            "service_name = alpha\n"
             "monitor_enabled = false\n"
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"

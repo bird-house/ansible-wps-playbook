@@ -203,7 +203,7 @@
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location /health' in test_nginx_config"
           - "'[stalled_jobs]' in test_pywps_config"
-          - "'service_name = alpha' in test_pywps_config"
+          - "'service_name' not in test_pywps_config"
           - "'monitor_enabled = true' in test_pywps_config"
           - "'recovery_enabled = false' in test_pywps_config"
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
