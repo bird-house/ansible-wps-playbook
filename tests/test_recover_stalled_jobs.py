@@ -163,8 +163,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
         self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
         logger.warning.assert_called_once_with(
-            "service=%s layer=xml job=%s status=failed action=recovered",
-            "unknown",
+            "layer=xml job=%s status=failed action=recovered",
             JOB_UUID,
         )
 
@@ -268,9 +267,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(document.creation_time, self.now)
         self.assertEqual(self.status.stat().st_mode & 0o777, 0o644)
         logger.warning.assert_called_once_with(
-            "service=%s layer=polling job=%s "
-            "status=failed action=recovered polls=%d",
-            "unknown",
+            "layer=polling job=%s status=failed action=recovered polls=%d",
             JOB_UUID,
             3,
         )
@@ -591,9 +588,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     runners={"xml": lambda *_args, result=summary: result},
                 )
                 getattr(logger, expected_method).assert_called_once_with(
-                    "summary service=%s layer=%s checked=%d stalled=%d recovered=%d "
+                    "summary layer=%s checked=%d stalled=%d recovered=%d "
                     "errors=%d mode=%s limit=%s",
-                    "unknown",
                     summary.name,
                     summary.checked,
                     summary.stalled,
@@ -606,7 +602,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
     def test_logging_keeps_info_in_file_and_only_warns_on_stderr(self):
         log_file = self.root / "stalled.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
-            MODULE.configure_logging(log_file)
+            MODULE.configure_logging(log_file, service_name="alpha")
 
         handlers = basic_config.call_args.kwargs["handlers"]
         stream_handler = next(
@@ -621,6 +617,15 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(stream_handler.level, MODULE.logging.WARNING)
         self.assertEqual(file_handler.level, MODULE.logging.INFO)
+        self.assertEqual(
+            basic_config.call_args.kwargs["format"],
+            "%(asctime)s %(levelname)s service=%(service)s %(message)s",
+        )
+        record = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "message", (), None
+        )
+        self.assertTrue(stream_handler.filter(record))
+        self.assertEqual(record.service, "alpha")
         file_handler.close()
 
     def test_show_summaries_filters_non_summary_info_from_stderr(self):
@@ -821,6 +826,17 @@ class RecoverStalledJobsTests(unittest.TestCase):
             )
         )
         session.add(dblog.RequestInstance(uuid=JOB_UUID, request=b"{}"))
+        session.add(
+            dblog.ProcessInstance(
+                uuid=OTHER_JOB_UUID,
+                pid=23456,
+                operation="execute",
+                version="1.0.0",
+                time_start=(self.now - timedelta(hours=1)).replace(tzinfo=None),
+                status=WPS_STATUS.STARTED,
+                percent_done=10,
+            )
+        )
         session.commit()
         session.close()
 
@@ -828,10 +844,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         settings.pywps_config = pywps_config
         logger = mock.Mock()
         summary = MODULE.run_database_layer(settings, self.now, logger)
-        self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
+        self.assertEqual(
+            (summary.checked, summary.stalled, summary.recovered, summary.errors),
+            (1, 1, 1, 0),
+        )
         logger.warning.assert_called_once_with(
-            "service=%s layer=database job=%s status=failed action=recovered",
-            "unknown",
+            "layer=database job=%s status=failed action=recovered",
             JOB_UUID,
         )
 
@@ -842,6 +860,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertIsNone(
             session.query(dblog.RequestInstance).filter_by(uuid=JOB_UUID).first()
         )
+        recent = session.query(dblog.ProcessInstance).filter_by(uuid=OTHER_JOB_UUID).one()
+        self.assertEqual(recent.status, WPS_STATUS.STARTED)
         session.close()
 
 

@@ -170,6 +170,7 @@
           - "'statistics)' in test_stalled_jobs_helper"
           - "'mode=statistics' in test_stalled_jobs_helper"
           - "'--layer xml --layer database --layer polling' in test_stalled_jobs_helper"
+          - "'--status-counts' not in test_stalled_jobs_helper"
           - "'script_options=(--layer xml)' in test_stalled_jobs_helper"
           - "'script_options=(--layer polling)' in test_stalled_jobs_helper"
           - "'script_options=(--layer xml --layer database)' in test_stalled_jobs_helper"

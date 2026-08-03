@@ -130,6 +130,7 @@
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
       {{ cron_script_dir }}/pywps-job-control.py
       --config /etc/pywps/{{ item.name }}.cfg monitor
+      --layer xml --layer database --layer polling
     cron_file: ansible_pywps
     disabled: >-
       {{ cron_disabled }}

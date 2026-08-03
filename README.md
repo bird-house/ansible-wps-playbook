@@ -331,14 +331,10 @@ for a service with the installed helper:
 sudo /var/lib/pywps/monitor SERVICE_NAME
 ```
 
-The helper explicitly checks all three layers and prints their informational
-summaries to the terminal. It also prints one complete status summary using the
-OGC API Processes vocabulary: accepted, running, successful, failed, and
-dismissed. PyWPS `started` and `paused` records are combined as `running`;
-missing or unrecognized database values are reported as `unmapped`. These
-counts cover the complete request table and are not affected by `--limit`.
-The scheduled monitor omits this full-table aggregate and remains quiet unless
-it finds stalled jobs or errors.
+The helper checks all three layers and prints their quick summaries to the
+terminal. It does not calculate the complete database status aggregate. The
+hourly scheduled monitor performs the same all-layer check and remains quiet
+unless it finds stalled jobs or errors.
 
 Recover only stalled XML documents with:
 
@@ -382,8 +378,8 @@ batches bounded even when years of unfinished requests have accumulated.
 Recovery defaults to `pywps_stalled_jobs_recovery_limit`, which is 100. Monitoring
 remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
-configured recovery default. The underlying `--status-counts` option enables the
-complete database aggregate used by the manual monitor helper.
+configured recovery default. The underlying `--status-counts` option enables a
+complete database aggregate for explicit low-level invocations.
 
 Slurm inspection and recovery are intentionally deferred to a later iteration.
 
@@ -399,11 +395,15 @@ pywps_job_statistics_schedule:
   hour: "0"
 ```
 
-It records complete XML and database layer summaries plus full database status
-counts in `/var/log/pywps/job-statistics-SERVICE_NAME.log`. Routine individual
-findings are excluded from this statistics log, and only errors are written to
-the cron console. The existing PyWPS logrotate wildcard rotates the statistics
-log daily with the other service logs. Run the same report manually with:
+It records complete XML and database layer summaries plus a full status
+aggregate using the OGC API Processes vocabulary: accepted, running,
+successful, failed, and dismissed. PyWPS `started` and `paused` records are
+combined as `running`; missing or unrecognized values are reported as
+`unmapped`. These counts cover the complete request table. Routine individual
+findings are excluded from `/var/log/pywps/job-statistics-SERVICE_NAME.log`,
+and only errors are written to the cron console. The existing PyWPS logrotate
+wildcard rotates the statistics log daily with the other service logs. Run the
+same report manually with:
 
 ```sh
 sudo /var/lib/pywps/statistics SERVICE_NAME
