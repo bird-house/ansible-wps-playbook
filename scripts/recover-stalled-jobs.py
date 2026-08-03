@@ -772,18 +772,23 @@ def optional_path(value: str | None) -> Path | None:
     return Path(value) if value else None
 
 
-def stalled_jobs_log_file(config: configparser.ConfigParser) -> Path | None:
+def related_log_file(
+    config: configparser.ConfigParser, label: str
+) -> Path | None:
     pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
     if pywps_log_file is None:
         return None
-    return pywps_log_file.with_name(f"stalled-jobs-{pywps_log_file.name}")
+    return pywps_log_file.with_name(
+        f"{pywps_log_file.stem}-{label}{pywps_log_file.suffix}"
+    )
+
+
+def job_monitor_log_file(config: configparser.ConfigParser) -> Path | None:
+    return related_log_file(config, "job-monitor")
 
 
 def job_statistics_log_file(config: configparser.ConfigParser) -> Path | None:
-    pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
-    if pywps_log_file is None:
-        return None
-    return pywps_log_file.with_name(f"job-statistics-{pywps_log_file.name}")
+    return related_log_file(config, "stats")
 
 
 def parse_args(argv: list[str] | None = None) -> Settings:
@@ -943,7 +948,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
             or (
                 job_statistics_log_file(config)
                 if args.mode == "statistics"
-                else stalled_jobs_log_file(config)
+                else job_monitor_log_file(config)
             )
         ),
         show_summaries=args.show_summaries,

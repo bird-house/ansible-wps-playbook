@@ -317,7 +317,8 @@ with `Z`, and database timestamps without an offset, are interpreted as UTC;
 the deployment host should therefore keep its clock and timezone consistent.
 
 Monitoring never changes state. After reviewing
-`/var/log/pywps/stalled-jobs-SERVICE_NAME.log`, recover either layer manually.
+`/var/log/pywps/SERVICE_NAME-job-monitor.log`, run the appropriate recovery
+shortcut manually.
 This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard rotates this log together with
 the other PyWPS logs.
@@ -400,7 +401,7 @@ aggregate using the OGC API Processes vocabulary: accepted, running,
 successful, failed, and dismissed. PyWPS `started` and `paused` records are
 combined as `running`; missing or unrecognized values are reported as
 `unmapped`. These counts cover the complete request table. Routine individual
-findings are excluded from `/var/log/pywps/job-statistics-SERVICE_NAME.log`,
+findings are excluded from `/var/log/pywps/SERVICE_NAME-stats.log`,
 and only errors are written to the cron console. The existing PyWPS logrotate
 wildcard rotates the statistics log daily with the other service logs. Run the
 same report manually with:

@@ -440,7 +440,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.service_name, "alpha")
         self.assertEqual(
             settings.log_file,
-            self.root / "logs" / "stalled-jobs-alpha.log",
+            self.root / "logs" / "alpha-job-monitor.log",
         )
 
         overridden = MODULE.parse_args([
@@ -480,7 +480,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertTrue(statistics.status_counts)
         self.assertEqual(
             statistics.log_file,
-            self.root / "logs" / "job-statistics-alpha.log",
+            self.root / "logs" / "alpha-stats.log",
         )
 
         overridden_monitor = MODULE.parse_args([
