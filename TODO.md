@@ -36,6 +36,19 @@ deployment.
 
 ### Patch release: stalled-job command polish
 
+- Clean up the cron-job and helper-command vocabulary so names use consistent
+  WPS/PyWPS terminology and clearly distinguish observation, reporting, and
+  state-changing recovery. Rename Ansible task and cron entry descriptions at
+  the same time, while preserving compatibility aliases for installed commands
+  where necessary.
+- Run the complete all-layer and database-status summary as a separate daily
+  statistics cron job. Keep the frequent operational check quiet, write the
+  daily report to a dedicated per-service statistics log, and include its
+  retention or logrotate policy in the managed configuration.
+- Emit every state-changing cleanup/recovery event at warning level, with the
+  service, layer, request identifier, and action in a consistent structured
+  message, so operational cleanup can be filtered independently from routine
+  monitoring and daily statistics.
 - Smooth and consistently document the installed command names
   (`monitor`, `recover-xml`, and `recover-all`), the underlying script name,
   and the distinction between monitoring and cleanup. Preserve compatibility
