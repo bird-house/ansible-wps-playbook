@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import fcntl
+import gzip
 import io
 import logging
 import os
@@ -13,10 +14,12 @@ import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable
+from urllib.parse import unquote, urlsplit
 
 
 UUID_RE = re.compile(
@@ -24,9 +27,15 @@ UUID_RE = re.compile(
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
 )
 FINAL_XML_STATES = {"ProcessSucceeded", "ProcessFailed"}
-SUPPORTED_LAYERS = ("xml", "database")
+SUPPORTED_LAYERS = ("xml", "database", "access-log")
+LEGACY_ALL_LAYERS = ("xml", "database")
 LAYER_CHOICES = (*SUPPORTED_LAYERS, "all")
 UTC = timezone.utc
+ACCESS_LOG_RE = re.compile(
+    r'^(?P<client>\S+) \S+ \S+ \[(?P<timestamp>[^]]+)\] '
+    r'"(?P<method>\S+) (?P<target>\S+) (?P<protocol>[^"]+)" '
+    r'(?P<status>\d{3})(?:\s|$)'
+)
 
 
 @dataclass
@@ -41,6 +50,12 @@ class Settings:
     show_summaries: bool = False
     limit: int | None = None
     status_counts: bool = False
+    output_url: str | None = None
+    access_log: Path | None = None
+    poll_window_minutes: float = 60
+    min_poll_count: int = 3
+    min_poll_duration_minutes: float = 15
+    database_guard: bool = True
 
 
 @dataclass
@@ -75,6 +90,15 @@ class XmlStatus:
     def last_update(self) -> datetime:
         """Use the newest available update signal."""
         return max(self.creation_time, self.modification_time)
+
+
+@dataclass
+class MissingStatusPolls:
+    job_uuid: str
+    request_path: str
+    first_seen: datetime
+    last_seen: datetime
+    count: int = 0
 
 
 def local_name(tag: str) -> str:
@@ -242,7 +266,11 @@ def run_xml_layer(
         try:
             document, tree = read_xml_status(path)
             if document.state in FINAL_XML_STATES:
-                logger.debug("layer=xml job=%s state=%s decision=final", document.job_uuid, document.state)
+                logger.debug(
+                    "layer=xml job=%s state=%s decision=final",
+                    document.job_uuid,
+                    document.state,
+                )
                 continue
             if not is_stalled(document.last_update, now, threshold):
                 logger.debug(
@@ -273,6 +301,300 @@ def run_xml_layer(
         except Exception as error:
             summary.errors += 1
             logger.exception("layer=xml status=%s decision=error reason=%s", path, error)
+    return summary
+
+
+def access_log_paths(path: Path) -> list[Path]:
+    """Return the active and rotated access logs in a stable order."""
+    rotated_name = re.compile(rf"^{re.escape(path.name)}(?:\.\d+)?(?:\.gz)?$")
+    candidates = [
+        candidate
+        for candidate in path.parent.glob(f"{path.name}*")
+        if candidate.is_file() and rotated_name.fullmatch(candidate.name)
+    ]
+    return sorted(candidates, key=lambda candidate: (candidate != path, candidate.name))
+
+
+def read_access_log(path: Path) -> Iterable[str]:
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", encoding="utf-8", errors="replace") as stream:
+        yield from stream
+
+
+def parse_access_log_line(line: str) -> tuple[str, datetime, str, str, int] | None:
+    match = ACCESS_LOG_RE.match(line)
+    if match is None:
+        return None
+    try:
+        timestamp = datetime.strptime(
+            match.group("timestamp"), "%d/%b/%Y:%H:%M:%S %z"
+        ).astimezone(UTC)
+    except ValueError:
+        return None
+    return (
+        match.group("client"),
+        timestamp,
+        match.group("method"),
+        match.group("target"),
+        int(match.group("status")),
+    )
+
+
+def find_missing_status_polls(settings: Settings, now: datetime) -> list[MissingStatusPolls]:
+    if settings.access_log is None:
+        raise ValueError("the access-log layer requires access_log")
+    if settings.output_url is None:
+        raise ValueError("the access-log layer requires output_url")
+
+    output_path = unquote(urlsplit(settings.output_url).path).rstrip("/")
+    if not output_path.startswith("/"):
+        raise ValueError("output_url must contain an absolute URL path")
+    status_path_re = re.compile(
+        rf"^{re.escape(output_path)}/(?P<uuid>[0-9a-fA-F-]{{36}})\.xml$"
+    )
+    window_start = now - timedelta(minutes=settings.poll_window_minutes)
+    future_limit = now + timedelta(minutes=5)
+    event_counts: dict[tuple[str, datetime, str, str, int], int] = {}
+    paths = access_log_paths(settings.access_log)
+    if not paths:
+        raise FileNotFoundError(f"access log does not exist: {settings.access_log}")
+
+    for log_path in paths:
+        file_counts: Counter[tuple[str, datetime, str, str, int]] = Counter()
+        for line in read_access_log(log_path):
+            parsed = parse_access_log_line(line)
+            if parsed is None:
+                continue
+            _, timestamp, method, target, status = parsed
+            if method not in {"GET", "HEAD"} or status != 404:
+                continue
+            if timestamp < window_start or timestamp > future_limit:
+                continue
+            request_path = unquote(urlsplit(target).path)
+            match = status_path_re.fullmatch(request_path)
+            if match is None:
+                continue
+            job_uuid = match.group("uuid")
+            if UUID_RE.fullmatch(job_uuid) is None:
+                continue
+            file_counts[parsed] += 1
+        for event, count in file_counts.items():
+            event_counts[event] = max(event_counts.get(event, 0), count)
+
+    polls: dict[str, MissingStatusPolls] = {}
+    for event, count in event_counts.items():
+        _, timestamp, _, target, _ = event
+        request_path = unquote(urlsplit(target).path)
+        match = status_path_re.fullmatch(request_path)
+        if match is None:
+            continue
+        job_uuid = match.group("uuid")
+        candidate = polls.get(job_uuid)
+        if candidate is None:
+            polls[job_uuid] = MissingStatusPolls(
+                job_uuid=job_uuid,
+                request_path=request_path,
+                first_seen=timestamp,
+                last_seen=timestamp,
+                count=count,
+            )
+        else:
+            candidate.first_seen = min(candidate.first_seen, timestamp)
+            candidate.last_seen = max(candidate.last_seen, timestamp)
+            candidate.count += count
+
+    minimum_duration = timedelta(minutes=settings.min_poll_duration_minutes)
+    return sorted(
+        (
+            candidate
+            for candidate in polls.values()
+            if candidate.count >= settings.min_poll_count
+            and candidate.last_seen - candidate.first_seen >= minimum_duration
+        ),
+        key=lambda candidate: (candidate.first_seen, candidate.job_uuid),
+    )
+
+
+def missing_status_xml(candidate: MissingStatusPolls, output_url: str, now: datetime) -> bytes:
+    ET.register_namespace("wps", "http://www.opengis.net/wps/1.0.0")
+    ET.register_namespace("ows", "http://www.opengis.net/ows/1.1")
+    wps_uri = "http://www.opengis.net/wps/1.0.0"
+    ows_uri = "http://www.opengis.net/ows/1.1"
+    status_location = f"{output_url.rstrip('/')}/{candidate.job_uuid}.xml"
+    root = ET.Element(
+        qualified("ExecuteResponse", wps_uri),
+        {
+            "service": "WPS",
+            "version": "1.0.0",
+            "statusLocation": status_location,
+        },
+    )
+    process = ET.SubElement(
+        root,
+        qualified("Process", wps_uri),
+        {qualified("processVersion", wps_uri): "unknown"},
+    )
+    ET.SubElement(process, qualified("Identifier", ows_uri)).text = "unknown"
+    ET.SubElement(process, qualified("Title", ows_uri)).text = "Recovered missing status document"
+    status = ET.SubElement(
+        root,
+        qualified("Status", wps_uri),
+        {"creationTime": now.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")},
+    )
+    failed = ET.SubElement(status, qualified("ProcessFailed", wps_uri))
+    report = ET.SubElement(failed, qualified("ExceptionReport", wps_uri))
+    exception = ET.SubElement(
+        report,
+        qualified("Exception", ows_uri),
+        {"exceptionCode": "NoApplicableCode", "locator": "None"},
+    )
+    ET.SubElement(exception, qualified("ExceptionText", ows_uri)).text = (
+        "Process failed: repeated polling found that this PyWPS status document "
+        "was not created. The request can no longer be monitored."
+    )
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def create_missing_status_file(path: Path, contents: bytes) -> bool:
+    """Atomically create a status file, without replacing a concurrent writer."""
+    directory_stat = path.parent.stat()
+    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(contents)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary_name, 0o644)
+        if os.geteuid() == 0:
+            os.chown(temporary_name, directory_stat.st_uid, directory_stat.st_gid)
+        try:
+            os.link(temporary_name, path)
+        except FileExistsError:
+            return False
+        return True
+    finally:
+        try:
+            os.unlink(temporary_name)
+        except FileNotFoundError:
+            pass
+
+
+def database_recovery_vetoes(
+    settings: Settings,
+    job_uuids: list[str],
+) -> dict[str, str]:
+    """Protect every request whose database state is not final."""
+    if not settings.database_guard:
+        return {}
+    if settings.pywps_config is None:
+        raise ValueError("the access-log database guard requires pywps_config")
+
+    os.environ["PYWPS_CFG"] = str(settings.pywps_config)
+    try:
+        from pywps import configuration, dblog
+        from pywps.response.status import WPS_STATUS
+        from sqlalchemy import create_engine, inspect
+        from sqlalchemy.orm import sessionmaker
+    except ImportError as error:
+        raise RuntimeError(
+            "the access-log database guard must run with the service Conda environment"
+        ) from error
+
+    configuration.load_configuration([str(settings.pywps_config)])
+    database_url = configuration.get_config_value("logging", "database")
+    engine = create_engine(database_url)
+    if not inspect(engine).has_table(dblog.ProcessInstance.__tablename__):
+        engine.dispose()
+        raise RuntimeError(
+            f"PyWPS request table does not exist: {dblog.ProcessInstance.__tablename__}"
+        )
+    final_statuses = {WPS_STATUS.SUCCEEDED, WPS_STATUS.FAILED}
+    vetoes: dict[str, str] = {}
+    session = sessionmaker(bind=engine)()
+    try:
+        records = (
+            session.query(dblog.ProcessInstance)
+            .filter(dblog.ProcessInstance.uuid.in_(job_uuids))
+            .all()
+        )
+        for record in records:
+            if record.status in final_statuses:
+                continue
+            vetoes[record.uuid] = "database-request-is-nonfinal"
+    finally:
+        session.close()
+        engine.dispose()
+    return vetoes
+
+
+def run_access_log_layer(
+    settings: Settings,
+    now: datetime,
+    logger: logging.Logger,
+) -> LayerSummary:
+    summary = LayerSummary("access-log")
+    if settings.output_dir is None:
+        raise ValueError("the access-log layer requires output_dir")
+    if not settings.output_dir.is_dir():
+        raise FileNotFoundError(f"output directory does not exist: {settings.output_dir}")
+    candidates = find_missing_status_polls(settings, now)
+    if not candidates:
+        return summary
+    vetoes = database_recovery_vetoes(
+        settings,
+        [candidate.job_uuid for candidate in candidates],
+    )
+    for candidate in candidates:
+        summary.checked += candidate.count
+        try:
+            if candidate.job_uuid in vetoes:
+                logger.info(
+                    "layer=access-log job=%s decision=skip reason=%s polls=%d",
+                    candidate.job_uuid,
+                    vetoes[candidate.job_uuid],
+                    candidate.count,
+                )
+                continue
+            status_path = settings.output_dir / f"{candidate.job_uuid}.xml"
+            if status_path.exists():
+                logger.info(
+                    "layer=access-log job=%s decision=status-exists polls=%d",
+                    candidate.job_uuid,
+                    candidate.count,
+                )
+                continue
+            summary.stalled += 1
+            logger.info(
+                "layer=access-log job=%s decision=missing-status polls=%d "
+                "first_seen=%s last_seen=%s",
+                candidate.job_uuid,
+                candidate.count,
+                candidate.first_seen.isoformat(),
+                candidate.last_seen.isoformat(),
+            )
+            if settings.mode == "cleanup":
+                contents = missing_status_xml(candidate, settings.output_url or "", now)
+                if create_missing_status_file(status_path, contents):
+                    summary.cleaned += 1
+                    logger.warning(
+                        "layer=access-log job=%s decision=created-failure-status polls=%d",
+                        candidate.job_uuid,
+                        candidate.count,
+                    )
+                else:
+                    logger.info(
+                        "layer=access-log job=%s decision=concurrent-status-create",
+                        candidate.job_uuid,
+                    )
+        except Exception as error:
+            summary.errors += 1
+            logger.exception(
+                "layer=access-log job=%s decision=error reason=%s",
+                candidate.job_uuid,
+                error,
+            )
+        if settings.limit is not None and summary.stalled >= settings.limit:
+            break
     return summary
 
 
@@ -523,6 +845,44 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         type=Path,
         default=stalled_jobs_log_file(config),
     )
+    parser.add_argument(
+        "--access-log",
+        type=Path,
+        default=optional_path(stalled_config.get("access_log")),
+        help="Nginx access log used to discover missing polled status documents",
+    )
+    parser.add_argument(
+        "--poll-window-minutes",
+        type=float,
+        default=float(stalled_config.get("poll_window_minutes", "60")),
+        help="inspect polling requests from this recent time window",
+    )
+    parser.add_argument(
+        "--min-poll-count",
+        type=int,
+        default=int(stalled_config.get("min_poll_count", "3")),
+        help="require this many 404 poll responses before recovery",
+    )
+    parser.add_argument(
+        "--min-poll-duration-minutes",
+        "--min-poll-age-minutes",
+        dest="min_poll_duration_minutes",
+        type=float,
+        default=float(
+            stalled_config.get(
+                "min_poll_duration_minutes",
+                stalled_config.get("min_poll_age_minutes", "15"),
+            )
+        ),
+        help="require matching polls to span at least this much time",
+    )
+    parser.add_argument(
+        "--no-database-guard",
+        action="store_false",
+        dest="database_guard",
+        default=stalled_config.getboolean("missing_status_database_guard", fallback=True),
+        help="allow access-log recovery without checking active database requests",
+    )
     args = parser.parse_args(argv)
     limit = args.limit
     if limit is None and args.mode == "cleanup":
@@ -534,13 +894,21 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     if not layers:
         parser.error("at least one layer must be configured")
     if "all" in layers:
-        layers = list(SUPPORTED_LAYERS)
+        layers = list(LEGACY_ALL_LAYERS)
     if args.stale_after_hours <= 0:
         parser.error("--stale-after-hours/--hours must be greater than zero")
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
     if args.status_counts and args.mode != "monitor":
         parser.error("--status-counts is only available in monitor mode")
+    if args.poll_window_minutes <= 0:
+        parser.error("--poll-window-minutes must be greater than zero")
+    if args.min_poll_count <= 0:
+        parser.error("--min-poll-count must be greater than zero")
+    if args.min_poll_duration_minutes < 0:
+        parser.error("--min-poll-duration-minutes cannot be negative")
+    if args.min_poll_duration_minutes >= args.poll_window_minutes:
+        parser.error("--min-poll-duration-minutes must be shorter than the polling window")
     return Settings(
         mode=args.mode,
         layers=list(dict.fromkeys(layers)),
@@ -552,6 +920,12 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         show_summaries=args.show_summaries,
         limit=limit,
         status_counts=args.status_counts,
+        output_url=config.get("server", "outputurl", fallback=None),
+        access_log=args.access_log,
+        poll_window_minutes=args.poll_window_minutes,
+        min_poll_count=args.min_poll_count,
+        min_poll_duration_minutes=args.min_poll_duration_minutes,
+        database_guard=args.database_guard,
     )
 
 
@@ -582,7 +956,11 @@ def execute_layers(
     logger: logging.Logger,
     runners: dict[str, Callable[[Settings, datetime, logging.Logger], LayerSummary]] | None = None,
 ) -> list[LayerSummary]:
-    runners = runners or {"xml": run_xml_layer, "database": run_database_layer}
+    runners = runners or {
+        "xml": run_xml_layer,
+        "database": run_database_layer,
+        "access-log": run_access_log_layer,
+    }
     summaries: list[LayerSummary] = []
     for layer in settings.layers:
         try:

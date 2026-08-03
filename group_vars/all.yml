@@ -146,6 +146,19 @@ pywps_stalled_jobs_cleanup_limit: 100
 pywps_stalled_jobs_layers:
   - xml
   - database
+pywps_missing_status_recovery_enabled: false
+pywps_missing_status_recovery_schedule:
+  minute: "*/10"
+  hour: "*"
+  day: "*"
+  month: "*"
+  weekday: "*"
+pywps_missing_status_poll_window_minutes: 60
+pywps_missing_status_min_poll_count: 3
+pywps_missing_status_min_poll_duration_minutes: 15
+pywps_missing_status_recovery_limit: 20
+pywps_missing_status_access_log: "{{ wps_http_log_dir }}/access.log"
+pywps_missing_status_database_guard: true
 
 # selinux
 # https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html

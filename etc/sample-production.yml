@@ -23,6 +23,16 @@ pywps_stalled_jobs_cleanup_limit: 100
 pywps_stalled_jobs_layers:
   - xml
   - database
+# Recover a missing status document only after repeated recent Nginx 404s.
+pywps_missing_status_recovery_enabled: true
+pywps_missing_status_recovery_schedule:
+  minute: "*/10"
+  hour: "*"
+pywps_missing_status_poll_window_minutes: 60
+pywps_missing_status_min_poll_count: 3
+pywps_missing_status_min_poll_duration_minutes: 15
+pywps_missing_status_recovery_limit: 20
+pywps_missing_status_database_guard: true
 
 # Use a separately managed PostgreSQL database.
 db_install_postgresql: false

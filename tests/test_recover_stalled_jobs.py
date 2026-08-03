@@ -23,6 +23,7 @@ WPS = "http://www.opengis.net/wps/1.0.0"
 OWS = "http://www.opengis.net/ows/1.1"
 UTC = timezone.utc
 JOB_UUID = "123e4567-e89b-42d3-a456-426614174000"
+OTHER_JOB_UUID = "223e4567-e89b-42d3-a456-426614174000"
 OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
@@ -78,6 +79,30 @@ class RecoverStalledJobsTests(unittest.TestCase):
             lock_file=self.root / "lock",
             log_file=None,
         )
+
+    def access_log_line(
+        self,
+        timestamp: datetime,
+        status: int = 404,
+        path: str | None = None,
+        client: str = "192.0.2.10",
+    ) -> str:
+        path = path or f"/outputs/alpha/{JOB_UUID}.xml"
+        nginx_time = timestamp.strftime("%d/%b/%Y:%H:%M:%S %z")
+        return (
+            f'{client} - - [{nginx_time}] "GET {path} HTTP/1.1" '
+            f'{status} 153 "-" "python-requests/2.34.2" "-"\n'
+        )
+
+    def access_log_settings(self, mode: str = "cleanup"):
+        settings = self.settings(mode, ["access-log"])
+        settings.output_url = "https://example.test/outputs/alpha"
+        settings.access_log = self.root / "access.log"
+        settings.poll_window_minutes = 60
+        settings.min_poll_count = 3
+        settings.min_poll_duration_minutes = 5
+        settings.database_guard = False
+        return settings
 
     def test_xml_is_stalled_only_when_creation_time_and_mtime_are_old(self):
         self.write_status()
@@ -214,17 +239,189 @@ class RecoverStalledJobsTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "changed before cleanup"):
             MODULE.write_failed_xml(document, tree, "stalled", self.now)
 
+    def test_access_log_cleanup_creates_failure_after_repeated_recent_404s(self):
+        settings = self.access_log_settings()
+        settings.access_log.write_text(
+            "".join(
+                self.access_log_line(self.now - timedelta(minutes=minutes))
+                for minutes in (12, 8, 2)
+            ),
+            encoding="utf-8",
+        )
+
+        logger = mock.Mock()
+        summary = MODULE.run_access_log_layer(settings, self.now, logger)
+
+        self.assertEqual(
+            (summary.checked, summary.stalled, summary.cleaned, summary.errors),
+            (3, 1, 1, 0),
+        )
+        document, _ = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessFailed")
+        self.assertEqual(document.creation_time, self.now)
+        self.assertEqual(self.status.stat().st_mode & 0o777, 0o644)
+        logger.warning.assert_called_once_with(
+            "layer=access-log job=%s decision=created-failure-status polls=%d",
+            JOB_UUID,
+            3,
+        )
+
+    def test_access_log_monitor_reports_but_does_not_create_status(self):
+        settings = self.access_log_settings("monitor")
+        settings.access_log.write_text(
+            "".join(
+                self.access_log_line(self.now - timedelta(minutes=minutes))
+                for minutes in (12, 8, 2)
+            ),
+            encoding="utf-8",
+        )
+        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
+        self.assertEqual((summary.stalled, summary.cleaned), (1, 0))
+        self.assertFalse(self.status.exists())
+
+    def test_access_log_database_veto_protects_an_active_request(self):
+        settings = self.access_log_settings()
+        settings.database_guard = True
+        settings.pywps_config = self.root / "pywps.cfg"
+        settings.access_log.write_text(
+            "".join(
+                self.access_log_line(self.now - timedelta(minutes=minutes))
+                for minutes in (12, 8, 2)
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.object(
+            MODULE,
+            "database_recovery_vetoes",
+            return_value={JOB_UUID: "database-request-is-nonfinal"},
+        ):
+            logger = mock.Mock()
+            summary = MODULE.run_access_log_layer(settings, self.now, logger)
+        self.assertEqual((summary.stalled, summary.cleaned), (0, 0))
+        self.assertFalse(self.status.exists())
+        logger.info.assert_called_with(
+            "layer=access-log job=%s decision=skip reason=%s polls=%d",
+            JOB_UUID,
+            "database-request-is-nonfinal",
+            3,
+        )
+
+    def test_access_log_requires_exact_path_404_count_window_and_age(self):
+        settings = self.access_log_settings()
+        lines = [
+            self.access_log_line(self.now - timedelta(minutes=20)),
+            self.access_log_line(self.now - timedelta(minutes=10), status=200),
+            self.access_log_line(
+                self.now - timedelta(minutes=8),
+                path=f"/other/alpha/{JOB_UUID}.xml",
+            ),
+            self.access_log_line(self.now - timedelta(minutes=70)),
+            self.access_log_line(self.now - timedelta(minutes=2)),
+        ]
+        settings.access_log.write_text("".join(lines), encoding="utf-8")
+        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
+        self.assertEqual((summary.checked, summary.stalled, summary.cleaned), (0, 0, 0))
+        self.assertFalse(self.status.exists())
+
+    def test_shared_access_log_is_filtered_for_the_configured_service(self):
+        settings = self.access_log_settings("monitor")
+        alpha_lines = "".join(
+            self.access_log_line(self.now - timedelta(minutes=minutes))
+            for minutes in (20, 10, 2)
+        )
+        beta_lines = "".join(
+            self.access_log_line(
+                self.now - timedelta(minutes=minutes),
+                path=f"/outputs/beta/{OTHER_JOB_UUID}.xml",
+            )
+            for minutes in (30, 15, 1)
+        )
+        settings.access_log.write_text(alpha_lines + beta_lines, encoding="utf-8")
+
+        candidates = MODULE.find_missing_status_polls(settings, self.now)
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].job_uuid, JOB_UUID)
+        self.assertEqual(candidates[0].request_path, f"/outputs/alpha/{JOB_UUID}.xml")
+        self.assertEqual(candidates[0].count, 3)
+
+    def test_access_log_deduplicates_lines_copied_during_rotation(self):
+        settings = self.access_log_settings()
+        lines = "".join(
+            self.access_log_line(
+                self.now - timedelta(minutes=minutes),
+                client=f"192.0.2.{index}",
+            )
+            for index, minutes in enumerate((12, 8, 2), start=10)
+        )
+        settings.access_log.write_text(lines, encoding="utf-8")
+        settings.access_log.with_name("access.log.1").write_text(lines, encoding="utf-8")
+        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
+        self.assertEqual(summary.checked, 3)
+        self.assertEqual(summary.cleaned, 1)
+
+    def test_access_log_requires_polls_spanning_the_minimum_age(self):
+        settings = self.access_log_settings()
+        line = self.access_log_line(self.now - timedelta(minutes=10))
+        settings.access_log.write_text(line * 3, encoding="utf-8")
+        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
+        self.assertEqual(summary.checked, 0)
+        self.assertEqual(summary.cleaned, 0)
+
+    def test_access_log_does_not_replace_status_created_concurrently(self):
+        candidate = MODULE.MissingStatusPolls(
+            JOB_UUID,
+            f"/outputs/alpha/{JOB_UUID}.xml",
+            self.now - timedelta(minutes=10),
+            self.now - timedelta(minutes=1),
+            3,
+        )
+        contents = MODULE.missing_status_xml(
+            candidate, "https://example.test/outputs/alpha", self.now
+        )
+        self.status.write_bytes(b"created by pywps")
+        self.assertFalse(MODULE.create_missing_status_file(self.status, contents))
+        self.assertEqual(self.status.read_bytes(), b"created by pywps")
+
+    @unittest.skipUnless(OWSLIB_AVAILABLE, "OWSLib is not installed")
+    def test_missing_status_failure_stops_owslib_polling(self):
+        from owslib.wps import WPSExecution
+
+        candidate = MODULE.MissingStatusPolls(
+            JOB_UUID,
+            f"/outputs/alpha/{JOB_UUID}.xml",
+            self.now - timedelta(minutes=10),
+            self.now - timedelta(minutes=1),
+            3,
+        )
+        self.status.write_bytes(
+            MODULE.missing_status_xml(
+                candidate, "https://example.test/outputs/alpha", self.now
+            )
+        )
+        execution = WPSExecution()
+        execution.checkStatus(response=self.status.read_bytes(), sleepSecs=0)
+        self.assertEqual(execution.status, "Exception")
+        self.assertTrue(execution.isComplete())
+        self.assertIn("can no longer be monitored", execution.errors[0].text)
+
     def test_generated_configuration_supplies_defaults_and_cli_overrides(self):
         config = self.root / "stalled.ini"
         config.write_text(
             "[server]\n"
             f"outputpath = {self.outputs}\n"
+            "outputurl = https://example.test/outputs/alpha\n"
             "[logging]\n"
             f"file = {self.root / 'logs' / 'alpha.log'}\n"
             "[stalled_jobs]\n"
             "layers = xml, database\n"
             "stale_after_hours = 6\n"
             "cleanup_limit = 100\n"
+            f"access_log = {self.root / 'nginx-access.log'}\n"
+            "poll_window_minutes = 45\n"
+            "min_poll_count = 4\n"
+            "min_poll_duration_minutes = 7\n"
+            "missing_status_database_guard = true\n"
             f"lock_file = {self.root / 'configured.lock'}\n",
             encoding="utf-8",
         )
@@ -234,6 +431,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
         self.assertEqual(settings.pywps_config, config)
+        self.assertEqual(settings.output_url, "https://example.test/outputs/alpha")
+        self.assertEqual(settings.access_log, self.root / "nginx-access.log")
+        self.assertEqual(settings.poll_window_minutes, 45)
+        self.assertEqual(settings.min_poll_count, 4)
+        self.assertEqual(settings.min_poll_duration_minutes, 7)
+        self.assertTrue(settings.database_guard)
         self.assertEqual(
             settings.log_file,
             self.root / "logs" / "stalled-jobs-alpha.log",
@@ -402,6 +605,70 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         record.time_end = None
         self.assertEqual(MODULE.database_last_update(record), start.replace(tzinfo=UTC))
+
+    @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
+    def test_database_guard_vetoes_recent_and_old_nonfinal_requests(self):
+        pywps_config = self.root / "guard-pywps.cfg"
+        database = self.root / "guard-pywps.sqlite"
+        workdir = self.root / "guard-work"
+        workdir.mkdir()
+        pywps_config.write_text(
+            "[server]\n"
+            f"outputpath = {self.outputs}\n"
+            f"workdir = {workdir}\n"
+            "[logging]\n"
+            f"database = sqlite:///{database}\n"
+            "level = INFO\n",
+            encoding="utf-8",
+        )
+        os.environ["PYWPS_CFG"] = str(pywps_config)
+        from pywps import configuration, dblog
+        from pywps.response.status import WPS_STATUS
+
+        configuration.load_configuration([str(pywps_config)])
+        recent = (self.now - timedelta(hours=1)).replace(tzinfo=None)
+        session = dblog.get_session()
+        session.add(
+            dblog.ProcessInstance(
+                uuid=JOB_UUID,
+                pid=12345,
+                operation="execute",
+                version="1.0.0",
+                time_start=recent,
+                status=WPS_STATUS.STARTED,
+                percent_done=10,
+            )
+        )
+        session.commit()
+        session.close()
+
+        settings = self.access_log_settings()
+        settings.database_guard = True
+        settings.pywps_config = pywps_config
+        self.assertEqual(
+            MODULE.database_recovery_vetoes(settings, [JOB_UUID]),
+            {JOB_UUID: "database-request-is-nonfinal"},
+        )
+
+        session = dblog.get_session()
+        record = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()
+        record.time_start = (self.now - timedelta(hours=8)).replace(tzinfo=None)
+        session.commit()
+        session.close()
+        self.assertEqual(
+            MODULE.database_recovery_vetoes(settings, [JOB_UUID]),
+            {JOB_UUID: "database-request-is-nonfinal"},
+        )
+
+        session = dblog.get_session()
+        record = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()
+        record.status = WPS_STATUS.FAILED
+        session.commit()
+        session.close()
+        self.assertEqual(
+            MODULE.database_recovery_vetoes(settings, [JOB_UUID]),
+            {},
+        )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
     def test_database_cleanup_updates_request_and_removes_queue_entry(self):
