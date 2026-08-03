@@ -275,7 +275,8 @@ entries are disabled by default and always run in read-only monitoring mode:
 
 ```yaml
 cron_enabled: true
-pywps_stalled_jobs_enabled: true
+pywps_stalled_jobs_monitor_enabled: true
+pywps_stalled_jobs_cleanup_enabled: false
 pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
@@ -291,6 +292,21 @@ The default runs hourly at 15 minutes past the hour. Standard cron fields
 layer and scheduled output cleanup are enabled, the stale threshold must be
 shorter than `wps_outputs_keep_hours`; otherwise status files could be removed
 before the monitor sees them.
+
+The playbook renders the operation switches into every service configuration:
+
+```ini
+[stalled_jobs]
+monitor_enabled = true
+cleanup_enabled = false
+missing_status_recovery_enabled = false
+```
+
+The cron entries are controlled globally by `cron_enabled`; when invoked, the
+script reads these per-service switches from `/etc/pywps/SERVICE.cfg`. Disabled
+operations exit successfully without inspecting or changing jobs. The older
+`pywps_stalled_jobs_enabled` Ansible variable remains a compatibility alias for
+`pywps_stalled_jobs_monitor_enabled`.
 
 The XML and database layers run independently. The XML layer examines both
 `Status@creationTime` and the file modification time, using the newer value as
@@ -360,6 +376,62 @@ configured cleanup default. The underlying `--status-counts` option enables the
 complete database aggregate used by the manual monitor helper.
 
 Slurm inspection and cleanup are intentionally deferred to a later iteration.
+
+### Recover repeatedly polled missing status documents
+
+An independent, opt-in cron job can inspect recent Nginx access logs for WPS
+clients repeatedly polling a status URL that returns `404`. Once the same valid
+UUID has reached the configured request count and polling duration, the job creates
+a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
+instead of polling forever.
+
+```yaml
+pywps_stalled_jobs_cleanup_enabled: true
+pywps_missing_status_recovery_enabled: true
+pywps_missing_status_recovery_schedule:
+  minute: "*/10"
+  hour: "*"
+pywps_missing_status_poll_window_minutes: 60
+pywps_missing_status_min_poll_count: 3
+pywps_missing_status_min_poll_duration_minutes: 15
+pywps_missing_status_recovery_limit: 20
+pywps_missing_status_access_log: /var/log/nginx/access.log
+pywps_missing_status_database_guard: true
+```
+
+The default schedule runs every ten minutes and considers only requests from
+the preceding hour. Recovery requires at least three `GET` or `HEAD` responses
+with status `404`, spanning at least 15 minutes rather than arriving in one
+short burst. Only the exact output path configured for that PyWPS service and a
+syntactically valid UUID filename are accepted. Only the configured active log
+is inspected. Rotated logs are intentionally ignored: persistent polling
+appears in the active log again and qualifies after the configured minimum
+duration.
+
+On a VM hosting multiple PyWPS services, Ansible creates one recovery cron
+entry per service. Each entry uses that service's `/etc/pywps/SERVICE.cfg`,
+filters the shared Nginx log to its exact configured output URL path, and writes
+only to its configured output directory.
+
+The database guard is enabled by default. Every non-final database request,
+regardless of age, vetoes access-log recovery. Consequently, a legitimate
+long-running job is not failed merely because its status document is
+temporarily unavailable or Lustre is hanging. An old request still marked
+active must first be reviewed and handled by the existing stalled-database
+recovery. A final database request or a UUID absent from the database may be
+recovered from the access-log evidence.
+
+Before writing, the job checks that the XML document is still absent. It uses
+an atomic create-without-replacement operation, so a status document produced
+concurrently by PyWPS wins. The generated document is owned like the service's
+output directory, is mode `0644`, contains a UTC creation time and useful
+failure message, and is recorded as a warning in the existing per-service
+stalled-job log. Each run recovers at most 20 documents by default.
+
+This recovery is deliberately not included in `recover-all` or the scheduled
+read-only stalled-job monitor. To inspect candidates without creating files,
+run the underlying script in monitor mode with `--layer access-log`; select
+cleanup mode only when recovery is intended.
 
 ### Use Conda to build identical environments
 

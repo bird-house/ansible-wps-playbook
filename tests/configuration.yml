@@ -41,8 +41,17 @@
           - pywps_stalled_jobs_age_hours | int > 0
           - pywps_stalled_jobs_cleanup_limit == 100
           - pywps_stalled_jobs_age_hours | int < wps_outputs_keep_hours | int
-          - not pywps_stalled_jobs_enabled
+          - pywps_stalled_jobs_enabled
+          - pywps_stalled_jobs_monitor_enabled
+          - not pywps_stalled_jobs_cleanup_enabled
           - pywps_stalled_jobs_layers == ['xml', 'database']
+          - not pywps_missing_status_recovery_enabled
+          - pywps_missing_status_recovery_schedule.minute == '*/10'
+          - pywps_missing_status_poll_window_minutes == 60
+          - pywps_missing_status_min_poll_count == 3
+          - pywps_missing_status_min_poll_duration_minutes == 15
+          - pywps_missing_status_recovery_limit == 20
+          - pywps_missing_status_database_guard
           - wps_conda_channel == 'conda-forge'
           - "'psycopg2=2.9.12' in wps_conda_packages"
           - "'drmaa=0.7.9' in wps_conda_packages"
@@ -180,9 +189,17 @@
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location /health' in test_nginx_config"
           - "'[stalled_jobs]' in test_pywps_config"
+          - "'monitor_enabled = true' in test_pywps_config"
+          - "'cleanup_enabled = false' in test_pywps_config"
+          - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
           - "'cleanup_limit = 100' in test_pywps_config"
+          - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
+          - "'poll_window_minutes = 60' in test_pywps_config"
+          - "'min_poll_count = 3' in test_pywps_config"
+          - "'min_poll_duration_minutes = 15' in test_pywps_config"
+          - "'missing_status_database_guard = true' in test_pywps_config"
 
     - name: Check rendered alternate configuration
       ansible.builtin.assert:

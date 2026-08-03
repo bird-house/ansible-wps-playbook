@@ -67,25 +67,6 @@ deployment.
   errors. Investigate access-log evidence or another existing timestamp before
   recovery; do not introduce a database schema change or mark an undated row
   failed without a reliable minimum age signal.
-- Add a report-only Nginx access-log discovery layer for clients repeatedly
-  polling a UUID status document that returns `404`. Make the log path, minimum
-  request count, observation window, and request age configurable, and account
-  for rotated logs without counting a request twice.
-- Before recovering a status document discovered from access logs, validate the
-  UUID and service path, confirm the XML file is still absent immediately before
-  creation, and avoid replacing any document created concurrently. Investigate
-  whether the PyWPS database can provide additional evidence that the request
-  is no longer active without requiring a schema change.
-- Add an explicit cleanup mode for confirmed missing status documents. Write a
-  WPS 1.0 `ProcessFailed` response atomically, with a UTC creation time, useful
-  failure notice, correct ownership and permissions, and enough response
-  metadata for OWSLib clients to stop polling. Cover the generated document
-  with XML round-trip tests and record every discovery and recovery in the
-  existing stalled-job log.
-- Bound access-log recovery with the existing age and limit concepts, deploy it
-  in monitoring mode first, and keep it independent of the XML, database, and
-  future Slurm layers so one failure does not block the others.
-
 ### Patch release: host resource monitoring
 
 - Inventory and review the manually installed production scripts for disk
