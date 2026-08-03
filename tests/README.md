@@ -8,7 +8,7 @@ make test
 
 These checks lint the maintained Ansible content, validate playbook syntax,
 test defaults and rendered configuration without changing the host, and run
-fixture-based tests for the standalone stalled-job recovery script.
+fixture-based tests for the standalone PyWPS job-control script.
 
 With Docker running, execute the same minimal convergence test used by GitHub:
 

@@ -8,8 +8,9 @@ fail() {
 }
 
 usage() {
+    local exit_code=${1:-2}
     echo "Usage: $command_name SERVICE_NAME [OPTIONS]" >&2
-    exit 2
+    exit "$exit_code"
 }
 
 validate_service_name() {
@@ -37,21 +38,35 @@ main() {
     case $command_name in
         monitor)
             mode=monitor
-            script_options=(--layer all --show-summaries --status-counts)
+            script_options=(
+                --layer xml --layer database --layer polling
+                --show-summaries --status-counts
+            )
             ;;
         recover-xml)
-            mode=cleanup
+            mode=recover
             script_options=(--layer xml)
             ;;
-        recover-all)
-            mode=cleanup
-            script_options=(--layer all)
+        recover-polling)
+            mode=recover
+            script_options=(--layer polling)
+            ;;
+        recover-xml-db)
+            mode=recover
+            script_options=(--layer xml --layer database)
+            ;;
+        statistics)
+            mode=statistics
+            script_options=(--layer xml --layer database --show-summaries)
             ;;
         *)
             fail "Unsupported command name: $command_name"
             ;;
     esac
 
+    if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+        usage 0
+    fi
     [[ $# -ge 1 ]] || usage
     validate_service_name "$1"
 
@@ -62,14 +77,14 @@ main() {
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"
-    local recovery_script="{{ cron_script_dir }}/recover-stalled-jobs.py"
+    local job_control_script="{{ cron_script_dir }}/pywps-job-control.py"
 
     [[ -x $python ]] || fail "Python not found or not executable: $python"
     [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"
-    [[ -x $recovery_script ]] \
-        || fail "Recovery script not found or not executable: $recovery_script"
+    [[ -x $job_control_script ]] \
+        || fail "PyWPS job-control script not found or not executable: $job_control_script"
 
-    exec "$python" "$recovery_script" \
+    exec "$python" "$job_control_script" \
         --config "$config_file" "$mode" "${script_options[@]}" "$@"
 }
 

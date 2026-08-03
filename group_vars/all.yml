@@ -134,12 +134,18 @@ cron_mailto: root
 cron_user: root
 pywps_restart_enabled: true
 pywps_restart_schedule: daily
-# Compatibility alias for existing inventories; prefer the monitor-specific name.
-pywps_stalled_jobs_enabled: true
 # Report stalled requests without changing them.
-pywps_stalled_jobs_monitor_enabled: "{{ pywps_stalled_jobs_enabled }}"
-# Allow commands that change stalled requests or status documents.
-pywps_stalled_jobs_cleanup_enabled: false
+pywps_stalled_jobs_monitor_enabled: true
+# Allow commands that recover stalled requests or status documents.
+pywps_stalled_jobs_recovery_enabled: false
+# Write a complete daily job statistics report.
+pywps_job_statistics_enabled: true
+pywps_job_statistics_schedule:
+  minute: "5"
+  hour: "0"
+  day: "*"
+  month: "*"
+  weekday: "*"
 pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
@@ -147,7 +153,9 @@ pywps_stalled_jobs_schedule:
   month: "*"
   weekday: "*"
 pywps_stalled_jobs_age_hours: 6
-pywps_stalled_jobs_cleanup_limit: 100
+# Maximum recovered jobs per layer.
+pywps_stalled_jobs_recovery_limit: 100
+# Layers used when a command does not specify --layer.
 pywps_stalled_jobs_layers:
   - xml
   - database

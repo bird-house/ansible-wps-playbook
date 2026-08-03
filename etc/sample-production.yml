@@ -16,13 +16,20 @@ pywps_restart_schedule: daily
 # First deploy stalled-job checks in report-only mode and review their log.
 # Report stalled requests without changing them.
 pywps_stalled_jobs_monitor_enabled: true
-# Allow commands that change stalled requests or status documents.
-pywps_stalled_jobs_cleanup_enabled: false
+# Allow commands that recover stalled requests or status documents.
+pywps_stalled_jobs_recovery_enabled: false
+# Write a complete daily job statistics report.
+pywps_job_statistics_enabled: true
+pywps_job_statistics_schedule:
+  minute: "5"
+  hour: "0"
 pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
 pywps_stalled_jobs_age_hours: 6
-pywps_stalled_jobs_cleanup_limit: 100
+# Maximum recovered jobs per layer.
+pywps_stalled_jobs_recovery_limit: 100
+# Layers used when a command does not specify --layer.
 pywps_stalled_jobs_layers:
   - xml
   - database

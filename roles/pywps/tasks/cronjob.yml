@@ -56,10 +56,11 @@
   ansible.builtin.assert:
     that:
       - pywps_stalled_jobs_schedule | type_debug == 'dict'
+      - pywps_job_statistics_schedule | type_debug == 'dict'
       - pywps_stalled_jobs_age_hours | float > 0
-      - pywps_stalled_jobs_cleanup_limit | int > 0
+      - pywps_stalled_jobs_recovery_limit | int > 0
       - pywps_stalled_jobs_layers | length > 0
-      - pywps_stalled_jobs_layers | difference(['xml', 'database', 'all']) | length == 0
+      - pywps_stalled_jobs_layers | difference(['xml', 'database', 'polling']) | length == 0
       - pywps_missing_status_recovery_schedule | type_debug == 'dict'
       - pywps_missing_status_poll_window_minutes | float > 0
       - pywps_missing_status_min_poll_count | int > 0
@@ -71,26 +72,30 @@
       - >-
         not (cron_enabled | bool)
         or not (pywps_stalled_jobs_monitor_enabled | bool)
-        or ('xml' not in pywps_stalled_jobs_layers
-            and 'all' not in pywps_stalled_jobs_layers)
+        or 'xml' not in pywps_stalled_jobs_layers
         or (pywps_stalled_jobs_age_hours | float) < (wps_outputs_keep_hours | float)
     fail_msg: >-
       The stalled-job schedule must be a cron-field mapping, age must be
       positive and shorter than output retention for scheduled XML checks,
-      cleanup limit must be positive, and layers must contain xml, database,
-      or all. Missing-status recovery also requires a valid schedule, positive
-      polling window, poll count and recovery limit, and a minimum poll duration
-      shorter than its polling window.
+      recovery limit must be positive, and layers must contain xml, database,
+      or polling. Missing-status recovery also requires a valid schedule,
+      positive polling window, poll count and recovery limit, and a minimum
+      poll duration shorter than its polling window.
 
-- name: Copy stalled-job recovery script
+- name: Install PyWPS job-control script
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/scripts/recover-stalled-jobs.py"
-    dest: "{{ cron_script_dir }}/recover-stalled-jobs.py"
+    dest: "{{ cron_script_dir }}/pywps-job-control.py"
     owner: root
     group: root
     mode: "0755"
 
-- name: Copy stalled-job command helpers
+- name: Remove obsolete stalled-job script alias
+  ansible.builtin.file:
+    path: "{{ cron_script_dir }}/recover-stalled-jobs.py"
+    state: absent
+
+- name: Install PyWPS job operator commands
   ansible.builtin.template:
     src: ./templates/stalled-jobs-helper.sh.j2
     dest: "{{ cron_script_dir }}/{{ item }}"
@@ -100,11 +105,21 @@
   loop:
     - monitor
     - recover-xml
+    - recover-polling
+    - recover-xml-db
+    - statistics
+
+- name: Remove obsolete recovery commands
+  ansible.builtin.file:
+    path: "{{ cron_script_dir }}/{{ item }}"
+    state: absent
+  loop:
+    - recover
     - recover-all
 
-- name: Schedule stalled-job checks
+- name: Schedule PyWPS stalled-job monitoring
   ansible.builtin.cron:
-    name: "monitor stalled pywps jobs for {{ item.name }}"
+    name: "monitor stalled PyWPS jobs for {{ item.name }}"
     minute: "{{ pywps_stalled_jobs_schedule.minute | default('15') }}"
     hour: "{{ pywps_stalled_jobs_schedule.hour | default('*') }}"
     day: "{{ pywps_stalled_jobs_schedule.day | default('*') }}"
@@ -113,7 +128,7 @@
     user: root
     job: >-
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
-      {{ cron_script_dir }}/recover-stalled-jobs.py
+      {{ cron_script_dir }}/pywps-job-control.py
       --config /etc/pywps/{{ item.name }}.cfg monitor
     cron_file: ansible_pywps
     disabled: >-
@@ -121,7 +136,7 @@
     state: present
   loop: "{{ wps_services }}"
 
-- name: Recover repeatedly polled missing PyWPS status documents
+- name: Schedule recovery of repeatedly polled missing PyWPS status documents
   ansible.builtin.cron:
     name: "recover missing pywps status documents for {{ item.name }}"
     minute: "{{ pywps_missing_status_recovery_schedule.minute | default('*/10') }}"
@@ -132,13 +147,31 @@
     user: root
     job: >-
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
-      {{ cron_script_dir }}/recover-stalled-jobs.py
-      --config /etc/pywps/{{ item.name }}.cfg cleanup
-      --layer access-log
+      {{ cron_script_dir }}/pywps-job-control.py
+      --config /etc/pywps/{{ item.name }}.cfg recover
+      --layer polling
       --limit {{ pywps_missing_status_recovery_limit }}
     cron_file: ansible_pywps
     disabled: >-
       {{ cron_disabled }}
+    state: present
+  loop: "{{ wps_services }}"
+
+- name: Schedule daily PyWPS job statistics
+  ansible.builtin.cron:
+    name: "record daily PyWPS job statistics for {{ item.name }}"
+    minute: "{{ pywps_job_statistics_schedule.minute | default('5') }}"
+    hour: "{{ pywps_job_statistics_schedule.hour | default('0') }}"
+    day: "{{ pywps_job_statistics_schedule.day | default('*') }}"
+    month: "{{ pywps_job_statistics_schedule.month | default('*') }}"
+    weekday: "{{ pywps_job_statistics_schedule.weekday | default('*') }}"
+    user: root
+    job: >-
+      {{ conda_envs_dir }}/{{ item.name }}/bin/python
+      {{ cron_script_dir }}/pywps-job-control.py
+      --config /etc/pywps/{{ item.name }}.cfg statistics
+    cron_file: ansible_pywps
+    disabled: "{{ cron_disabled }}"
     state: present
   loop: "{{ wps_services }}"
 
