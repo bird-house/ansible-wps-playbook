@@ -268,7 +268,7 @@ remains available and can still be run manually:
 /var/lib/pywps/restart-pywps.sh --force SERVICE_NAME
 ```
 
-### Monitor and clean stalled jobs
+### Monitor and recover stalled jobs
 
 The playbook installs the stalled-job recovery script once. Its scheduled
 entries are disabled by default and always run in read-only monitoring mode:
@@ -276,12 +276,12 @@ entries are disabled by default and always run in read-only monitoring mode:
 ```yaml
 cron_enabled: true
 pywps_stalled_jobs_monitor_enabled: true
-pywps_stalled_jobs_cleanup_enabled: false
+pywps_stalled_jobs_recovery_enabled: false
 pywps_stalled_jobs_schedule:
   minute: "15"
   hour: "*"
 pywps_stalled_jobs_age_hours: 6
-pywps_stalled_jobs_cleanup_limit: 100
+pywps_stalled_jobs_recovery_limit: 100
 pywps_stalled_jobs_layers:
   - xml
   - database
@@ -299,16 +299,14 @@ The playbook renders the operation switches into every service configuration:
 [stalled_jobs]
 service_name = example
 monitor_enabled = true
-cleanup_enabled = false
+recovery_enabled = false
 missing_status_recovery_enabled = false
 statistics_enabled = true
 ```
 
 The cron entries are controlled globally by `cron_enabled`; when invoked, the
 script reads these per-service switches from `/etc/pywps/SERVICE.cfg`. Disabled
-operations exit successfully without inspecting or changing jobs. The older
-`pywps_stalled_jobs_enabled` Ansible variable remains a compatibility alias for
-`pywps_stalled_jobs_monitor_enabled`.
+operations exit successfully without inspecting or changing jobs.
 
 The XML and database layers run independently. The XML layer examines both
 `Status@creationTime` and the file modification time, using the newer value as
@@ -319,7 +317,7 @@ with `Z`, and database timestamps without an offset, are interpreted as UTC;
 the deployment host should therefore keep its clock and timezone consistent.
 
 Monitoring never changes state. After reviewing
-`/var/log/pywps/stalled-jobs-SERVICE_NAME.log`, clean both layers manually.
+`/var/log/pywps/stalled-jobs-SERVICE_NAME.log`, recover either layer manually.
 This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard rotates this log together with
 the other PyWPS logs.
@@ -340,19 +338,19 @@ null, and unknown-status counts. These counts cover the complete request table
 and are not affected by `--limit`. The scheduled monitor omits this full-table
 aggregate and remains quiet unless it finds stalled jobs or errors.
 
-Clean only stalled XML documents with:
+Recover only stalled XML documents with:
 
 ```sh
 sudo /var/lib/pywps/recover-xml SERVICE_NAME
 ```
 
-Clean both the XML and database layers explicitly with:
+Recover both the XML and database layers explicitly with:
 
 ```sh
 sudo /var/lib/pywps/recover-all SERVICE_NAME
 ```
 
-Cleanup atomically changes stalled XML documents to `ProcessFailed`. In the
+Recovery atomically changes stalled XML documents to `ProcessFailed`. In the
 database it marks the existing request failed and removes a matching stored
 queue entry; it does not change the database schema. The generated
 `[stalled_jobs]` section lives in the service's existing PyWPS configuration,
@@ -360,29 +358,27 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME --hours 12
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --hours 12 --limit 500
-sudo /var/lib/pywps/recover-all SERVICE_NAME --hours 12 --limit 500
+sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-hours 12
+sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12 --limit 500
+sudo /var/lib/pywps/recover-all SERVICE_NAME --stale-after-hours 12 --limit 500
 ```
 
 The concise command names are intentionally scoped by their installation in
-`/var/lib/pywps`. The deployed implementation is `pywps-job-control.py`;
-`recover-stalled-jobs.py` remains as a compatibility alias for existing
-automation.
+`/var/lib/pywps`. The deployed implementation is `pywps-job-control.py`.
 
 The underlying script also accepts `--layer all` as a shortcut for selecting
-both XML and database layers. `--hours` is an alias for the existing
-`--stale-after-hours` option; both override the configured threshold.
+both XML and database layers. `--stale-after-hours` overrides the configured
+threshold.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
 batches bounded even when years of unfinished requests have accumulated.
-Cleanup defaults to `pywps_stalled_jobs_cleanup_limit`, which is 100. Monitoring
+Recovery defaults to `pywps_stalled_jobs_recovery_limit`, which is 100. Monitoring
 remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
-configured cleanup default. The underlying `--status-counts` option enables the
+configured recovery default. The underlying `--status-counts` option enables the
 complete database aggregate used by the manual monitor helper.
 
-Slurm inspection and cleanup are intentionally deferred to a later iteration.
+Slurm inspection and recovery are intentionally deferred to a later iteration.
 
 ### Record daily PyWPS job statistics
 
@@ -415,7 +411,7 @@ a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
 instead of polling forever.
 
 ```yaml
-pywps_stalled_jobs_cleanup_enabled: true
+pywps_stalled_jobs_recovery_enabled: true
 pywps_missing_status_recovery_enabled: true
 pywps_missing_status_recovery_schedule:
   minute: "*/10"
@@ -443,12 +439,12 @@ filters the shared Nginx log to its exact configured output URL path, and writes
 only to its configured output directory.
 
 The database guard is enabled by default. Every non-final database request,
-regardless of age, vetoes access-log recovery. Consequently, a legitimate
+regardless of age, vetoes polling recovery. Consequently, a legitimate
 long-running job is not failed merely because its status document is
 temporarily unavailable or Lustre is hanging. An old request still marked
 active must first be reviewed and handled by the existing stalled-database
 recovery. A final database request or a UUID absent from the database may be
-recovered from the access-log evidence.
+recovered from the polling evidence.
 
 Before writing, the job checks that the XML document is still absent. It uses
 an atomic create-without-replacement operation, so a status document produced
@@ -459,8 +455,8 @@ stalled-job log. Each run recovers at most 20 documents by default.
 
 This recovery is deliberately not included in `recover-all` or the
 scheduled read-only stalled-job monitor. To inspect candidates without creating
-files, run `pywps-job-control.py` in monitor mode with `--layer access-log`;
-select cleanup mode only when recovery is intended.
+files, run `pywps-job-control.py` in monitor mode with `--layer polling`;
+select recover mode only when recovery is intended.
 
 ### Use Conda to build identical environments
 

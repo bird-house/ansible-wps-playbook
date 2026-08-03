@@ -42,11 +42,10 @@
           - pywps_job_statistics_enabled
           - pywps_stalled_jobs_schedule.hour == '*'
           - pywps_stalled_jobs_age_hours | int > 0
-          - pywps_stalled_jobs_cleanup_limit == 100
+          - pywps_stalled_jobs_recovery_limit | int == 100
           - pywps_stalled_jobs_age_hours | int < wps_outputs_keep_hours | int
-          - pywps_stalled_jobs_enabled
           - pywps_stalled_jobs_monitor_enabled
-          - not pywps_stalled_jobs_cleanup_enabled
+          - not pywps_stalled_jobs_recovery_enabled
           - pywps_stalled_jobs_layers == ['xml', 'database']
           - not pywps_missing_status_recovery_enabled
           - pywps_missing_status_recovery_schedule.minute == '*/10'
@@ -167,6 +166,7 @@
           - "'recover-xml)' in test_stalled_jobs_helper"
           - "'script_options=(--layer xml)' in test_stalled_jobs_helper"
           - "'recover-all)' in test_stalled_jobs_helper"
+          - "'mode=recover' in test_stalled_jobs_helper"
           - "'statistics)' in test_stalled_jobs_helper"
           - "'mode=statistics' in test_stalled_jobs_helper"
           - >-
@@ -196,12 +196,12 @@
           - "'[stalled_jobs]' in test_pywps_config"
           - "'service_name = alpha' in test_pywps_config"
           - "'monitor_enabled = true' in test_pywps_config"
-          - "'cleanup_enabled = false' in test_pywps_config"
+          - "'recovery_enabled = false' in test_pywps_config"
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
-          - "'cleanup_limit = 100' in test_pywps_config"
+          - "'recovery_limit = 100' in test_pywps_config"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
           - "'poll_window_minutes = 60' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"

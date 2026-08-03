@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import io
 import os
 import sys
 import tempfile
@@ -94,8 +95,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
             f'{status} 153 "-" "python-requests/2.34.2" "-"\n'
         )
 
-    def access_log_settings(self, mode: str = "cleanup"):
-        settings = self.settings(mode, ["access-log"])
+    def polling_settings(self, mode: str = "recover"):
+        settings = self.settings(mode, ["polling"])
         settings.output_url = "https://example.test/outputs/alpha"
         settings.access_log = self.root / "access.log"
         settings.poll_window_minutes = 60
@@ -136,7 +137,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         before = self.status.read_bytes()
         summary = MODULE.run_xml_layer(self.settings(), self.now, mock.Mock())
         self.assertEqual(
-            (summary.checked, summary.stalled, summary.cleaned, summary.errors),
+            (summary.checked, summary.stalled, summary.recovered, summary.errors),
             (1, 1, 0, 0),
         )
         self.assertEqual(self.status.read_bytes(), before)
@@ -156,11 +157,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
         self.assertEqual((summary.checked, summary.stalled), (1, 1))
 
-    def test_cleanup_changes_any_old_nonfinal_status_to_failed(self):
+    def test_recovery_changes_any_old_nonfinal_status_to_failed(self):
         self.write_status("ProcessAccepted")
         logger = mock.Mock()
-        summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, logger)
-        self.assertEqual((summary.stalled, summary.cleaned, summary.errors), (1, 1, 0))
+        summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
+        self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
         logger.warning.assert_called_once_with(
             "service=%s layer=xml job=%s action=recovered-as-failed",
             "unknown",
@@ -190,8 +191,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
         from owslib.wps import WPSExecution
 
         self.write_status("ProcessStarted")
-        summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, mock.Mock())
-        self.assertEqual((summary.cleaned, summary.errors), (1, 0))
+        summary = MODULE.run_xml_layer(self.settings("recover"), self.now, mock.Mock())
+        self.assertEqual((summary.recovered, summary.errors), (1, 0))
 
         document, _ = MODULE.read_xml_status(self.status)
         self.assertEqual(document.state, "ProcessFailed")
@@ -220,7 +221,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             with self.subTest(state=state):
                 self.write_status(state)
                 before = self.status.read_bytes()
-                summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, mock.Mock())
+                summary = MODULE.run_xml_layer(self.settings("recover"), self.now, mock.Mock())
                 self.assertEqual(summary.stalled, 0)
                 self.assertEqual(self.status.read_bytes(), before)
 
@@ -229,12 +230,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_xml_layer(self.settings(), self.now, mock.Mock())
         self.assertEqual(summary.stalled, 1)
 
-    def test_invalid_creation_time_is_an_error_and_is_not_cleaned(self):
+    def test_invalid_creation_time_is_an_error_and_is_not_recovered(self):
         self.status.write_text(status_xml("ProcessStarted", self.now).replace(
             "2026-07-31T10:00:00Z", "not-a-time"
         ), encoding="utf-8")
         before = self.status.read_bytes()
-        summary = MODULE.run_xml_layer(self.settings("cleanup"), self.now, mock.Mock())
+        summary = MODULE.run_xml_layer(self.settings("recover"), self.now, mock.Mock())
         self.assertEqual(summary.errors, 1)
         self.assertEqual(self.status.read_bytes(), before)
 
@@ -242,11 +243,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.write_status()
         document, tree = MODULE.read_xml_status(self.status)
         self.status.write_text(status_xml("ProcessStarted", self.now), encoding="utf-8")
-        with self.assertRaisesRegex(RuntimeError, "changed before cleanup"):
+        with self.assertRaisesRegex(RuntimeError, "changed before recovery"):
             MODULE.write_failed_xml(document, tree, "stalled", self.now)
 
-    def test_access_log_cleanup_creates_failure_after_repeated_recent_404s(self):
-        settings = self.access_log_settings()
+    def test_access_log_recovery_creates_failure_after_repeated_recent_404s(self):
+        settings = self.polling_settings()
         settings.access_log.write_text(
             "".join(
                 self.access_log_line(self.now - timedelta(minutes=minutes))
@@ -256,10 +257,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
         logger = mock.Mock()
-        summary = MODULE.run_access_log_layer(settings, self.now, logger)
+        summary = MODULE.run_polling_layer(settings, self.now, logger)
 
         self.assertEqual(
-            (summary.checked, summary.stalled, summary.cleaned, summary.errors),
+            (summary.checked, summary.stalled, summary.recovered, summary.errors),
             (3, 1, 1, 0),
         )
         document, _ = MODULE.read_xml_status(self.status)
@@ -267,7 +268,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(document.creation_time, self.now)
         self.assertEqual(self.status.stat().st_mode & 0o777, 0o644)
         logger.warning.assert_called_once_with(
-            "service=%s layer=access-log job=%s "
+            "service=%s layer=polling job=%s "
             "action=created-failure-status polls=%d",
             "unknown",
             JOB_UUID,
@@ -275,7 +276,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
     def test_access_log_monitor_reports_but_does_not_create_status(self):
-        settings = self.access_log_settings("monitor")
+        settings = self.polling_settings("monitor")
         settings.access_log.write_text(
             "".join(
                 self.access_log_line(self.now - timedelta(minutes=minutes))
@@ -283,12 +284,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
-        self.assertEqual((summary.stalled, summary.cleaned), (1, 0))
+        summary = MODULE.run_polling_layer(settings, self.now, mock.Mock())
+        self.assertEqual((summary.stalled, summary.recovered), (1, 0))
         self.assertFalse(self.status.exists())
 
     def test_access_log_database_veto_protects_an_active_request(self):
-        settings = self.access_log_settings()
+        settings = self.polling_settings()
         settings.database_guard = True
         settings.pywps_config = self.root / "pywps.cfg"
         settings.access_log.write_text(
@@ -304,18 +305,18 @@ class RecoverStalledJobsTests(unittest.TestCase):
             return_value={JOB_UUID: "database-request-is-nonfinal"},
         ):
             logger = mock.Mock()
-            summary = MODULE.run_access_log_layer(settings, self.now, logger)
-        self.assertEqual((summary.stalled, summary.cleaned), (0, 0))
+            summary = MODULE.run_polling_layer(settings, self.now, logger)
+        self.assertEqual((summary.stalled, summary.recovered), (0, 0))
         self.assertFalse(self.status.exists())
         logger.info.assert_called_with(
-            "layer=access-log job=%s decision=skip reason=%s polls=%d",
+            "layer=polling job=%s decision=skip reason=%s polls=%d",
             JOB_UUID,
             "database-request-is-nonfinal",
             3,
         )
 
     def test_access_log_requires_exact_path_404_count_window_and_age(self):
-        settings = self.access_log_settings()
+        settings = self.polling_settings()
         lines = [
             self.access_log_line(self.now - timedelta(minutes=20)),
             self.access_log_line(self.now - timedelta(minutes=10), status=200),
@@ -327,12 +328,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
             self.access_log_line(self.now - timedelta(minutes=2)),
         ]
         settings.access_log.write_text("".join(lines), encoding="utf-8")
-        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
-        self.assertEqual((summary.checked, summary.stalled, summary.cleaned), (0, 0, 0))
+        summary = MODULE.run_polling_layer(settings, self.now, mock.Mock())
+        self.assertEqual((summary.checked, summary.stalled, summary.recovered), (0, 0, 0))
         self.assertFalse(self.status.exists())
 
     def test_shared_access_log_is_filtered_for_the_configured_service(self):
-        settings = self.access_log_settings("monitor")
+        settings = self.polling_settings("monitor")
         alpha_lines = "".join(
             self.access_log_line(self.now - timedelta(minutes=minutes))
             for minutes in (20, 10, 2)
@@ -354,12 +355,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(candidates[0].count, 3)
 
     def test_access_log_requires_polls_spanning_the_minimum_age(self):
-        settings = self.access_log_settings()
+        settings = self.polling_settings()
         line = self.access_log_line(self.now - timedelta(minutes=10))
         settings.access_log.write_text(line * 3, encoding="utf-8")
-        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
+        summary = MODULE.run_polling_layer(settings, self.now, mock.Mock())
         self.assertEqual(summary.checked, 0)
-        self.assertEqual(summary.cleaned, 0)
+        self.assertEqual(summary.recovered, 0)
 
     def test_access_log_does_not_replace_status_created_concurrently(self):
         candidate = MODULE.MissingStatusPolls(
@@ -409,12 +410,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "[stalled_jobs]\n"
             "service_name = alpha\n"
             "monitor_enabled = false\n"
-            "cleanup_enabled = true\n"
+            "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
             "statistics_enabled = true\n"
             "layers = xml, database\n"
             "stale_after_hours = 6\n"
-            "cleanup_limit = 100\n"
+            "recovery_limit = 100\n"
             f"access_log = {self.root / 'nginx-access.log'}\n"
             "poll_window_minutes = 45\n"
             "min_poll_count = 4\n"
@@ -436,7 +437,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.min_poll_duration_minutes, 7)
         self.assertTrue(settings.database_guard)
         self.assertFalse(settings.monitor_enabled)
-        self.assertTrue(settings.cleanup_enabled)
+        self.assertTrue(settings.recovery_enabled)
         self.assertTrue(settings.missing_status_recovery_enabled)
         self.assertTrue(settings.statistics_enabled)
         self.assertEqual(settings.service_name, "alpha")
@@ -448,7 +449,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         overridden = MODULE.parse_args([
             "--config",
             str(config),
-            "cleanup",
+            "recover",
             "--layer",
             "xml",
             "--stale-after-hours",
@@ -483,17 +484,29 @@ class RecoverStalledJobsTests(unittest.TestCase):
             self.root / "logs" / "job-statistics-alpha.log",
         )
 
-        hours_alias = MODULE.parse_args([
+        overridden_monitor = MODULE.parse_args([
             "--config",
             str(config),
             "monitor",
-            "--hours",
+            "--stale-after-hours",
             "3.5",
             "--limit",
             "500",
         ])
-        self.assertEqual(hours_alias.stale_after_hours, 3.5)
-        self.assertEqual(hours_alias.limit, 500)
+        self.assertEqual(overridden_monitor.stale_after_hours, 3.5)
+        self.assertEqual(overridden_monitor.limit, 500)
+
+    def test_removed_command_aliases_are_rejected(self):
+        for arguments in (
+            ["cleanup"],
+            ["monitor", "--layer", "access-log"],
+            ["monitor", "--hours", "3.5"],
+        ):
+            with self.subTest(arguments=arguments), mock.patch(
+                "sys.stderr", new=io.StringIO()
+            ):
+                with self.assertRaises(SystemExit):
+                    MODULE.parse_args(arguments)
 
     def test_layers_run_independently(self):
         def broken(*_args):
@@ -511,20 +524,20 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(summaries[0].errors, 1)
         self.assertEqual((summaries[1].checked, summaries[1].stalled), (2, 1))
 
-    def test_operation_flags_select_monitor_cleanup_and_missing_status(self):
+    def test_operation_flags_select_monitor_recovery_and_missing_status(self):
         settings = self.settings("monitor", ["xml", "database"])
         settings.monitor_enabled = False
         self.assertFalse(MODULE.operation_is_enabled(settings))
         settings.monitor_enabled = True
         self.assertTrue(MODULE.operation_is_enabled(settings))
 
-        settings.mode = "cleanup"
-        settings.cleanup_enabled = False
+        settings.mode = "recover"
+        settings.recovery_enabled = False
         self.assertFalse(MODULE.operation_is_enabled(settings))
-        settings.cleanup_enabled = True
+        settings.recovery_enabled = True
         self.assertTrue(MODULE.operation_is_enabled(settings))
 
-        settings.layers = ["access-log"]
+        settings.layers = ["polling"]
         settings.missing_status_recovery_enabled = False
         self.assertFalse(MODULE.operation_is_enabled(settings))
         settings.missing_status_recovery_enabled = True
@@ -552,13 +565,13 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     runners={"xml": lambda *_args, result=summary: result},
                 )
                 getattr(logger, expected_method).assert_called_once_with(
-                    "summary service=%s layer=%s checked=%d stalled=%d cleaned=%d "
+                    "summary service=%s layer=%s checked=%d stalled=%d recovered=%d "
                     "errors=%d mode=%s limit=%s",
                     "unknown",
                     summary.name,
                     summary.checked,
                     summary.stalled,
-                    summary.cleaned,
+                    summary.recovered,
                     summary.errors,
                     "monitor",
                     "none",
@@ -714,7 +727,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         session.commit()
         session.close()
 
-        settings = self.access_log_settings()
+        settings = self.polling_settings()
         settings.database_guard = True
         settings.pywps_config = pywps_config
         self.assertEqual(
@@ -743,7 +756,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
-    def test_database_cleanup_updates_request_and_removes_queue_entry(self):
+    def test_database_recovery_updates_request_and_removes_queue_entry(self):
         pywps_config = self.root / "pywps.cfg"
         database = self.root / "pywps.sqlite"
         workdir = self.root / "work"
@@ -758,9 +771,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
             encoding="utf-8",
         )
         os.environ["PYWPS_CFG"] = str(pywps_config)
-        from pywps import dblog
+        from pywps import configuration, dblog
         from pywps.response.status import WPS_STATUS
 
+        configuration.load_configuration([str(pywps_config)])
         old = (self.now - timedelta(hours=8)).replace(tzinfo=None)
         session = dblog.get_session()
         session.add(
@@ -779,11 +793,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
         session.commit()
         session.close()
 
-        settings = self.settings("cleanup", ["database"])
+        settings = self.settings("recover", ["database"])
         settings.pywps_config = pywps_config
         logger = mock.Mock()
         summary = MODULE.run_database_layer(settings, self.now, logger)
-        self.assertEqual((summary.stalled, summary.cleaned, summary.errors), (1, 1, 0))
+        self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
         logger.warning.assert_called_once_with(
             "service=%s layer=database job=%s action=recovered-as-failed",
             "unknown",

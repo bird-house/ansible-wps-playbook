@@ -25,8 +25,8 @@ UUID_RE = re.compile(
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
 )
 FINAL_XML_STATES = {"ProcessSucceeded", "ProcessFailed"}
-SUPPORTED_LAYERS = ("xml", "database", "access-log")
-LEGACY_ALL_LAYERS = ("xml", "database")
+SUPPORTED_LAYERS = ("xml", "database", "polling")
+DEFAULT_LAYERS = ("xml", "database")
 LAYER_CHOICES = (*SUPPORTED_LAYERS, "all")
 UTC = timezone.utc
 ACCESS_LOG_RE = re.compile(
@@ -55,7 +55,7 @@ class Settings:
     min_poll_duration_minutes: float = 15
     database_guard: bool = True
     monitor_enabled: bool = True
-    cleanup_enabled: bool = False
+    recovery_enabled: bool = False
     missing_status_recovery_enabled: bool = False
     statistics_enabled: bool = True
     service_name: str = "unknown"
@@ -66,7 +66,7 @@ class LayerSummary:
     name: str
     checked: int = 0
     stalled: int = 0
-    cleaned: int = 0
+    recovered: int = 0
     errors: int = 0
 
 
@@ -230,7 +230,7 @@ def write_failed_xml(
 
     source_stat = document.path.stat()
     if stat_identity(source_stat) != document.source_identity:
-        raise RuntimeError("status file changed before cleanup")
+        raise RuntimeError("status file changed before recovery")
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{document.path.name}.",
         suffix=".tmp",
@@ -291,13 +291,13 @@ def run_xml_layer(
                 document.state,
                 document.last_update.isoformat(),
             )
-            if settings.mode == "cleanup":
+            if settings.mode == "recover":
                 message = (
-                    "Process failed: stalled-job cleanup found no status update "
+                    "Process failed: stalled-job recovery found no status update "
                     f"for at least {settings.stale_after_hours:g} hours."
                 )
                 write_failed_xml(document, tree, message, now)
-                summary.cleaned += 1
+                summary.recovered += 1
                 logger.warning(
                     "service=%s layer=xml job=%s action=recovered-as-failed",
                     settings.service_name,
@@ -332,9 +332,9 @@ def parse_access_log_line(line: str) -> tuple[str, datetime, str, str, int] | No
 
 def find_missing_status_polls(settings: Settings, now: datetime) -> list[MissingStatusPolls]:
     if settings.access_log is None:
-        raise ValueError("the access-log layer requires access_log")
+        raise ValueError("the polling layer requires access_log")
     if settings.output_url is None:
-        raise ValueError("the access-log layer requires output_url")
+        raise ValueError("the polling layer requires output_url")
 
     output_path = unquote(urlsplit(settings.output_url).path).rstrip("/")
     if not output_path.startswith("/"):
@@ -463,7 +463,7 @@ def database_recovery_vetoes(
     if not settings.database_guard:
         return {}
     if settings.pywps_config is None:
-        raise ValueError("the access-log database guard requires pywps_config")
+        raise ValueError("the polling database guard requires pywps_config")
 
     os.environ["PYWPS_CFG"] = str(settings.pywps_config)
     try:
@@ -473,7 +473,7 @@ def database_recovery_vetoes(
         from sqlalchemy.orm import sessionmaker
     except ImportError as error:
         raise RuntimeError(
-            "the access-log database guard must run with the service Conda environment"
+            "the polling database guard must run with the service Conda environment"
         ) from error
 
     configuration.load_configuration([str(settings.pywps_config)])
@@ -503,14 +503,14 @@ def database_recovery_vetoes(
     return vetoes
 
 
-def run_access_log_layer(
+def run_polling_layer(
     settings: Settings,
     now: datetime,
     logger: logging.Logger,
 ) -> LayerSummary:
-    summary = LayerSummary("access-log")
+    summary = LayerSummary("polling")
     if settings.output_dir is None:
-        raise ValueError("the access-log layer requires output_dir")
+        raise ValueError("the polling layer requires output_dir")
     if not settings.output_dir.is_dir():
         raise FileNotFoundError(f"output directory does not exist: {settings.output_dir}")
     candidates = find_missing_status_polls(settings, now)
@@ -525,7 +525,7 @@ def run_access_log_layer(
         try:
             if candidate.job_uuid in vetoes:
                 logger.info(
-                    "layer=access-log job=%s decision=skip reason=%s polls=%d",
+                    "layer=polling job=%s decision=skip reason=%s polls=%d",
                     candidate.job_uuid,
                     vetoes[candidate.job_uuid],
                     candidate.count,
@@ -534,26 +534,26 @@ def run_access_log_layer(
             status_path = settings.output_dir / f"{candidate.job_uuid}.xml"
             if status_path.exists():
                 logger.info(
-                    "layer=access-log job=%s decision=status-exists polls=%d",
+                    "layer=polling job=%s decision=status-exists polls=%d",
                     candidate.job_uuid,
                     candidate.count,
                 )
                 continue
             summary.stalled += 1
             logger.info(
-                "layer=access-log job=%s decision=missing-status polls=%d "
+                "layer=polling job=%s decision=missing-status polls=%d "
                 "first_seen=%s last_seen=%s",
                 candidate.job_uuid,
                 candidate.count,
                 candidate.first_seen.isoformat(),
                 candidate.last_seen.isoformat(),
             )
-            if settings.mode == "cleanup":
+            if settings.mode == "recover":
                 contents = missing_status_xml(candidate, settings.output_url or "", now)
                 if create_missing_status_file(status_path, contents):
-                    summary.cleaned += 1
+                    summary.recovered += 1
                     logger.warning(
-                        "service=%s layer=access-log job=%s "
+                        "service=%s layer=polling job=%s "
                         "action=created-failure-status polls=%d",
                         settings.service_name,
                         candidate.job_uuid,
@@ -561,13 +561,13 @@ def run_access_log_layer(
                     )
                 else:
                     logger.info(
-                        "layer=access-log job=%s decision=concurrent-status-create",
+                        "layer=polling job=%s decision=concurrent-status-create",
                         candidate.job_uuid,
                     )
         except Exception as error:
             summary.errors += 1
             logger.exception(
-                "layer=access-log job=%s decision=error reason=%s",
+                "layer=polling job=%s decision=error reason=%s",
                 candidate.job_uuid,
                 error,
             )
@@ -712,17 +712,17 @@ def run_database_layer(
                     record.status,
                     last_update.isoformat(),
                 )
-                if settings.mode == "cleanup":
+                if settings.mode == "recover":
                     record.status = WPS_STATUS.FAILED
                     record.percent_done = 100
                     record.message = (
-                        "Process failed: stalled-job cleanup found no database update "
+                        "Process failed: stalled-job recovery found no database update "
                         f"for at least {settings.stale_after_hours:g} hours."
                     )
                     record.time_end = now.astimezone(UTC).replace(tzinfo=None)
                     session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
                     session.commit()
-                    summary.cleaned += 1
+                    summary.recovered += 1
                     logger.warning(
                         "service=%s layer=database job=%s action=recovered-as-failed",
                         settings.service_name,
@@ -776,7 +776,9 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     pre_parser.add_argument("--config", type=Path)
     preliminary, _ = pre_parser.parse_known_args(argv)
     config = read_config(preliminary.config)
-    stalled_config = config["stalled_jobs"] if config.has_section("stalled_jobs") else {}
+    if not config.has_section("stalled_jobs"):
+        config.add_section("stalled_jobs")
+    stalled_config = config["stalled_jobs"]
 
     configured_layers = [
         layer.strip()
@@ -784,7 +786,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         if layer.strip()
     ]
     parser = argparse.ArgumentParser(description=__doc__, parents=[pre_parser])
-    parser.add_argument("mode", choices=("monitor", "cleanup", "statistics"))
+    parser.add_argument("mode", choices=("monitor", "recover", "statistics"))
     parser.add_argument(
         "--layer",
         action="append",
@@ -803,7 +805,6 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     )
     parser.add_argument(
         "--stale-after-hours",
-        "--hours",
         type=float,
         default=float(stalled_config.get("stale_after_hours", "6")),
         help="consider nonfinal jobs stalled after this many hours",
@@ -871,26 +872,26 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         action="store_false",
         dest="database_guard",
         default=stalled_config.getboolean("missing_status_database_guard", fallback=True),
-        help="allow access-log recovery without checking active database requests",
+        help="allow polling recovery without checking active database requests",
     )
     args = parser.parse_args(argv)
     if args.mode == "statistics":
         args.status_counts = True
     limit = args.limit
-    if limit is None and args.mode == "cleanup":
-        limit = int(stalled_config.get("cleanup_limit", "100"))
+    if limit is None and args.mode == "recover":
+        limit = int(stalled_config.get("recovery_limit", "100"))
     layers = args.layer or configured_layers
     if args.mode == "statistics" and args.layer is None:
-        layers = list(LEGACY_ALL_LAYERS)
+        layers = list(DEFAULT_LAYERS)
     invalid = sorted(set(layers) - set(LAYER_CHOICES))
     if invalid:
         parser.error(f"unsupported configured layers: {', '.join(invalid)}")
     if not layers:
         parser.error("at least one layer must be configured")
     if "all" in layers:
-        layers = list(LEGACY_ALL_LAYERS)
+        layers = list(DEFAULT_LAYERS)
     if args.stale_after_hours <= 0:
-        parser.error("--stale-after-hours/--hours must be greater than zero")
+        parser.error("--stale-after-hours must be greater than zero")
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
     if args.status_counts and args.mode not in {"monitor", "statistics"}:
@@ -928,7 +929,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         min_poll_duration_minutes=args.min_poll_duration_minutes,
         database_guard=args.database_guard,
         monitor_enabled=stalled_config.getboolean("monitor_enabled", fallback=True),
-        cleanup_enabled=stalled_config.getboolean("cleanup_enabled", fallback=False),
+        recovery_enabled=stalled_config.getboolean("recovery_enabled", fallback=False),
         missing_status_recovery_enabled=stalled_config.getboolean(
             "missing_status_recovery_enabled", fallback=False
         ),
@@ -969,9 +970,9 @@ def operation_is_enabled(settings: Settings) -> bool:
         return settings.statistics_enabled
     if settings.mode == "monitor":
         return settings.monitor_enabled
-    if not settings.cleanup_enabled:
+    if not settings.recovery_enabled:
         return False
-    if "access-log" in settings.layers:
+    if "polling" in settings.layers:
         return settings.missing_status_recovery_enabled
     return True
 
@@ -985,7 +986,7 @@ def execute_layers(
     runners = runners or {
         "xml": run_xml_layer,
         "database": run_database_layer,
-        "access-log": run_access_log_layer,
+        "polling": run_polling_layer,
     }
     summaries: list[LayerSummary] = []
     for layer in settings.layers:
@@ -1002,13 +1003,13 @@ def execute_layers(
         else:
             log_summary = logger.info
         log_summary(
-            "summary service=%s layer=%s checked=%d stalled=%d cleaned=%d errors=%d "
+            "summary service=%s layer=%s checked=%d stalled=%d recovered=%d errors=%d "
             "mode=%s limit=%s",
             settings.service_name,
             summary.name,
             summary.checked,
             summary.stalled,
-            summary.cleaned,
+            summary.recovered,
             summary.errors,
             settings.mode,
             settings.limit if settings.limit is not None else "none",

@@ -42,7 +42,7 @@ deployment.
   status summary's `null` count visible.
 - Define a conservative fallback for database requests that have neither a
   status nor a usable start/update timestamp, so they do not remain permanent
-  errors. Investigate access-log evidence or another existing timestamp before
+  errors. Investigate polling evidence or another existing timestamp before
   recovery; do not introduce a database schema change or mark an undated row
   failed without a reliable minimum age signal.
 
@@ -68,7 +68,7 @@ deployment.
   specifications during the longer PyWPS environment update. In particular,
   retain the Conda-linked `psycopg2` build: the pip `psycopg2-binary` wheel's
   bundled libraries segfaulted on a fresh Python 3.13 connection.
-- Add a Slurm monitoring and cleanup layer after a reliable mapping between a
+- Add a Slurm monitoring and recovery layer after a reliable mapping between a
   WPS request UUID and its Slurm job ID has been identified.
 - Consider temporary-work-directory cleanup only after it can be associated
   with a request without risking another active job's files.
