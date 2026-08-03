@@ -1,6 +1,15 @@
 ---
+- name: Validate PyWPS log rotation settings
+  ansible.builtin.assert:
+    that:
+      - pywps_logrotate_rotations | int > 0
+      - pywps_logrotate_min_size is match('^[1-9][0-9]*[kMGT]?$')
+    fail_msg: >-
+      pywps_logrotate_rotations must be positive and
+      pywps_logrotate_min_size must be a positive logrotate size such as 10M.
+
 - name: Copy pywps logrotate config
-  template:
+  ansible.builtin.template:
     src: ./templates/logrotate.j2
     dest: /etc/logrotate.d/pywps
     owner: root

@@ -3,8 +3,9 @@
 #
 
 /var/log/pywps/*.log {
-    rotate 7
+    rotate {{ pywps_logrotate_rotations }}
     daily
+    minsize {{ pywps_logrotate_min_size }}
     dateext
     copytruncate
     missingok

@@ -36,6 +36,8 @@
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
           - pywps_restart_schedule in ['hourly', 'daily']
+          - pywps_logrotate_min_size == '10M'
+          - pywps_logrotate_rotations == 7
           - pywps_stalled_jobs_schedule | type_debug == 'dict'
           - pywps_job_statistics_schedule | type_debug == 'dict'
           - pywps_job_statistics_schedule.hour == '0'
@@ -86,6 +88,9 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/pywps/templates/stalled-jobs-helper.sh.j2') }}
+        test_logrotate_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/pywps/templates/logrotate.j2') }}
         test_nginx_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
@@ -184,6 +189,10 @@
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_stalled_jobs_helper
+          - "'rotate 7' in test_logrotate_config"
+          - "'daily' in test_logrotate_config"
+          - "'minsize 10M' in test_logrotate_config"
+          - "'maxsize' not in test_logrotate_config"
           - "'upstream alpha' in test_nginx_config"
           - "'proxy_cache_path /var/lib/pywps/cache/alpha' in test_nginx_config"
           - "'keys_zone=pywps_alpha:10m' in test_nginx_config"

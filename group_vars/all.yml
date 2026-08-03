@@ -134,6 +134,9 @@ cron_mailto: root
 cron_user: root
 pywps_restart_enabled: true
 pywps_restart_schedule: daily
+# Rotate PyWPS logs after one day only when they exceed this size.
+pywps_logrotate_min_size: 10M
+pywps_logrotate_rotations: 7
 # Report stalled requests without changing them.
 pywps_stalled_jobs_monitor_enabled: true
 # Allow commands that recover stalled requests or status documents.
