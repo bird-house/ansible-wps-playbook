@@ -64,6 +64,10 @@ deployment.
 
 ### Stalled-job follow-up
 
+- Revisit the `[stalled_jobs]` configuration section name now that it covers
+  general job monitoring, polling, statistics, and recovery. Consider a name
+  such as `[job_monitor]`, and rename the related Ansible variables, lock file,
+  documentation, and internal terminology together rather than piecemeal.
 - Move the playbook-added runtime Conda packages into the application Conda
   specifications during the longer PyWPS environment update. In particular,
   retain the Conda-linked `psycopg2` build: the pip `psycopg2-binary` wheel's
