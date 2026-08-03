@@ -25,6 +25,13 @@ UUID_RE = re.compile(
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
 )
 FINAL_XML_STATES = {"ProcessSucceeded", "ProcessFailed"}
+XML_JOB_STATUSES = {
+    "ProcessAccepted": "accepted",
+    "ProcessStarted": "running",
+    "ProcessPaused": "running",
+    "ProcessSucceeded": "successful",
+    "ProcessFailed": "failed",
+}
 SUPPORTED_LAYERS = ("xml", "database", "polling")
 DEFAULT_LAYERS = ("xml", "database")
 LAYER_CHOICES = (*SUPPORTED_LAYERS, "all")
@@ -75,7 +82,7 @@ class SummaryConsoleFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return record.levelno >= logging.WARNING or record.getMessage().startswith(
-            ("summary ", "database_status ")
+            ("summary ", "status_summary ")
         )
 
 
@@ -187,6 +194,11 @@ def find_status_files(output_dir: Path) -> Iterable[Path]:
             yield path
 
 
+def xml_job_status(state: str) -> str:
+    """Map a WPS status element to the OGC API Processes vocabulary."""
+    return XML_JOB_STATUSES.get(state, "running")
+
+
 def is_stalled(last_update: datetime, now: datetime, threshold: timedelta) -> bool:
     return now - last_update >= threshold
 
@@ -270,25 +282,25 @@ def run_xml_layer(
             document, tree = read_xml_status(path)
             if document.state in FINAL_XML_STATES:
                 logger.debug(
-                    "layer=xml job=%s state=%s decision=final",
+                    "layer=xml job=%s status=%s finding=final",
                     document.job_uuid,
-                    document.state,
+                    xml_job_status(document.state),
                 )
                 continue
             if not is_stalled(document.last_update, now, threshold):
                 logger.debug(
-                    "layer=xml job=%s state=%s decision=recent creation=%s mtime=%s",
+                    "layer=xml job=%s status=%s finding=recent creation=%s mtime=%s",
                     document.job_uuid,
-                    document.state,
+                    xml_job_status(document.state),
                     document.creation_time.isoformat(),
                     document.modification_time.isoformat(),
                 )
                 continue
             summary.stalled += 1
             logger.info(
-                "layer=xml job=%s state=%s decision=stalled last_update=%s",
+                "layer=xml job=%s status=%s finding=stalled updated=%s",
                 document.job_uuid,
-                document.state,
+                xml_job_status(document.state),
                 document.last_update.isoformat(),
             )
             if settings.mode == "recover":
@@ -299,7 +311,7 @@ def run_xml_layer(
                 write_failed_xml(document, tree, message, now)
                 summary.recovered += 1
                 logger.warning(
-                    "service=%s layer=xml job=%s action=recovered-as-failed",
+                    "service=%s layer=xml job=%s status=failed action=recovered",
                     settings.service_name,
                     document.job_uuid,
                 )
@@ -307,7 +319,7 @@ def run_xml_layer(
                 break
         except Exception as error:
             summary.errors += 1
-            logger.exception("layer=xml status=%s decision=error reason=%s", path, error)
+            logger.exception("layer=xml file=%s result=error reason=%s", path, error)
     return summary
 
 
@@ -554,7 +566,7 @@ def run_polling_layer(
                     summary.recovered += 1
                     logger.warning(
                         "service=%s layer=polling job=%s "
-                        "action=created-failure-status polls=%d",
+                        "status=failed action=recovered polls=%d",
                         settings.service_name,
                         candidate.job_uuid,
                         candidate.count,
@@ -585,36 +597,38 @@ def database_last_update(record: object) -> datetime:
     return value.astimezone(UTC)
 
 
+def database_job_status(value: object, wps_status: object) -> str | None:
+    """Map a PyWPS database status to the OGC API Processes vocabulary."""
+    if value == getattr(wps_status, "ACCEPTED", object()):
+        return "accepted"
+    if value in {
+        getattr(wps_status, "STARTED", object()),
+        getattr(wps_status, "PAUSED", object()),
+    }:
+        return "running"
+    if value == getattr(wps_status, "SUCCEEDED", object()):
+        return "successful"
+    if value == getattr(wps_status, "FAILED", object()):
+        return "failed"
+    return None
+
+
 def summarize_database_statuses(
     rows: Iterable[tuple[object, int]], wps_status: object
 ) -> dict[str, int]:
-    counts = {status: count for status, count in rows}
-
-    def named(name: str) -> int:
-        value = getattr(wps_status, name, object())
-        return counts.get(value, 0)
-
-    known_values = {
-        getattr(wps_status, name)
-        for name in ("ACCEPTED", "STARTED", "PAUSED", "SUCCEEDED", "FAILED")
-        if hasattr(wps_status, name)
-    }
     result = {
-        "accepted": named("ACCEPTED"),
-        "started": named("STARTED"),
-        "paused": named("PAUSED"),
-        "succeeded": named("SUCCEEDED"),
-        "failed": named("FAILED"),
-        "null": counts.get(None, 0),
+        "total": 0,
+        "accepted": 0,
+        "running": 0,
+        "successful": 0,
+        "failed": 0,
+        "dismissed": 0,
+        "unmapped": 0,
     }
-    result["total"] = sum(counts.values())
-    result["final"] = result["succeeded"] + result["failed"]
-    result["nonfinal"] = result["total"] - result["final"]
-    result["other"] = sum(
-        count
-        for status, count in counts.items()
-        if status is not None and status not in known_values
-    )
+    for value, count in rows:
+        result["total"] += count
+        status = database_job_status(value, wps_status)
+        result[status or "unmapped"] += count
     return result
 
 
@@ -659,19 +673,16 @@ def run_database_layer(
                 WPS_STATUS,
             )
             logger.info(
-                "database_status service=%s total=%d final=%d nonfinal=%d succeeded=%d "
-                "failed=%d accepted=%d started=%d paused=%d null=%d other=%d",
+                "status_summary service=%s total=%d accepted=%d running=%d "
+                "successful=%d failed=%d dismissed=%d unmapped=%d",
                 settings.service_name,
                 status_counts["total"],
-                status_counts["final"],
-                status_counts["nonfinal"],
-                status_counts["succeeded"],
-                status_counts["failed"],
                 status_counts["accepted"],
-                status_counts["started"],
-                status_counts["paused"],
-                status_counts["null"],
-                status_counts["other"],
+                status_counts["running"],
+                status_counts["successful"],
+                status_counts["failed"],
+                status_counts["dismissed"],
+                status_counts["unmapped"],
             )
         query = session.query(dblog.ProcessInstance).filter(
             or_(
@@ -699,17 +710,17 @@ def run_database_layer(
                 last_update = database_last_update(record)
                 if not is_stalled(last_update, now, threshold):
                     logger.debug(
-                        "layer=database job=%s status=%s decision=recent last_update=%s",
+                        "layer=database job=%s status=%s finding=recent updated=%s",
                         record.uuid,
-                        record.status,
+                        database_job_status(record.status, WPS_STATUS) or "unmapped",
                         last_update.isoformat(),
                     )
                     continue
                 summary.stalled += 1
                 logger.info(
-                    "layer=database job=%s status=%s decision=stalled last_update=%s",
+                    "layer=database job=%s status=%s finding=stalled updated=%s",
                     record.uuid,
-                    record.status,
+                    database_job_status(record.status, WPS_STATUS) or "unmapped",
                     last_update.isoformat(),
                 )
                 if settings.mode == "recover":
@@ -724,7 +735,7 @@ def run_database_layer(
                     session.commit()
                     summary.recovered += 1
                     logger.warning(
-                        "service=%s layer=database job=%s action=recovered-as-failed",
+                        "service=%s layer=database job=%s status=failed action=recovered",
                         settings.service_name,
                         record.uuid,
                     )

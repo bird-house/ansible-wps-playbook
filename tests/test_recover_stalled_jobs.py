@@ -163,7 +163,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
         self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
         logger.warning.assert_called_once_with(
-            "service=%s layer=xml job=%s action=recovered-as-failed",
+            "service=%s layer=xml job=%s status=failed action=recovered",
             "unknown",
             JOB_UUID,
         )
@@ -269,7 +269,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(self.status.stat().st_mode & 0o777, 0o644)
         logger.warning.assert_called_once_with(
             "service=%s layer=polling job=%s "
-            "action=created-failure-status polls=%d",
+            "status=failed action=recovered polls=%d",
             "unknown",
             JOB_UUID,
             3,
@@ -613,11 +613,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
         warning = MODULE.logging.LogRecord(
             "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
         )
-        database_status = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "database_status total=5", (), None
+        status_summary = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
         )
         self.assertTrue(handler.filter(summary))
-        self.assertTrue(handler.filter(database_status))
+        self.assertTrue(handler.filter(status_summary))
         self.assertFalse(handler.filter(finding))
         self.assertTrue(handler.filter(warning))
 
@@ -644,15 +644,15 @@ class RecoverStalledJobsTests(unittest.TestCase):
         finding = MODULE.logging.LogRecord(
             "test", MODULE.logging.INFO, __file__, 1, "layer=xml job=1", (), None
         )
-        database_status = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "database_status total=5", (), None
+        status_summary = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
         )
         self.assertTrue(file_handler.filter(summary))
-        self.assertTrue(file_handler.filter(database_status))
+        self.assertTrue(file_handler.filter(status_summary))
         self.assertFalse(file_handler.filter(finding))
         file_handler.close()
 
-    def test_database_status_summary_counts_final_and_nonfinal_rows(self):
+    def test_database_status_summary_uses_ogc_api_processes_vocabulary(self):
         statuses = argparse.Namespace(
             ACCEPTED=0,
             STARTED=1,
@@ -667,18 +667,23 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(
             summary,
             {
-                "accepted": 3,
-                "started": 5,
-                "paused": 7,
-                "succeeded": 11,
-                "failed": 13,
-                "null": 2,
                 "total": 58,
-                "final": 24,
-                "nonfinal": 34,
-                "other": 17,
+                "accepted": 3,
+                "running": 12,
+                "successful": 11,
+                "failed": 13,
+                "dismissed": 0,
+                "unmapped": 19,
             },
         )
+
+    def test_wps_xml_states_map_to_ogc_api_processes_statuses(self):
+        self.assertEqual(MODULE.xml_job_status("ProcessAccepted"), "accepted")
+        self.assertEqual(MODULE.xml_job_status("ProcessStarted"), "running")
+        self.assertEqual(MODULE.xml_job_status("ProcessPaused"), "running")
+        self.assertEqual(MODULE.xml_job_status("ProcessSucceeded"), "successful")
+        self.assertEqual(MODULE.xml_job_status("ProcessFailed"), "failed")
+        self.assertEqual(MODULE.xml_job_status("ProcessQueued"), "running")
 
     def test_database_timestamp_uses_last_update_then_start_time(self):
         start = datetime(2026, 7, 30, 8, 0)
@@ -799,7 +804,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
         logger.warning.assert_called_once_with(
-            "service=%s layer=database job=%s action=recovered-as-failed",
+            "service=%s layer=database job=%s status=failed action=recovered",
             "unknown",
             JOB_UUID,
         )

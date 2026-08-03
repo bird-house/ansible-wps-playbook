@@ -39,7 +39,7 @@ deployment.
 - Treat database requests with `status IS NULL` as an explicit monitored state.
   Confirm with tests that an old row with a usable start or update timestamp is
   reported as stalled and recovered as failed, and keep the complete database
-  status summary's `null` count visible.
+  status summary's `unmapped` count visible.
 - Define a conservative fallback for database requests that have neither a
   status nor a usable start/update timestamp, so they do not remain permanent
   errors. Investigate polling evidence or another existing timestamp before

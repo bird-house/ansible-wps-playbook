@@ -332,11 +332,13 @@ sudo /var/lib/pywps/monitor SERVICE_NAME
 ```
 
 The helper explicitly checks both layers and prints their informational
-summaries to the terminal. It also prints one complete database status line
-with total, final, non-final, succeeded, failed, accepted, started, paused,
-null, and unknown-status counts. These counts cover the complete request table
-and are not affected by `--limit`. The scheduled monitor omits this full-table
-aggregate and remains quiet unless it finds stalled jobs or errors.
+summaries to the terminal. It also prints one complete status summary using the
+OGC API Processes vocabulary: accepted, running, successful, failed, and
+dismissed. PyWPS `started` and `paused` records are combined as `running`;
+missing or unrecognized database values are reported as `unmapped`. These
+counts cover the complete request table and are not affected by `--limit`.
+The scheduled monitor omits this full-table aggregate and remains quiet unless
+it finds stalled jobs or errors.
 
 Recover only stalled XML documents with:
 
