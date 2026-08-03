@@ -155,6 +155,7 @@ pywps_stalled_jobs_schedule:
 pywps_stalled_jobs_age_hours: 6
 # Maximum recovered jobs per layer.
 pywps_stalled_jobs_recovery_limit: 100
+# Layers used when a command does not specify --layer.
 pywps_stalled_jobs_layers:
   - xml
   - database

@@ -343,13 +343,13 @@ it finds stalled jobs or errors.
 Recover only stalled XML documents with:
 
 ```sh
-sudo /var/lib/pywps/recover-xml SERVICE_NAME
+sudo /var/lib/pywps/recover SERVICE_NAME --layer xml
 ```
 
-Recover both the XML and database layers explicitly with:
+Recover the service's configured layers with:
 
 ```sh
-sudo /var/lib/pywps/recover-all SERVICE_NAME
+sudo /var/lib/pywps/recover SERVICE_NAME
 ```
 
 Recovery atomically changes stalled XML documents to `ProcessFailed`. In the
@@ -361,16 +361,17 @@ Command-line options override those defaults, for example:
 
 ```sh
 sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-hours 12
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12 --limit 500
-sudo /var/lib/pywps/recover-all SERVICE_NAME --stale-after-hours 12 --limit 500
+sudo /var/lib/pywps/recover SERVICE_NAME --layer xml --stale-after-hours 12
+sudo /var/lib/pywps/recover SERVICE_NAME --limit 500
 ```
 
 The concise command names are intentionally scoped by their installation in
 `/var/lib/pywps`. The deployed implementation is `pywps-job-control.py`.
 
-The underlying script also accepts `--layer all` as a shortcut for selecting
-both XML and database layers. `--stale-after-hours` overrides the configured
-threshold.
+Every command uses the layers from the service's `[stalled_jobs] layers`
+setting unless one or more `--layer` options are supplied. Repeat the option
+to select multiple layers, for example `--layer xml --layer database`.
+`--stale-after-hours` overrides the configured threshold.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
 batches bounded even when years of unfinished requests have accumulated.
@@ -455,10 +456,10 @@ output directory, is mode `0644`, contains a UTC creation time and useful
 failure message, and is recorded as a warning in the existing per-service
 stalled-job log. Each run recovers at most 20 documents by default.
 
-This recovery is deliberately not included in `recover-all` or the
-scheduled read-only stalled-job monitor. To inspect candidates without creating
-files, run `pywps-job-control.py` in monitor mode with `--layer polling`;
-select recover mode only when recovery is intended.
+Polling is not included in the default configured layers or the scheduled
+read-only stalled-job monitor. Inspect candidates without creating files with
+`sudo /var/lib/pywps/monitor SERVICE_NAME --layer polling`. Recover them only
+when intended with `sudo /var/lib/pywps/recover SERVICE_NAME --layer polling`.
 
 ### Use Conda to build identical environments
 

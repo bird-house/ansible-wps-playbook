@@ -459,18 +459,20 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(overridden.stale_after_hours, 12)
         self.assertEqual(overridden.limit, 100)
 
-        all_layers = MODULE.parse_args([
+        selected_layers = MODULE.parse_args([
             "--config",
             str(config),
             "monitor",
             "--layer",
-            "all",
+            "xml",
+            "--layer",
+            "database",
             "--show-summaries",
             "--status-counts",
         ])
-        self.assertEqual(all_layers.layers, ["xml", "database"])
-        self.assertTrue(all_layers.show_summaries)
-        self.assertTrue(all_layers.status_counts)
+        self.assertEqual(selected_layers.layers, ["xml", "database"])
+        self.assertTrue(selected_layers.show_summaries)
+        self.assertTrue(selected_layers.status_counts)
 
         statistics = MODULE.parse_args([
             "--config",
@@ -500,7 +502,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         for arguments in (
             ["cleanup"],
             ["monitor", "--layer", "access-log"],
+            ["monitor", "--layer", "all"],
             ["monitor", "--hours", "3.5"],
+            ["monitor", "--min-poll-age-minutes", "5"],
         ):
             with self.subTest(arguments=arguments), mock.patch(
                 "sys.stderr", new=io.StringIO()
@@ -524,7 +528,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(summaries[0].errors, 1)
         self.assertEqual((summaries[1].checked, summaries[1].stalled), (2, 1))
 
-    def test_operation_flags_select_monitor_recovery_and_missing_status(self):
+    def test_operation_flags_select_monitor_recovery_and_statistics(self):
         settings = self.settings("monitor", ["xml", "database"])
         settings.monitor_enabled = False
         self.assertFalse(MODULE.operation_is_enabled(settings))
@@ -539,15 +543,37 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
         settings.layers = ["polling"]
         settings.missing_status_recovery_enabled = False
-        self.assertFalse(MODULE.operation_is_enabled(settings))
-        settings.missing_status_recovery_enabled = True
+        self.assertFalse(MODULE.layer_is_enabled(settings, "polling"))
         self.assertTrue(MODULE.operation_is_enabled(settings))
+        settings.missing_status_recovery_enabled = True
+        self.assertTrue(MODULE.layer_is_enabled(settings, "polling"))
 
         settings.mode = "statistics"
         settings.statistics_enabled = False
         self.assertFalse(MODULE.operation_is_enabled(settings))
         settings.statistics_enabled = True
         self.assertTrue(MODULE.operation_is_enabled(settings))
+
+    def test_disabled_polling_recovery_does_not_skip_other_layers(self):
+        settings = self.settings("recover", ["xml", "polling"])
+        settings.missing_status_recovery_enabled = False
+        xml_runner = mock.Mock(return_value=MODULE.LayerSummary("xml", checked=1))
+        polling_runner = mock.Mock(return_value=MODULE.LayerSummary("polling"))
+        logger = mock.Mock()
+
+        summaries = MODULE.execute_layers(
+            settings,
+            self.now,
+            logger,
+            runners={"xml": xml_runner, "polling": polling_runner},
+        )
+
+        xml_runner.assert_called_once()
+        polling_runner.assert_not_called()
+        self.assertEqual([summary.name for summary in summaries], ["xml"])
+        logger.info.assert_any_call(
+            "layer=%s result=skip reason=recovery-disabled", "polling"
+        )
 
     def test_summary_severity_reflects_layer_result(self):
         cases = (

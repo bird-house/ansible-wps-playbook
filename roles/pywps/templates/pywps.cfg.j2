@@ -62,6 +62,7 @@ recovery_enabled = {{ pywps_stalled_jobs_recovery_enabled | bool | lower }}
 missing_status_recovery_enabled = {{ pywps_missing_status_recovery_enabled | bool | lower }}
 # Write a complete daily job statistics report.
 statistics_enabled = {{ pywps_job_statistics_enabled | bool | lower }}
+# Layers used when a command does not specify --layer.
 layers = {{ pywps_stalled_jobs_layers | join(',') }}
 stale_after_hours = {{ pywps_stalled_jobs_age_hours }}
 recovery_limit = {{ pywps_stalled_jobs_recovery_limit }}

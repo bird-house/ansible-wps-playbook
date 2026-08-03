@@ -33,8 +33,6 @@ XML_JOB_STATUSES = {
     "ProcessFailed": "failed",
 }
 SUPPORTED_LAYERS = ("xml", "database", "polling")
-DEFAULT_LAYERS = ("xml", "database")
-LAYER_CHOICES = (*SUPPORTED_LAYERS, "all")
 UTC = timezone.utc
 ACCESS_LOG_RE = re.compile(
     r'^(?P<client>\S+) \S+ \S+ \[(?P<timestamp>[^]]+)\] '
@@ -784,7 +782,11 @@ def job_statistics_log_file(config: configparser.ConfigParser) -> Path | None:
 
 def parse_args(argv: list[str] | None = None) -> Settings:
     pre_parser = argparse.ArgumentParser(add_help=False)
-    pre_parser.add_argument("--config", type=Path)
+    pre_parser.add_argument(
+        "--config",
+        type=Path,
+        help="service PyWPS configuration containing paths and defaults",
+    )
     preliminary, _ = pre_parser.parse_known_args(argv)
     config = read_config(preliminary.config)
     if not config.has_section("stalled_jobs"):
@@ -796,13 +798,29 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         for layer in stalled_config.get("layers", "xml,database").split(",")
         if layer.strip()
     ]
-    parser = argparse.ArgumentParser(description=__doc__, parents=[pre_parser])
-    parser.add_argument("mode", choices=("monitor", "recover", "statistics"))
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        parents=[pre_parser],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""examples:
+  %(prog)s --config /etc/pywps/rook.cfg monitor
+  %(prog)s --config /etc/pywps/rook.cfg monitor --layer polling
+  %(prog)s --config /etc/pywps/rook.cfg recover --layer xml
+  %(prog)s --config /etc/pywps/rook.cfg statistics
+""",
+    )
+    parser.add_argument(
+        "mode",
+        metavar="{monitor,recover,statistics}",
+        choices=("monitor", "recover", "statistics"),
+        help="monitor without changes, recover as failed, or report statistics",
+    )
     parser.add_argument(
         "--layer",
         action="append",
-        choices=LAYER_CHOICES,
-        help="run only this layer; repeat to select more than one; all selects both",
+        choices=SUPPORTED_LAYERS,
+        metavar="{xml,database,polling}",
+        help="select xml, database, or polling; repeat for multiple layers",
     )
     parser.add_argument(
         "--show-summaries",
@@ -829,11 +847,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--output-dir",
         type=Path,
         default=optional_path(config.get("server", "outputpath", fallback=None)),
-    )
-    parser.add_argument(
-        "--pywps-config",
-        type=Path,
-        default=preliminary.config,
+        help="override the configured status-document directory",
     )
     parser.add_argument(
         "--lock-file",
@@ -841,11 +855,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         default=Path(
             stalled_config.get("lock_file", "/run/lock/pywps-stalled-jobs.lock")
         ),
+        help="override the configured process lock file",
     )
     parser.add_argument(
         "--log-file",
         type=Path,
         default=None,
+        help="override the derived monitor or statistics log file",
     )
     parser.add_argument(
         "--access-log",
@@ -867,13 +883,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     )
     parser.add_argument(
         "--min-poll-duration-minutes",
-        "--min-poll-age-minutes",
-        dest="min_poll_duration_minutes",
         type=float,
         default=float(
             stalled_config.get(
                 "min_poll_duration_minutes",
-                stalled_config.get("min_poll_age_minutes", "15"),
+                "15",
             )
         ),
         help="require matching polls to span at least this much time",
@@ -892,15 +906,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     if limit is None and args.mode == "recover":
         limit = int(stalled_config.get("recovery_limit", "100"))
     layers = args.layer or configured_layers
-    if args.mode == "statistics" and args.layer is None:
-        layers = list(DEFAULT_LAYERS)
-    invalid = sorted(set(layers) - set(LAYER_CHOICES))
+    invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
     if invalid:
         parser.error(f"unsupported configured layers: {', '.join(invalid)}")
     if not layers:
         parser.error("at least one layer must be configured")
-    if "all" in layers:
-        layers = list(DEFAULT_LAYERS)
     if args.stale_after_hours <= 0:
         parser.error("--stale-after-hours must be greater than zero")
     if limit is not None and limit <= 0:
@@ -920,7 +930,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         layers=list(dict.fromkeys(layers)),
         stale_after_hours=args.stale_after_hours,
         output_dir=args.output_dir,
-        pywps_config=args.pywps_config,
+        pywps_config=preliminary.config,
         lock_file=args.lock_file,
         log_file=(
             args.log_file
@@ -981,9 +991,11 @@ def operation_is_enabled(settings: Settings) -> bool:
         return settings.statistics_enabled
     if settings.mode == "monitor":
         return settings.monitor_enabled
-    if not settings.recovery_enabled:
-        return False
-    if "polling" in settings.layers:
+    return settings.recovery_enabled
+
+
+def layer_is_enabled(settings: Settings, layer: str) -> bool:
+    if settings.mode == "recover" and layer == "polling":
         return settings.missing_status_recovery_enabled
     return True
 
@@ -1001,6 +1013,12 @@ def execute_layers(
     }
     summaries: list[LayerSummary] = []
     for layer in settings.layers:
+        if not layer_is_enabled(settings, layer):
+            logger.info(
+                "layer=%s result=skip reason=recovery-disabled",
+                layer,
+            )
+            continue
         try:
             summary = runners[layer](settings, now, logger)
         except Exception as error:
