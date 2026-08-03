@@ -84,6 +84,18 @@ class SummaryConsoleFilter(logging.Filter):
         )
 
 
+class ServiceContextFilter(logging.Filter):
+    """Add the service name to every record, including dependency logs."""
+
+    def __init__(self, service_name: str) -> None:
+        super().__init__()
+        self.service_name = service_name
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.service = self.service_name
+        return True
+
+
 @dataclass
 class XmlStatus:
     path: Path
@@ -309,8 +321,7 @@ def run_xml_layer(
                 write_failed_xml(document, tree, message, now)
                 summary.recovered += 1
                 logger.warning(
-                    "service=%s layer=xml job=%s status=failed action=recovered",
-                    settings.service_name,
+                    "layer=xml job=%s status=failed action=recovered",
                     document.job_uuid,
                 )
             if settings.limit is not None and summary.stalled >= settings.limit:
@@ -563,9 +574,7 @@ def run_polling_layer(
                 if create_missing_status_file(status_path, contents):
                     summary.recovered += 1
                     logger.warning(
-                        "service=%s layer=polling job=%s "
-                        "status=failed action=recovered polls=%d",
-                        settings.service_name,
+                        "layer=polling job=%s status=failed action=recovered polls=%d",
                         candidate.job_uuid,
                         candidate.count,
                     )
@@ -671,9 +680,8 @@ def run_database_layer(
                 WPS_STATUS,
             )
             logger.info(
-                "status_summary service=%s total=%d accepted=%d running=%d "
+                "status_summary total=%d accepted=%d running=%d "
                 "successful=%d failed=%d dismissed=%d unmapped=%d",
-                settings.service_name,
                 status_counts["total"],
                 status_counts["accepted"],
                 status_counts["running"],
@@ -690,17 +698,16 @@ def run_database_layer(
                 ),
             )
         )
+        cutoff = (now - threshold).astimezone(UTC).replace(tzinfo=None)
+        last_update = func.coalesce(
+            dblog.ProcessInstance.time_end,
+            dblog.ProcessInstance.time_start,
+        )
+        query = query.filter(
+            or_(last_update.is_(None), last_update <= cutoff)
+        ).order_by(last_update, dblog.ProcessInstance.uuid)
         if settings.limit is not None:
-            cutoff = (now - threshold).astimezone(UTC).replace(tzinfo=None)
-            last_update = func.coalesce(
-                dblog.ProcessInstance.time_end,
-                dblog.ProcessInstance.time_start,
-            )
-            query = (
-                query.filter(last_update <= cutoff)
-                .order_by(last_update, dblog.ProcessInstance.uuid)
-                .limit(settings.limit)
-            )
+            query = query.limit(settings.limit)
         records = query.all()
         for record in records:
             summary.checked += 1
@@ -733,8 +740,7 @@ def run_database_layer(
                     session.commit()
                     summary.recovered += 1
                     logger.warning(
-                        "service=%s layer=database job=%s status=failed action=recovered",
-                        settings.service_name,
+                        "layer=database job=%s status=failed action=recovered",
                         record.uuid,
                     )
             except Exception as error:
@@ -766,18 +772,23 @@ def optional_path(value: str | None) -> Path | None:
     return Path(value) if value else None
 
 
-def stalled_jobs_log_file(config: configparser.ConfigParser) -> Path | None:
+def related_log_file(
+    config: configparser.ConfigParser, label: str
+) -> Path | None:
     pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
     if pywps_log_file is None:
         return None
-    return pywps_log_file.with_name(f"stalled-jobs-{pywps_log_file.name}")
+    return pywps_log_file.with_name(
+        f"{pywps_log_file.stem}-{label}{pywps_log_file.suffix}"
+    )
+
+
+def job_monitor_log_file(config: configparser.ConfigParser) -> Path | None:
+    return related_log_file(config, "job-monitor")
 
 
 def job_statistics_log_file(config: configparser.ConfigParser) -> Path | None:
-    pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
-    if pywps_log_file is None:
-        return None
-    return pywps_log_file.with_name(f"job-statistics-{pywps_log_file.name}")
+    return related_log_file(config, "stats")
 
 
 def parse_args(argv: list[str] | None = None) -> Settings:
@@ -937,7 +948,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
             or (
                 job_statistics_log_file(config)
                 if args.mode == "statistics"
-                else stalled_jobs_log_file(config)
+                else job_monitor_log_file(config)
             )
         ),
         show_summaries=args.show_summaries,
@@ -963,8 +974,11 @@ def configure_logging(
     log_file: Path | None,
     show_summaries: bool = False,
     statistics_only: bool = False,
+    service_name: str = "unknown",
 ) -> logging.Logger:
     stream_handler = logging.StreamHandler()
+    service_filter = ServiceContextFilter(service_name)
+    stream_handler.addFilter(service_filter)
     stream_handler.setLevel(
         logging.INFO if show_summaries else logging.ERROR if statistics_only else logging.WARNING
     )
@@ -974,13 +988,14 @@ def configure_logging(
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file)
+        file_handler.addFilter(service_filter)
         file_handler.setLevel(logging.INFO)
         if statistics_only:
             file_handler.addFilter(SummaryConsoleFilter())
         handlers.append(file_handler)
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
+        format="%(asctime)s %(levelname)s service=%(service)s %(message)s",
         handlers=handlers,
     )
     return logging.getLogger("pywps-job-control")
@@ -1032,9 +1047,8 @@ def execute_layers(
         else:
             log_summary = logger.info
         log_summary(
-            "summary service=%s layer=%s checked=%d stalled=%d recovered=%d errors=%d "
+            "summary layer=%s checked=%d stalled=%d recovered=%d errors=%d "
             "mode=%s limit=%s",
-            settings.service_name,
             summary.name,
             summary.checked,
             summary.stalled,
@@ -1053,6 +1067,7 @@ def main(argv: list[str] | None = None) -> int:
             settings.log_file,
             settings.show_summaries,
             statistics_only=settings.mode == "statistics",
+            service_name=settings.service_name,
         )
         if not operation_is_enabled(settings):
             logger.info(
@@ -1073,7 +1088,10 @@ def main(argv: list[str] | None = None) -> int:
             summaries = execute_layers(settings, datetime.now(UTC), logger)
             return 1 if any(summary.errors for summary in summaries) else 0
     except (OSError, ValueError) as error:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s %(levelname)s service=unknown %(message)s",
+        )
         logging.getLogger("pywps-job-control").error("%s", error)
         return 2
 
