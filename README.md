@@ -403,9 +403,10 @@ The default schedule runs every ten minutes and considers only requests from
 the preceding hour. Recovery requires at least three `GET` or `HEAD` responses
 with status `404`, spanning at least 15 minutes rather than arriving in one
 short burst. Only the exact output path configured for that PyWPS service and a
-syntactically valid UUID filename are accepted. Current and rotated access
-logs, including gzip-compressed rotations, are inspected; duplicate lines
-copied across a rotation boundary count only once.
+syntactically valid UUID filename are accepted. Only the configured active log
+is inspected. Rotated logs are intentionally ignored: persistent polling
+appears in the active log again and qualifies after the configured minimum
+duration.
 
 On a VM hosting multiple PyWPS services, Ansible creates one recovery cron
 entry per service. Each entry uses that service's `/etc/pywps/SERVICE.cfg`,

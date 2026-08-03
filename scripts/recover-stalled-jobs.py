@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import configparser
 import fcntl
-import gzip
 import io
 import logging
 import os
@@ -14,7 +13,6 @@ import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -307,23 +305,6 @@ def run_xml_layer(
     return summary
 
 
-def access_log_paths(path: Path) -> list[Path]:
-    """Return the active and rotated access logs in a stable order."""
-    rotated_name = re.compile(rf"^{re.escape(path.name)}(?:\.\d+)?(?:\.gz)?$")
-    candidates = [
-        candidate
-        for candidate in path.parent.glob(f"{path.name}*")
-        if candidate.is_file() and rotated_name.fullmatch(candidate.name)
-    ]
-    return sorted(candidates, key=lambda candidate: (candidate != path, candidate.name))
-
-
-def read_access_log(path: Path) -> Iterable[str]:
-    opener = gzip.open if path.suffix == ".gz" else open
-    with opener(path, "rt", encoding="utf-8", errors="replace") as stream:
-        yield from stream
-
-
 def parse_access_log_line(line: str) -> tuple[str, datetime, str, str, int] | None:
     match = ACCESS_LOG_RE.match(line)
     if match is None:
@@ -357,14 +338,12 @@ def find_missing_status_polls(settings: Settings, now: datetime) -> list[Missing
     )
     window_start = now - timedelta(minutes=settings.poll_window_minutes)
     future_limit = now + timedelta(minutes=5)
-    event_counts: dict[tuple[str, datetime, str, str, int], int] = {}
-    paths = access_log_paths(settings.access_log)
-    if not paths:
+    if not settings.access_log.is_file():
         raise FileNotFoundError(f"access log does not exist: {settings.access_log}")
 
-    for log_path in paths:
-        file_counts: Counter[tuple[str, datetime, str, str, int]] = Counter()
-        for line in read_access_log(log_path):
+    polls: dict[str, MissingStatusPolls] = {}
+    with settings.access_log.open("rt", encoding="utf-8", errors="replace") as stream:
+        for line in stream:
             parsed = parse_access_log_line(line)
             if parsed is None:
                 continue
@@ -380,31 +359,19 @@ def find_missing_status_polls(settings: Settings, now: datetime) -> list[Missing
             job_uuid = match.group("uuid")
             if UUID_RE.fullmatch(job_uuid) is None:
                 continue
-            file_counts[parsed] += 1
-        for event, count in file_counts.items():
-            event_counts[event] = max(event_counts.get(event, 0), count)
-
-    polls: dict[str, MissingStatusPolls] = {}
-    for event, count in event_counts.items():
-        _, timestamp, _, target, _ = event
-        request_path = unquote(urlsplit(target).path)
-        match = status_path_re.fullmatch(request_path)
-        if match is None:
-            continue
-        job_uuid = match.group("uuid")
-        candidate = polls.get(job_uuid)
-        if candidate is None:
-            polls[job_uuid] = MissingStatusPolls(
-                job_uuid=job_uuid,
-                request_path=request_path,
-                first_seen=timestamp,
-                last_seen=timestamp,
-                count=count,
-            )
-        else:
-            candidate.first_seen = min(candidate.first_seen, timestamp)
-            candidate.last_seen = max(candidate.last_seen, timestamp)
-            candidate.count += count
+            candidate = polls.get(job_uuid)
+            if candidate is None:
+                polls[job_uuid] = MissingStatusPolls(
+                    job_uuid=job_uuid,
+                    request_path=request_path,
+                    first_seen=timestamp,
+                    last_seen=timestamp,
+                    count=1,
+                )
+            else:
+                candidate.first_seen = min(candidate.first_seen, timestamp)
+                candidate.last_seen = max(candidate.last_seen, timestamp)
+                candidate.count += 1
 
     minimum_duration = timedelta(minutes=settings.min_poll_duration_minutes)
     return sorted(

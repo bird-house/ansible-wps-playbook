@@ -345,21 +345,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(candidates[0].request_path, f"/outputs/alpha/{JOB_UUID}.xml")
         self.assertEqual(candidates[0].count, 3)
 
-    def test_access_log_deduplicates_lines_copied_during_rotation(self):
-        settings = self.access_log_settings()
-        lines = "".join(
-            self.access_log_line(
-                self.now - timedelta(minutes=minutes),
-                client=f"192.0.2.{index}",
-            )
-            for index, minutes in enumerate((12, 8, 2), start=10)
-        )
-        settings.access_log.write_text(lines, encoding="utf-8")
-        settings.access_log.with_name("access.log.1").write_text(lines, encoding="utf-8")
-        summary = MODULE.run_access_log_layer(settings, self.now, mock.Mock())
-        self.assertEqual(summary.checked, 3)
-        self.assertEqual(summary.cleaned, 1)
-
     def test_access_log_requires_polls_spanning_the_minimum_age(self):
         settings = self.access_log_settings()
         line = self.access_log_line(self.now - timedelta(minutes=10))
