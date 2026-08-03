@@ -163,21 +163,26 @@
           - "'local app_dir=\"/usr/local/src/$app\"' in test_smoke_script"
           - "'exec \"$pytest\" -v -k smoke \"$smoke_tests\"' in test_smoke_script"
           - "'monitor)' in test_stalled_jobs_helper"
-          - "'recover)' in test_stalled_jobs_helper"
+          - "'recover-xml)' in test_stalled_jobs_helper"
+          - "'recover-polling)' in test_stalled_jobs_helper"
+          - "'recover-xml-db)' in test_stalled_jobs_helper"
           - "'mode=recover' in test_stalled_jobs_helper"
           - "'statistics)' in test_stalled_jobs_helper"
           - "'mode=statistics' in test_stalled_jobs_helper"
-          - >-
-            'script_options=(--show-summaries --status-counts)'
-            in test_stalled_jobs_helper
+          - "'--layer xml --layer database --layer polling' in test_stalled_jobs_helper"
+          - "'script_options=(--layer xml)' in test_stalled_jobs_helper"
+          - "'script_options=(--layer polling)' in test_stalled_jobs_helper"
+          - "'script_options=(--layer xml --layer database)' in test_stalled_jobs_helper"
+          - "'script_options=(--layer xml --layer database --show-summaries)' in test_stalled_jobs_helper"
           - >-
             'exec "$python" "$job_control_script"'
             in test_stalled_jobs_helper
           - >-
             '--config "$config_file" "$mode" "${script_options[@]}" "$@"'
             in test_stalled_jobs_helper
-          - "'recover-xml)' not in test_stalled_jobs_helper"
-          - "'recover-all)' not in test_stalled_jobs_helper"
+          - >-
+            '$command_name has a fixed layer scope; --layer is not allowed'
+            in test_stalled_jobs_helper
           - "'upstream alpha' in test_nginx_config"
           - "'proxy_cache_path /var/lib/pywps/cache/alpha' in test_nginx_config"
           - "'keys_zone=pywps_alpha:10m' in test_nginx_config"

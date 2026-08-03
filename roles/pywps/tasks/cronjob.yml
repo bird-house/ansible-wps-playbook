@@ -104,15 +104,17 @@
     mode: "0755"
   loop:
     - monitor
-    - recover
+    - recover-xml
+    - recover-polling
+    - recover-xml-db
     - statistics
 
-- name: Remove obsolete fixed-layer job commands
+- name: Remove obsolete recovery commands
   ansible.builtin.file:
     path: "{{ cron_script_dir }}/{{ item }}"
     state: absent
   loop:
-    - recover-xml
+    - recover
     - recover-all
 
 - name: Schedule PyWPS stalled-job monitoring

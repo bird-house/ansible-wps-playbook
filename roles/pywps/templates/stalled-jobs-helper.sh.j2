@@ -9,8 +9,7 @@ fail() {
 
 usage() {
     local exit_code=${1:-2}
-    echo "Usage: $command_name SERVICE_NAME [--layer LAYER ...] [OPTIONS]" >&2
-    echo "Layers: xml, database, polling. Defaults come from the service config." >&2
+    echo "Usage: $command_name SERVICE_NAME [OPTIONS]" >&2
     exit "$exit_code"
 }
 
@@ -18,6 +17,17 @@ validate_service_name() {
     if [[ -z ${1:-} || ! $1 =~ ^[A-Za-z0-9_.-]+$ ]]; then
         usage
     fi
+}
+
+reject_layer_options() {
+    local argument
+    for argument in "$@"; do
+        case $argument in
+            --layer | --layer=*)
+                fail "$command_name has a fixed layer scope; --layer is not allowed"
+                ;;
+        esac
+    done
 }
 
 main() {
@@ -28,14 +38,26 @@ main() {
     case $command_name in
         monitor)
             mode=monitor
-            script_options=(--show-summaries --status-counts)
+            script_options=(
+                --layer xml --layer database --layer polling
+                --show-summaries --status-counts
+            )
             ;;
-        recover)
+        recover-xml)
             mode=recover
+            script_options=(--layer xml)
+            ;;
+        recover-polling)
+            mode=recover
+            script_options=(--layer polling)
+            ;;
+        recover-xml-db)
+            mode=recover
+            script_options=(--layer xml --layer database)
             ;;
         statistics)
             mode=statistics
-            script_options=(--show-summaries)
+            script_options=(--layer xml --layer database --show-summaries)
             ;;
         *)
             fail "Unsupported command name: $command_name"
@@ -50,6 +72,8 @@ main() {
 
     local app=$1
     shift
+
+    reject_layer_options "$@"
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"
