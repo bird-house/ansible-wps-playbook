@@ -397,7 +397,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertIn("can no longer be monitored", execution.errors[0].text)
 
     def test_generated_configuration_supplies_defaults_and_cli_overrides(self):
-        config = self.root / "stalled.ini"
+        config = self.root / "alpha.cfg"
         config.write_text(
             "[server]\n"
             f"outputpath = {self.outputs}\n"
@@ -405,7 +405,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "[logging]\n"
             f"file = {self.root / 'logs' / 'alpha.log'}\n"
             "[stalled_jobs]\n"
-            "service_name = alpha\n"
             "monitor_enabled = false\n"
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"

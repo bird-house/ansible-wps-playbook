@@ -966,7 +966,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
             "missing_status_recovery_enabled", fallback=False
         ),
         statistics_enabled=stalled_config.getboolean("statistics_enabled", fallback=True),
-        service_name=stalled_config.get("service_name", "unknown"),
+        service_name=(preliminary.config.stem if preliminary.config else "unknown"),
     )
 
 

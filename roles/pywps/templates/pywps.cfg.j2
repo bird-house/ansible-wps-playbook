@@ -53,7 +53,6 @@ format = %(asctime)s] [%(levelname)s] %(message)s
 http_log_path = {{ wps_http_log_dir | default('/var/log/nginx') }}
 
 [stalled_jobs]
-service_name = {{ item.name }}
 # Report stalled requests without changing them.
 monitor_enabled = {{ pywps_stalled_jobs_monitor_enabled | bool | lower }}
 # Allow commands that recover stalled requests or status documents.

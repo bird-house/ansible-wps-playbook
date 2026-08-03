@@ -297,7 +297,6 @@ The playbook renders the operation switches into every service configuration:
 
 ```ini
 [stalled_jobs]
-service_name = example
 monitor_enabled = true
 recovery_enabled = false
 missing_status_recovery_enabled = false
