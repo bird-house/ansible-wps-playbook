@@ -35,7 +35,6 @@ XML_JOB_STATUSES = {
 SUPPORTED_LAYERS = ("xml", "database", "polling")
 UTC = timezone.utc
 JOB_CONTROL_SECTION = "job_control"
-LEGACY_JOB_CONTROL_SECTION = "stalled_jobs"
 ACCESS_LOG_RE = re.compile(
     r'^(?P<client>\S+) \S+ \S+ \[(?P<timestamp>[^]]+)\] '
     r'"(?P<method>\S+) (?P<target>\S+) (?P<protocol>[^"]+)" '
@@ -792,24 +791,9 @@ def read_config(path: Path | None) -> configparser.ConfigParser:
         return parser
     if not parser.read(path):
         raise FileNotFoundError(f"configuration file does not exist: {path}")
-    if not any(
-        parser.has_section(section)
-        for section in (JOB_CONTROL_SECTION, LEGACY_JOB_CONTROL_SECTION)
-    ):
+    if not parser.has_section(JOB_CONTROL_SECTION):
         raise ValueError(f"missing [job_control] section in {path}")
     return parser
-
-
-def job_control_config(
-    config: configparser.ConfigParser,
-) -> configparser.SectionProxy:
-    """Return current job-control settings, accepting the legacy section."""
-    if config.has_section(JOB_CONTROL_SECTION):
-        return config[JOB_CONTROL_SECTION]
-    if config.has_section(LEGACY_JOB_CONTROL_SECTION):
-        return config[LEGACY_JOB_CONTROL_SECTION]
-    config.add_section(JOB_CONTROL_SECTION)
-    return config[JOB_CONTROL_SECTION]
 
 
 def optional_path(value: str | None) -> Path | None:
@@ -844,7 +828,9 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     )
     preliminary, _ = pre_parser.parse_known_args(argv)
     config = read_config(preliminary.config)
-    control_config = job_control_config(config)
+    if not config.has_section(JOB_CONTROL_SECTION):
+        config.add_section(JOB_CONTROL_SECTION)
+    control_config = config[JOB_CONTROL_SECTION]
 
     configured_layers = [
         layer.strip()

@@ -303,10 +303,6 @@ pywps_job_control_layers:
   - database
 ```
 
-The former `pywps_stalled_jobs_*` variable names remain fallback aliases for
-existing inventories. New settings should use the `pywps_job_control_*` names;
-when both forms are defined, the new name takes precedence.
-
 The default runs hourly at 15 minutes past the hour. Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
@@ -376,8 +372,6 @@ database it marks the existing request failed and removes a matching stored
 queue entry; it does not change the database schema. The generated
 `[job_control]` section lives in the service's existing PyWPS configuration,
 and each cron entry uses that service's Conda environment and configuration.
-The command-line tool still reads the former `[stalled_jobs]` section during
-the migration, but newly rendered configurations always use `[job_control]`.
 Command-line options override those defaults, for example:
 
 ```sh

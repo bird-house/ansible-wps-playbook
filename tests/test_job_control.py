@@ -534,23 +534,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(overridden_monitor.stale_after_hours, 3.5)
         self.assertEqual(overridden_monitor.limit, 500)
 
-    def test_legacy_stalled_jobs_section_remains_readable(self):
-        config = self.root / "legacy.cfg"
-        config.write_text(
-            "[server]\n"
-            f"outputpath = {self.outputs}\n"
-            "[stalled_jobs]\n"
-            "layers = xml\n"
-            "stale_after_hours = 9\n"
-            f"lock_file = {self.root / 'legacy.lock'}\n",
-            encoding="utf-8",
-        )
+    def test_configuration_requires_job_control_section(self):
+        config = self.root / "old-section.cfg"
+        config.write_text("[stalled_jobs]\nlayers = xml\n", encoding="utf-8")
 
-        settings = MODULE.parse_args(["--config", str(config), "monitor"])
-
-        self.assertEqual(settings.layers, ["xml"])
-        self.assertEqual(settings.stale_after_hours, 9)
-        self.assertEqual(settings.lock_file, self.root / "legacy.lock")
+        with self.assertRaisesRegex(ValueError, r"missing \[job_control\] section"):
+            MODULE.parse_args(["--config", str(config), "monitor"])
 
     def test_removed_command_aliases_are_rejected(self):
         for arguments in (

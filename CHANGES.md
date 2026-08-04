@@ -5,8 +5,8 @@
 Changes:
 
 - rename the PyWPS job-management configuration from `[stalled_jobs]` to
-  `[job_control]`, with migration fallbacks for the former section and Ansible
-  variables
+  `[job_control]`, including its Ansible variables, lock file, source names,
+  tests, and documentation
 
 ## 0.9.0 (2026-07-31)
 
