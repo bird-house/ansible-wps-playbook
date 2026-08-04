@@ -60,7 +60,7 @@ server {
         }
         {% endif %}
         proxy_cache             {{ nginx_cache_zone }};
-        proxy_cache_valid       200 10m;
+        proxy_cache_valid       200 {{ wps_cache_valid }};
         proxy_cache_bypass      $http_cache_control $arg_nocache;
         proxy_no_cache          $http_pragma ${{ nginx_cache_zone }}_nocache;
         add_header X-Proxy-Cache $upstream_cache_status;
@@ -96,7 +96,10 @@ server {
         access_log off;
         proxy_cache           {{ nginx_cache_zone }};
         proxy_cache_key       $scheme$proxy_host$uri;
-        proxy_cache_valid     200 10m;
+        proxy_cache_valid     200 {{ wps_health_cache_valid }};
+        proxy_cache_lock      on;
+        proxy_cache_lock_age  {{ nginx_proxy_timeout }};
+        proxy_cache_lock_timeout {{ nginx_proxy_timeout }};
         add_header            X-Proxy-Cache $upstream_cache_status;
         proxy_connect_timeout {{ nginx_proxy_timeout }};
         proxy_send_timeout    {{ nginx_proxy_timeout }};
@@ -111,7 +114,10 @@ server {
         access_log off;
         proxy_cache           {{ nginx_cache_zone }};
         proxy_cache_key       $scheme$proxy_host$uri;
-        proxy_cache_valid     200 10m;
+        proxy_cache_valid     200 {{ wps_health_cache_valid }};
+        proxy_cache_lock      on;
+        proxy_cache_lock_age  {{ nginx_proxy_timeout }};
+        proxy_cache_lock_timeout {{ nginx_proxy_timeout }};
         add_header            X-Proxy-Cache $upstream_cache_status;
         proxy_connect_timeout {{ nginx_proxy_timeout }};
         proxy_send_timeout    {{ nginx_proxy_timeout }};

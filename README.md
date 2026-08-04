@@ -212,6 +212,22 @@ host:
 make play
 ```
 
+### Configure WPS response caching
+
+GetCapabilities and DescribeProcess responses are cached for 10 minutes by
+default. The `/health` and `/health2` endpoints use a shorter 30-second cache
+so frequent load-balancer checks do not overload WPS while health information
+remains reasonably fresh:
+
+```yaml
+wps_cache_valid: "10m"
+wps_health_cache_valid: "30s"
+```
+
+Set these variables in `custom.yml` using an Nginx time value such as `10s`,
+`1m`, or `10m`. Concurrent cache misses for the health endpoints are locked so
+only one request refreshes an expired entry.
+
 ### Start from a production-style example
 
 [`etc/sample-production.yml`](etc/sample-production.yml) demonstrates a

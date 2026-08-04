@@ -198,6 +198,10 @@ wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host 
 pywps_webservice_enabled: true
 wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
+# Cache WPS GetCapabilities and DescribeProcess responses.
+wps_cache_valid: "10m"
+# Keep health checks fresh while shielding WPS from load-balancer request volume.
+wps_health_cache_valid: "30s"
 wps_log_dir: /var/log/pywps
 wps_http_log_dir: /var/log/nginx
 wps_outputs_keep_hours: 12
