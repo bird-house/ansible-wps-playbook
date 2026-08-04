@@ -92,6 +92,7 @@ docker exec "$container_name" bash -c '
     "SELECT rolname FROM pg_roles WHERE rolname = '\''pywps'\'';" \
     | grep --quiet pywps
   wait_for_tiny_wps
+  test "$(curl --fail --silent http://localhost:8080/health2)" = "ROOK_HEALTH_OK"
   test "$(stat --format="%a:%U:%G" /etc/pywps/tiny.cfg)" = "640:root:wps"
   test "$(stat --format="%a:%U:%G" /var/lib/pywps/cache/tiny)" = "755:wps:wps"
   test "$(stat --format="%a:%U:%G" /etc/gunicorn/tiny.py)" = "640:root:wps"
@@ -107,4 +108,5 @@ docker exec "$container_name" bash -c '
   systemctl is-active --quiet supervisord
   systemctl is-active --quiet postgresql
   wait_for_tiny_wps
+  test "$(curl --fail --silent http://localhost:8080/health2)" = "ROOK_HEALTH_OK"
 '
