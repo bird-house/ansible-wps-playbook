@@ -13,8 +13,8 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "recover-stalled-jobs.py"
-SPEC = importlib.util.spec_from_file_location("recover_stalled_jobs", SCRIPT)
+SCRIPT = Path(__file__).parents[1] / "scripts" / "pywps-job-control.py"
+SPEC = importlib.util.spec_from_file_location("pywps_job_control", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 sys.modules[SPEC.name] = MODULE
@@ -444,7 +444,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "outputurl = https://example.test/outputs/alpha\n"
             "[logging]\n"
             f"file = {self.root / 'logs' / 'alpha.log'}\n"
-            "[stalled_jobs]\n"
+            "[job_control]\n"
             "monitor_enabled = false\n"
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
@@ -533,6 +533,24 @@ class RecoverStalledJobsTests(unittest.TestCase):
         ])
         self.assertEqual(overridden_monitor.stale_after_hours, 3.5)
         self.assertEqual(overridden_monitor.limit, 500)
+
+    def test_legacy_stalled_jobs_section_remains_readable(self):
+        config = self.root / "legacy.cfg"
+        config.write_text(
+            "[server]\n"
+            f"outputpath = {self.outputs}\n"
+            "[stalled_jobs]\n"
+            "layers = xml\n"
+            "stale_after_hours = 9\n"
+            f"lock_file = {self.root / 'legacy.lock'}\n",
+            encoding="utf-8",
+        )
+
+        settings = MODULE.parse_args(["--config", str(config), "monitor"])
+
+        self.assertEqual(settings.layers, ["xml"])
+        self.assertEqual(settings.stale_after_hours, 9)
+        self.assertEqual(settings.lock_file, self.root / "legacy.lock")
 
     def test_removed_command_aliases_are_rejected(self):
         for arguments in (

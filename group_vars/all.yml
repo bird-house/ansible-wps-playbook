@@ -138,9 +138,11 @@ pywps_restart_schedule: daily
 pywps_logrotate_min_size: 10M
 pywps_logrotate_rotations: 7
 # Report stalled requests without changing them.
-pywps_stalled_jobs_monitor_enabled: true
+pywps_job_control_monitor_enabled: >-
+  {{ pywps_stalled_jobs_monitor_enabled | default(true) }}
 # Allow commands that recover stalled requests or status documents.
-pywps_stalled_jobs_recovery_enabled: false
+pywps_job_control_recovery_enabled: >-
+  {{ pywps_stalled_jobs_recovery_enabled | default(false) }}
 # Write a complete daily job statistics report.
 pywps_job_statistics_enabled: true
 pywps_job_statistics_schedule:
@@ -149,19 +151,22 @@ pywps_job_statistics_schedule:
   day: "*"
   month: "*"
   weekday: "*"
-pywps_stalled_jobs_schedule:
-  minute: "15"
-  hour: "*"
-  day: "*"
-  month: "*"
-  weekday: "*"
-pywps_stalled_jobs_age_hours: 6
+pywps_job_control_schedule: >-
+  {{ pywps_stalled_jobs_schedule | default({
+    'minute': '15',
+    'hour': '*',
+    'day': '*',
+    'month': '*',
+    'weekday': '*'
+  }) }}
+pywps_job_control_stale_after_hours: >-
+  {{ pywps_stalled_jobs_age_hours | default(6) }}
 # Maximum recovered jobs per layer.
-pywps_stalled_jobs_recovery_limit: 100
+pywps_job_control_recovery_limit: >-
+  {{ pywps_stalled_jobs_recovery_limit | default(100) }}
 # Layers used when a command does not specify --layer.
-pywps_stalled_jobs_layers:
-  - xml
-  - database
+pywps_job_control_layers: >-
+  {{ pywps_stalled_jobs_layers | default(['xml', 'database']) }}
 # Create failure XML for repeated Nginx 404 status polling.
 pywps_missing_status_recovery_enabled: false
 pywps_missing_status_recovery_schedule:

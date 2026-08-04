@@ -286,22 +286,26 @@ remains available and can still be run manually:
 
 ### Monitor and recover stalled jobs
 
-The playbook installs the stalled-job recovery script once. Its scheduled
+The playbook installs the job-control script once. Its scheduled
 entries are disabled by default and always run in read-only monitoring mode:
 
 ```yaml
 cron_enabled: true
-pywps_stalled_jobs_monitor_enabled: true
-pywps_stalled_jobs_recovery_enabled: false
-pywps_stalled_jobs_schedule:
+pywps_job_control_monitor_enabled: true
+pywps_job_control_recovery_enabled: false
+pywps_job_control_schedule:
   minute: "15"
   hour: "*"
-pywps_stalled_jobs_age_hours: 6
-pywps_stalled_jobs_recovery_limit: 100
-pywps_stalled_jobs_layers:
+pywps_job_control_stale_after_hours: 6
+pywps_job_control_recovery_limit: 100
+pywps_job_control_layers:
   - xml
   - database
 ```
+
+The former `pywps_stalled_jobs_*` variable names remain fallback aliases for
+existing inventories. New settings should use the `pywps_job_control_*` names;
+when both forms are defined, the new name takes precedence.
 
 The default runs hourly at 15 minutes past the hour. Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
@@ -312,7 +316,7 @@ before the monitor sees them.
 The playbook renders the operation switches into every service configuration:
 
 ```ini
-[stalled_jobs]
+[job_control]
 monitor_enabled = true
 recovery_enabled = false
 missing_status_recovery_enabled = false
@@ -370,8 +374,10 @@ sudo /var/lib/pywps/recover-xml-db SERVICE_NAME
 Recovery atomically changes stalled XML documents to `ProcessFailed`. In the
 database it marks the existing request failed and removes a matching stored
 queue entry; it does not change the database schema. The generated
-`[stalled_jobs]` section lives in the service's existing PyWPS configuration,
+`[job_control]` section lives in the service's existing PyWPS configuration,
 and each cron entry uses that service's Conda environment and configuration.
+The command-line tool still reads the former `[stalled_jobs]` section during
+the migration, but newly rendered configurations always use `[job_control]`.
 Command-line options override those defaults, for example:
 
 ```sh
@@ -389,12 +395,12 @@ The concise command names are intentionally scoped by their installation in
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
 selection, call `pywps-job-control.py` directly and repeat `--layer`, for
 example `--layer xml --layer database`. Without an explicit layer, the script
-uses the service's `[stalled_jobs] layers` setting. `--stale-after-hours`
+uses the service's `[job_control] layers` setting. `--stale-after-hours`
 overrides the configured threshold.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
 batches bounded even when years of unfinished requests have accumulated.
-Recovery defaults to `pywps_stalled_jobs_recovery_limit`, which is 100. Monitoring
+Recovery defaults to `pywps_job_control_recovery_limit`, which is 100. Monitoring
 remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery default. The underlying `--status-counts` option enables a
@@ -437,7 +443,7 @@ a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
 instead of polling forever.
 
 ```yaml
-pywps_stalled_jobs_recovery_enabled: true
+pywps_job_control_recovery_enabled: true
 pywps_missing_status_recovery_enabled: true
 pywps_missing_status_recovery_schedule:
   minute: "*/10"
