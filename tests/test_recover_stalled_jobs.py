@@ -25,6 +25,7 @@ OWS = "http://www.opengis.net/ows/1.1"
 UTC = timezone.utc
 JOB_UUID = "123e4567-e89b-42d3-a456-426614174000"
 OTHER_JOB_UUID = "223e4567-e89b-42d3-a456-426614174000"
+THIRD_JOB_UUID = "323e4567-e89b-42d3-a456-426614174000"
 OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
@@ -830,7 +831,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
-    def test_database_recovery_updates_request_and_removes_queue_entry(self):
+    def test_database_recovery_handles_started_and_null_status_requests(self):
         pywps_config = self.root / "pywps.cfg"
         database = self.root / "pywps.sqlite"
         workdir = self.root / "work"
@@ -866,6 +867,18 @@ class RecoverStalledJobsTests(unittest.TestCase):
         session.add(dblog.RequestInstance(uuid=JOB_UUID, request=b"{}"))
         session.add(
             dblog.ProcessInstance(
+                uuid=THIRD_JOB_UUID,
+                pid=34567,
+                operation="execute",
+                version="1.0.0",
+                time_start=old,
+                status=None,
+                percent_done=0,
+            )
+        )
+        session.add(dblog.RequestInstance(uuid=THIRD_JOB_UUID, request=b"{}"))
+        session.add(
+            dblog.ProcessInstance(
                 uuid=OTHER_JOB_UUID,
                 pid=23456,
                 operation="execute",
@@ -884,11 +897,26 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (1, 1, 1, 0),
+            (2, 2, 2, 0),
         )
-        logger.warning.assert_called_once_with(
-            "layer=database job=%s status=failed action=recovered",
-            JOB_UUID,
+        logger.info.assert_any_call(
+            "layer=database job=%s status=%s finding=stalled updated=%s",
+            THIRD_JOB_UUID,
+            "unmapped",
+            old.replace(tzinfo=UTC).isoformat(),
+        )
+        self.assertEqual(
+            logger.warning.call_args_list,
+            [
+                mock.call(
+                    "layer=database job=%s status=failed action=recovered",
+                    JOB_UUID,
+                ),
+                mock.call(
+                    "layer=database job=%s status=failed action=recovered",
+                    THIRD_JOB_UUID,
+                ),
+            ],
         )
 
         session = dblog.get_session()
@@ -897,6 +925,14 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(record.percent_done, 100)
         self.assertIsNone(
             session.query(dblog.RequestInstance).filter_by(uuid=JOB_UUID).first()
+        )
+        null_status = (
+            session.query(dblog.ProcessInstance).filter_by(uuid=THIRD_JOB_UUID).one()
+        )
+        self.assertEqual(null_status.status, WPS_STATUS.FAILED)
+        self.assertEqual(null_status.percent_done, 100)
+        self.assertIsNone(
+            session.query(dblog.RequestInstance).filter_by(uuid=THIRD_JOB_UUID).first()
         )
         recent = session.query(dblog.ProcessInstance).filter_by(uuid=OTHER_JOB_UUID).one()
         self.assertEqual(recent.status, WPS_STATUS.STARTED)
