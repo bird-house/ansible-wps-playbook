@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monitor, recover, or summarize PyWPS jobs in independent storage layers."""
+"""Control PyWPS monitoring, recovery, and statistics across storage layers."""
 
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ XML_JOB_STATUSES = {
 }
 SUPPORTED_LAYERS = ("xml", "database", "polling")
 UTC = timezone.utc
+JOB_CONTROL_SECTION = "job_control"
 ACCESS_LOG_RE = re.compile(
     r'^(?P<client>\S+) \S+ \S+ \[(?P<timestamp>[^]]+)\] '
     r'"(?P<method>\S+) (?P<target>\S+) (?P<protocol>[^"]+)" '
@@ -790,8 +791,8 @@ def read_config(path: Path | None) -> configparser.ConfigParser:
         return parser
     if not parser.read(path):
         raise FileNotFoundError(f"configuration file does not exist: {path}")
-    if not parser.has_section("stalled_jobs"):
-        raise ValueError(f"missing [stalled_jobs] section in {path}")
+    if not parser.has_section(JOB_CONTROL_SECTION):
+        raise ValueError(f"missing [job_control] section in {path}")
     return parser
 
 
@@ -827,13 +828,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     )
     preliminary, _ = pre_parser.parse_known_args(argv)
     config = read_config(preliminary.config)
-    if not config.has_section("stalled_jobs"):
-        config.add_section("stalled_jobs")
-    stalled_config = config["stalled_jobs"]
+    if not config.has_section(JOB_CONTROL_SECTION):
+        config.add_section(JOB_CONTROL_SECTION)
+    control_config = config[JOB_CONTROL_SECTION]
 
     configured_layers = [
         layer.strip()
-        for layer in stalled_config.get("layers", "xml,database").split(",")
+        for layer in control_config.get("layers", "xml,database").split(",")
         if layer.strip()
     ]
     parser = argparse.ArgumentParser(
@@ -873,7 +874,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--stale-after-hours",
         type=float,
-        default=float(stalled_config.get("stale_after_hours", "6")),
+        default=float(control_config.get("stale_after_hours", "6")),
         help="consider nonfinal jobs stalled after this many hours",
     )
     parser.add_argument(
@@ -891,7 +892,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--lock-file",
         type=Path,
         default=Path(
-            stalled_config.get("lock_file", "/run/lock/pywps-stalled-jobs.lock")
+            control_config.get("lock_file", "/run/lock/pywps-job-control.lock")
         ),
         help="override the configured process lock file",
     )
@@ -904,26 +905,26 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--access-log",
         type=Path,
-        default=optional_path(stalled_config.get("access_log")),
+        default=optional_path(control_config.get("access_log")),
         help="Nginx access log used to discover missing polled status documents",
     )
     parser.add_argument(
         "--poll-window-minutes",
         type=float,
-        default=float(stalled_config.get("poll_window_minutes", "60")),
+        default=float(control_config.get("poll_window_minutes", "60")),
         help="inspect polling requests from this recent time window",
     )
     parser.add_argument(
         "--min-poll-count",
         type=int,
-        default=int(stalled_config.get("min_poll_count", "3")),
+        default=int(control_config.get("min_poll_count", "3")),
         help="require this many 404 poll responses before recovery",
     )
     parser.add_argument(
         "--min-poll-duration-minutes",
         type=float,
         default=float(
-            stalled_config.get(
+            control_config.get(
                 "min_poll_duration_minutes",
                 "15",
             )
@@ -934,7 +935,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--no-database-guard",
         action="store_false",
         dest="database_guard",
-        default=stalled_config.getboolean("missing_status_database_guard", fallback=True),
+        default=control_config.getboolean("missing_status_database_guard", fallback=True),
         help="allow polling recovery without checking active database requests",
     )
     args = parser.parse_args(argv)
@@ -942,7 +943,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         args.status_counts = True
     limit = args.limit
     if limit is None and args.mode == "recover":
-        limit = int(stalled_config.get("recovery_limit", "100"))
+        limit = int(control_config.get("recovery_limit", "100"))
     layers = args.layer or configured_layers
     invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
     if invalid:
@@ -987,12 +988,12 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         min_poll_count=args.min_poll_count,
         min_poll_duration_minutes=args.min_poll_duration_minutes,
         database_guard=args.database_guard,
-        monitor_enabled=stalled_config.getboolean("monitor_enabled", fallback=True),
-        recovery_enabled=stalled_config.getboolean("recovery_enabled", fallback=False),
-        missing_status_recovery_enabled=stalled_config.getboolean(
+        monitor_enabled=control_config.getboolean("monitor_enabled", fallback=True),
+        recovery_enabled=control_config.getboolean("recovery_enabled", fallback=False),
+        missing_status_recovery_enabled=control_config.getboolean(
             "missing_status_recovery_enabled", fallback=False
         ),
-        statistics_enabled=stalled_config.getboolean("statistics_enabled", fallback=True),
+        statistics_enabled=control_config.getboolean("statistics_enabled", fallback=True),
         service_name=(preliminary.config.stem if preliminary.config else "unknown"),
     )
 

@@ -1,66 +1,70 @@
 ---
-- name: Clean up cron files managed by ansible
-  file:
-    path: "/etc/cron.d/{{ item }}"
-    state: absent
-  with_items:
-    - ansible_pywps
-
 - name: Add MAILTO to cron file
   community.general.cronvar:
     name: MAILTO
     value: "{{ cron_mailto }}"
     cron_file: ansible_pywps
 
-- name: Clear wps outputs
-  cron:
+- name: Clear PyWPS output directories
+  ansible.builtin.cron:
     name: "clear wps outputs"
     special_time: hourly
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_basedir }}/outputs/* -maxdepth 1 -type d
+      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      -ignore_readdir_race -type d
       -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
-      -regex ".*/[a-f0-9\-]\{36\}$" -exec rm -rf {} \;
+      -regex ".*/[a-f0-9\-]\{36\}$"
+      -prune -exec rm -rf -- {} \;
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
 
-- name: Clear wps status
-  cron:
+- name: Clear PyWPS status documents
+  ansible.builtin.cron:
     name: "clear wps status"
     special_time: hourly
     user: "{{ cron_user }}"
-    job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type f -mmin +{{ wps_outputs_keep_minutes }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete'
+    job: >-
+      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      -ignore_readdir_race -type f
+      -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
+      -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
 
-- name: Clear wps tempfiles
-  cron:
+- name: Clear PyWPS temporary process directories
+  ansible.builtin.cron:
     name: "clear wps tempfiles"
     special_time: hourly
     user: "{{ cron_user }}"
-    job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*" -exec rm -rf {} \;'
+    job: >-
+      find {{ wps_basedir }}/tmp -mindepth 2 -maxdepth 2
+      -ignore_readdir_race -type d
+      -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*"
+      -prune -exec rm -rf -- {} \;
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
 
 - name: Ensure cron script dir exists
-  file:
+  ansible.builtin.file:
     path: "{{ cron_script_dir }}"
     state: directory
     owner: root
+    group: root
     mode: "0755"
 
-- name: Validate stalled-job recovery settings
+- name: Validate job-control settings
   ansible.builtin.assert:
     that:
-      - pywps_stalled_jobs_schedule | type_debug == 'dict'
+      - pywps_job_control_schedule | type_debug == 'dict'
       - pywps_job_statistics_schedule | type_debug == 'dict'
-      - pywps_stalled_jobs_age_hours | float > 0
-      - pywps_stalled_jobs_recovery_limit | int > 0
-      - pywps_stalled_jobs_layers | length > 0
-      - pywps_stalled_jobs_layers | difference(['xml', 'database', 'polling']) | length == 0
+      - pywps_job_control_stale_after_hours | float > 0
+      - pywps_job_control_recovery_limit | int > 0
+      - pywps_job_control_layers | length > 0
+      - pywps_job_control_layers | difference(['xml', 'database', 'polling']) | length == 0
       - pywps_missing_status_recovery_schedule | type_debug == 'dict'
       - pywps_missing_status_poll_window_minutes | float > 0
       - pywps_missing_status_min_poll_count | int > 0
@@ -71,11 +75,11 @@
       - pywps_missing_status_recovery_limit | int > 0
       - >-
         not (cron_enabled | bool)
-        or not (pywps_stalled_jobs_monitor_enabled | bool)
-        or 'xml' not in pywps_stalled_jobs_layers
-        or (pywps_stalled_jobs_age_hours | float) < (wps_outputs_keep_hours | float)
+        or not (pywps_job_control_monitor_enabled | bool)
+        or 'xml' not in pywps_job_control_layers
+        or (pywps_job_control_stale_after_hours | float) < (wps_outputs_keep_hours | float)
     fail_msg: >-
-      The stalled-job schedule must be a cron-field mapping, age must be
+      The job-control schedule must be a cron-field mapping, age must be
       positive and shorter than output retention for scheduled XML checks,
       recovery limit must be positive, and layers must contain xml, database,
       or polling. Missing-status recovery also requires a valid schedule,
@@ -84,7 +88,7 @@
 
 - name: Install PyWPS job-control script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/recover-stalled-jobs.py"
+    src: "{{ playbook_dir }}/scripts/pywps-job-control.py"
     dest: "{{ cron_script_dir }}/pywps-job-control.py"
     owner: root
     group: root
@@ -97,7 +101,7 @@
 
 - name: Install PyWPS job operator commands
   ansible.builtin.template:
-    src: ./templates/stalled-jobs-helper.sh.j2
+    src: ./templates/job-control-helper.sh.j2
     dest: "{{ cron_script_dir }}/{{ item }}"
     owner: root
     group: root
@@ -117,14 +121,37 @@
     - recover
     - recover-all
 
-- name: Schedule PyWPS stalled-job monitoring
+- name: Remove obsolete lowercase PyWPS monitoring cron entries
+  ansible.builtin.cron:
+    name: "monitor stalled pywps jobs for {{ item.name }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Remove obsolete PyWPS recovery cron entries
+  ansible.builtin.cron:
+    name: "recover stalled pywps jobs for {{ item.name }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Remove obsolete shared PyWPS restart cron entry
+  ansible.builtin.cron:
+    name: restart pywps
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+
+- name: Schedule PyWPS job monitoring
   ansible.builtin.cron:
     name: "monitor stalled PyWPS jobs for {{ item.name }}"
-    minute: "{{ pywps_stalled_jobs_schedule.minute | default('15') }}"
-    hour: "{{ pywps_stalled_jobs_schedule.hour | default('*') }}"
-    day: "{{ pywps_stalled_jobs_schedule.day | default('*') }}"
-    month: "{{ pywps_stalled_jobs_schedule.month | default('*') }}"
-    weekday: "{{ pywps_stalled_jobs_schedule.weekday | default('*') }}"
+    minute: "{{ pywps_job_control_schedule.minute | default('15') }}"
+    hour: "{{ pywps_job_control_schedule.hour | default('*') }}"
+    day: "{{ pywps_job_control_schedule.day | default('*') }}"
+    month: "{{ pywps_job_control_schedule.month | default('*') }}"
+    weekday: "{{ pywps_job_control_schedule.weekday | default('*') }}"
     user: root
     job: >-
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
@@ -183,28 +210,31 @@
     fail_msg: pywps_restart_schedule must be hourly or daily.
 
 - name: Copy restart script
-  template:
+  ansible.builtin.template:
     src: ./templates/restart-pywps.sh.j2
     dest: "{{ cron_script_dir }}/restart-pywps.sh"
     owner: root
+    group: root
     mode: "0744"
 
 - name: Schedule PyWPS service restarts
-  cron:
+  ansible.builtin.cron:
     name: "restart pywps {{ item.name }}"
     special_time: "{{ pywps_restart_schedule }}"
     user: root
-    job: "{{ cron_script_dir }}/restart-pywps.sh {{ item.name }} > /var/log/pywps/restart-{{ item.name }}.log 2>&1"
+    job: >-
+      {{ cron_script_dir }}/restart-pywps.sh {{ item.name }}
+      > /var/log/pywps/restart-{{ item.name }}.log 2>&1
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool) or not (pywps_restart_enabled | bool) }}
     state: present
-  with_items:
-    - "{{ wps_services }}"
+  loop: "{{ wps_services }}"
 
 - name: Copy smoke test script
-  template:
+  ansible.builtin.template:
     src: ./templates/smoke.sh.j2
     dest: "{{ cron_script_dir }}/smoke.sh"
     owner: root
+    group: root
     mode: "0744"
