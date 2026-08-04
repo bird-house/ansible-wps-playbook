@@ -20,7 +20,7 @@
     job: >-
       find {{ wps_basedir }}/outputs/* -maxdepth 1 -type d
       -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
-      -regex ".*/[a-f0-9\-]\{36\}$" -exec rm -rf {} \;
+      -regex ".*/[a-f0-9\-]\{36\}$" -prune -exec rm -rf {} \;
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
@@ -40,7 +40,7 @@
     name: "clear wps tempfiles"
     special_time: hourly
     user: "{{ cron_user }}"
-    job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*" -exec rm -rf {} \;'
+    job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*" -prune -exec rm -rf {} \;'
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
