@@ -94,6 +94,10 @@ server {
     location = /health
     {
         access_log off;
+        proxy_cache           {{ nginx_cache_zone }};
+        proxy_cache_key       $scheme$proxy_host$uri;
+        proxy_cache_valid     200 10m;
+        add_header            X-Proxy-Cache $upstream_cache_status;
         proxy_connect_timeout {{ nginx_proxy_timeout }};
         proxy_send_timeout    {{ nginx_proxy_timeout }};
         proxy_read_timeout    {{ nginx_proxy_timeout }};
@@ -105,6 +109,10 @@ server {
     location = /health2
     {
         access_log off;
+        proxy_cache           {{ nginx_cache_zone }};
+        proxy_cache_key       $scheme$proxy_host$uri;
+        proxy_cache_valid     200 10m;
+        add_header            X-Proxy-Cache $upstream_cache_status;
         proxy_connect_timeout {{ nginx_proxy_timeout }};
         proxy_send_timeout    {{ nginx_proxy_timeout }};
         proxy_read_timeout    {{ nginx_proxy_timeout }};

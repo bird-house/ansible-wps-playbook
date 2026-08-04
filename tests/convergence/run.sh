@@ -92,7 +92,13 @@ docker exec "$container_name" bash -c '
     "SELECT rolname FROM pg_roles WHERE rolname = '\''pywps'\'';" \
     | grep --quiet pywps
   wait_for_tiny_wps
+  curl --fail --silent --dump-header - --output /dev/null \
+    http://localhost:8080/health \
+    | grep --ignore-case --quiet '^X-Proxy-Cache: HIT'
   test "$(curl --fail --silent http://localhost:8080/health2)" = "ROOK_HEALTH_OK"
+  curl --fail --silent --dump-header - --output /dev/null \
+    http://localhost:8080/health2 \
+    | grep --ignore-case --quiet '^X-Proxy-Cache: HIT'
   test "$(stat --format="%a:%U:%G" /etc/pywps/tiny.cfg)" = "640:root:wps"
   test "$(stat --format="%a:%U:%G" /var/lib/pywps/cache/tiny)" = "755:wps:wps"
   test "$(stat --format="%a:%U:%G" /etc/gunicorn/tiny.py)" = "640:root:wps"

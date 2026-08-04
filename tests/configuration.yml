@@ -203,6 +203,12 @@
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location = /health' in test_nginx_config"
           - >-
+            test_nginx_config.count('proxy_cache           pywps_alpha;') == 2
+          - >-
+            test_nginx_config.count('proxy_cache_key       $scheme$proxy_host$uri;') == 2
+          - >-
+            test_nginx_config.count('proxy_cache_valid     200 10m;') == 2
+          - >-
             'proxy_pass            http://alpha/wps?service=WPS&request=GetCapabilities;'
             in test_nginx_config
           - "'location = /health2' in test_nginx_config"
