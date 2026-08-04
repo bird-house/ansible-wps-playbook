@@ -201,7 +201,10 @@
           - "'proxy_cache             pywps_alpha;' in test_nginx_config"
           - "'listen                 5001 ssl http2 default_server;' in test_nginx_config"
           - "'allow 192.0.2.0/24;' in test_nginx_config"
-          - "'location /health' in test_nginx_config"
+          - "'location = /health' in test_nginx_config"
+          - >-
+            'proxy_pass            http://alpha/wps?service=WPS&request=GetCapabilities;'
+            in test_nginx_config
           - "'location = /health2' in test_nginx_config"
           - >-
             'proxy_pass            http://alpha/wps?service=WPS&version=1.0.0&request=Execute&identifier=health&RawDataOutput=status;'

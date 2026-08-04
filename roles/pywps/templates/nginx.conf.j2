@@ -91,10 +91,14 @@ server {
     {% endif %}
 
     # endpoint for load-balancer health checks
-    location /health
+    location = /health
     {
         access_log off;
-        rewrite ^ /wps?service=WPS&request=GetCapabilities last;
+        proxy_connect_timeout {{ nginx_proxy_timeout }};
+        proxy_send_timeout    {{ nginx_proxy_timeout }};
+        proxy_read_timeout    {{ nginx_proxy_timeout }};
+        send_timeout          {{ nginx_proxy_timeout }};
+        proxy_pass            http://{{ item.name }}/wps?service=WPS&request=GetCapabilities;
     }
 
     # endpoint for ROOK process health checks
