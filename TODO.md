@@ -1,8 +1,7 @@
 # TODO
 
-This file separates actionable work from observations that still need
-investigation. The playbook assumes a dedicated VM owned by the PyWPS
-deployment.
+This file contains only open work. The playbook assumes a dedicated VM owned
+by the PyWPS deployment.
 
 ## Actionable work
 
@@ -14,7 +13,6 @@ deployment.
   to remain stable while allowing deliberate service restarts.
 - Speed up Docker convergence with a prebuilt test image containing Ansible
   and Galaxy dependencies, while keeping the service deployment itself clean.
-- Add render cases when new optional configuration branches are introduced.
 
 ### Lint and Ansible modernization
 
@@ -74,11 +72,10 @@ deployment.
 - Make the AlmaLinux Slurm RPM version reproducible or at least report the
   installed version clearly during deployment.
 - Update the pinned Galaxy Slurm role and `slurm-drmaa` together, keeping them
-  compatible with the installed Slurm release.
+  compatible with the installed Slurm release. Validate the result with the
+  existing scheduler-mode PyWPS job-submission smoke tests.
 - Migrate legacy `select/cons_res` to `select/cons_tres` if supported and
   decide whether strict FIFO `sched/builtin` remains intentional.
-- Use the existing scheduler-mode PyWPS smoke tests as the required
-  job-submission validation before releasing changed production behaviour.
 
 ### Refactor PyWPS deployment roles
 
@@ -103,21 +100,3 @@ deployment.
   characters when constructing the default database URL.
 - Replace the broad permissive `httpd_t` SELinux setting with the smallest
   targeted policy required on AlmaLinux 9, backed by convergence testing.
-
-## Intentional behaviour
-
-The following findings are deliberate consequences of the dedicated-VM
-deployment model and are not TODOs:
-
-- The configuration cleanup removes existing Nginx and Supervisor `*.conf`
-  files before rendering the complete desired configuration.
-- Conda environments are removed and recreated on deployment so their contents
-  match the declared environment or explicit specification exactly.
-
-## Current validation
-
-`make test` installs Galaxy dependencies, lints working-tree YAML and maintained
-Ansible content, checks playbook syntax, and validates defaults and rendered
-configuration on localhost. GitHub Actions also performs a minimal AlmaLinux 9
-deployment with a tiny fixture application. Complete ROOK deployment and
-real-data smoke tests remain manual.
