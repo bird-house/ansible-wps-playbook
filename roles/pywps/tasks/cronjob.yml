@@ -1,55 +1,59 @@
 ---
-- name: Clean up cron files managed by ansible
-  file:
-    path: "/etc/cron.d/{{ item }}"
-    state: absent
-  with_items:
-    - ansible_pywps
-
 - name: Add MAILTO to cron file
   community.general.cronvar:
     name: MAILTO
     value: "{{ cron_mailto }}"
     cron_file: ansible_pywps
 
-- name: Clear wps outputs
-  cron:
+- name: Clear PyWPS output directories
+  ansible.builtin.cron:
     name: "clear wps outputs"
     special_time: hourly
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_basedir }}/outputs/* -maxdepth 1 -type d
+      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      -ignore_readdir_race -type d
       -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
-      -regex ".*/[a-f0-9\-]\{36\}$" -prune -exec rm -rf {} \;
+      -regex ".*/[a-f0-9\-]\{36\}$"
+      -prune -exec rm -rf -- {} \;
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
 
-- name: Clear wps status
-  cron:
+- name: Clear PyWPS status documents
+  ansible.builtin.cron:
     name: "clear wps status"
     special_time: hourly
     user: "{{ cron_user }}"
-    job: 'find {{ wps_basedir }}/outputs/* -maxdepth 1 -type f -mmin +{{ wps_outputs_keep_minutes }} -regextype sed -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete'
+    job: >-
+      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      -ignore_readdir_race -type f
+      -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
+      -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
 
-- name: Clear wps tempfiles
-  cron:
+- name: Clear PyWPS temporary process directories
+  ansible.builtin.cron:
     name: "clear wps tempfiles"
     special_time: hourly
     user: "{{ cron_user }}"
-    job: 'find {{ wps_basedir }}/tmp/* -maxdepth 1 -type d -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*" -prune -exec rm -rf {} \;'
+    job: >-
+      find {{ wps_basedir }}/tmp -mindepth 2 -maxdepth 2
+      -ignore_readdir_race -type d
+      -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*"
+      -prune -exec rm -rf -- {} \;
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
     state: present
 
 - name: Ensure cron script dir exists
-  file:
+  ansible.builtin.file:
     path: "{{ cron_script_dir }}"
     state: directory
     owner: root
+    group: root
     mode: "0755"
 
 - name: Validate job-control settings
@@ -117,6 +121,29 @@
     - recover
     - recover-all
 
+- name: Remove obsolete lowercase PyWPS monitoring cron entries
+  ansible.builtin.cron:
+    name: "monitor stalled pywps jobs for {{ item.name }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Remove obsolete PyWPS recovery cron entries
+  ansible.builtin.cron:
+    name: "recover stalled pywps jobs for {{ item.name }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Remove obsolete shared PyWPS restart cron entry
+  ansible.builtin.cron:
+    name: restart pywps
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+
 - name: Schedule PyWPS job monitoring
   ansible.builtin.cron:
     name: "monitor stalled PyWPS jobs for {{ item.name }}"
@@ -183,28 +210,31 @@
     fail_msg: pywps_restart_schedule must be hourly or daily.
 
 - name: Copy restart script
-  template:
+  ansible.builtin.template:
     src: ./templates/restart-pywps.sh.j2
     dest: "{{ cron_script_dir }}/restart-pywps.sh"
     owner: root
+    group: root
     mode: "0744"
 
 - name: Schedule PyWPS service restarts
-  cron:
+  ansible.builtin.cron:
     name: "restart pywps {{ item.name }}"
     special_time: "{{ pywps_restart_schedule }}"
     user: root
-    job: "{{ cron_script_dir }}/restart-pywps.sh {{ item.name }} > /var/log/pywps/restart-{{ item.name }}.log 2>&1"
+    job: >-
+      {{ cron_script_dir }}/restart-pywps.sh {{ item.name }}
+      > /var/log/pywps/restart-{{ item.name }}.log 2>&1
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool) or not (pywps_restart_enabled | bool) }}
     state: present
-  with_items:
-    - "{{ wps_services }}"
+  loop: "{{ wps_services }}"
 
 - name: Copy smoke test script
-  template:
+  ansible.builtin.template:
     src: ./templates/smoke.sh.j2
     dest: "{{ cron_script_dir }}/smoke.sh"
     owner: root
+    group: root
     mode: "0744"

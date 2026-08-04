@@ -4,6 +4,8 @@
 
 Changes:
 
+- make the managed cron file idempotent and harden output cleanup against
+  empty service globs and concurrent file removal
 - rename the PyWPS job-management configuration from `[stalled_jobs]` to
   `[job_control]`, including its Ansible variables, lock file, source names,
   tests, and documentation
