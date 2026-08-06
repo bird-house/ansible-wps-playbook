@@ -64,6 +64,18 @@ by the PyWPS deployment.
   bundled libraries segfaulted on a fresh Python 3.13 connection.
 - Add a Slurm monitoring and recovery layer after a reliable mapping between a
   WPS request UUID and its Slurm job ID has been identified.
+- Detect stalled Slurm jobs as well as stalled WPS requests. Define separate,
+  configurable thresholds for queued and running jobs, account for legitimate
+  scheduler states and long-running workloads, and make recovery actions safe
+  to repeat.
+- Review and update the existing job-control setup, including submission,
+  status reconciliation, cancellation, timeout handling, and retry behaviour.
+  Preserve the scheduler as the source of truth while keeping WPS request
+  state consistent with Slurm state.
+- Collect additional job statistics for troubleshooting and capacity planning,
+  including queue time, run time, completion state, failure reason, retries,
+  cancellation, and resource usage where Slurm exposes it. Keep collection
+  configurable and avoid unbounded growth of retained statistics.
 - Consider temporary-work-directory cleanup only after it can be associated
   with a request without risking another active job's files.
 
