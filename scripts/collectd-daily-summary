@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Write a readable daily summary from collectd CSV files."""
+"""Write a readable daily or hourly summary from collectd CSV files."""
 
 import argparse
 import csv
-from datetime import date, timedelta
+from collections import namedtuple
+from datetime import date, datetime, timedelta
 import fcntl
 import gzip
 import os
@@ -13,6 +14,9 @@ import tempfile
 
 
 GIB = 1024**3
+SummaryWindow = namedtuple(
+    "SummaryWindow", ("label", "file_date", "start_epoch", "end_epoch")
+)
 
 
 def iso_date(value):
@@ -22,11 +26,20 @@ def iso_date(value):
         raise argparse.ArgumentTypeError("must use YYYY-MM-DD") from error
 
 
+def iso_hour(value):
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H")
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must use YYYY-MM-DDTHH") from error
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--csv-dir", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--date", type=iso_date, default=date.today() - timedelta(days=1))
+    parser.add_argument("--period", choices=("daily", "hourly"), default="daily")
+    parser.add_argument("--date", type=iso_date)
+    parser.add_argument("--hour", type=iso_hour)
     parser.add_argument("--load", action="store_true")
     parser.add_argument("--disk-mount")
     parser.add_argument("--memory", action="store_true")
@@ -52,6 +65,28 @@ def validate_args(args):
         raise ValueError("at least one metric must be enabled")
     if args.disk_mount and not args.disk_mount.startswith("/"):
         raise ValueError("--disk-mount must be an absolute path")
+    if args.period == "daily" and args.hour is not None:
+        raise ValueError("--hour can only be used with --period hourly")
+    if args.period == "hourly" and args.date is not None:
+        raise ValueError("--date can only be used with --period daily")
+
+
+def summary_window(args):
+    if args.period == "daily":
+        summary_date = args.date or date.today() - timedelta(days=1)
+        return SummaryWindow(summary_date.isoformat(), summary_date, None, None)
+
+    start = args.hour
+    if start is None:
+        start = datetime.now().replace(minute=0, second=0, microsecond=0)
+        start -= timedelta(hours=1)
+    end = start + timedelta(hours=1)
+    return SummaryWindow(
+        start.strftime("%Y-%m-%dT%H:00"),
+        start.date(),
+        start.timestamp(),
+        end.timestamp(),
+    )
 
 
 def open_csv(path):
@@ -63,13 +98,19 @@ def open_csv(path):
     raise FileNotFoundError(path)
 
 
-def values_from_column(path, column):
+def values_from_column(path, column, start_epoch=None, end_epoch=None):
     with open_csv(path) as source:
         reader = csv.DictReader(source)
         if not reader.fieldnames or column not in reader.fieldnames:
             raise ValueError(f"missing column {column!r} in {path}")
+        if start_epoch is not None and "epoch" not in reader.fieldnames:
+            raise ValueError(f"missing column 'epoch' in {path}")
         values = []
         for row in reader:
+            if start_epoch is not None:
+                timestamp = float(row["epoch"])
+                if timestamp < start_epoch or timestamp >= end_epoch:
+                    continue
             value = row[column].strip()
             if value:
                 values.append(float(value))
@@ -78,13 +119,13 @@ def values_from_column(path, column):
     return values
 
 
-def min_max(path, column, scale=1.0):
-    values = values_from_column(path, column)
+def min_max(path, column, scale=1.0, start_epoch=None, end_epoch=None):
+    values = values_from_column(path, column, start_epoch, end_epoch)
     return round(min(values) * scale, 2), round(max(values) * scale, 2)
 
 
-def received_gib(path):
-    values = values_from_column(path, "rx")
+def received_gib(path, start_epoch=None, end_epoch=None):
+    values = values_from_column(path, "rx", start_epoch, end_epoch)
     total = 0
     previous = None
     for value in values:
@@ -110,7 +151,7 @@ def format_value(value):
     return "NA" if value is None else str(value)
 
 
-def summarize(args):
+def summarize(args, window):
     fields = []
     warnings = []
 
@@ -125,8 +166,10 @@ def summarize(args):
         result = capture(
             "load",
             lambda: min_max(
-                metric_path(args.csv_dir, "load", "load", args.date),
+                metric_path(args.csv_dir, "load", "load", window.file_date),
                 "shortterm",
+                start_epoch=window.start_epoch,
+                end_epoch=window.end_epoch,
             ),
         )
         minimum, maximum = result if result is not None else (None, None)
@@ -139,8 +182,12 @@ def summarize(args):
         result = capture(
             "disk",
             lambda: min_max(
-                metric_path(args.csv_dir, plugin, "percent_bytes-used", args.date),
+                metric_path(
+                    args.csv_dir, plugin, "percent_bytes-used", window.file_date
+                ),
                 "value",
+                start_epoch=window.start_epoch,
+                end_epoch=window.end_epoch,
             ),
         )
         minimum, maximum = result if result is not None else (None, None)
@@ -152,9 +199,13 @@ def summarize(args):
         result = capture(
             "memory",
             lambda: min_max(
-                metric_path(args.csv_dir, "memory", "memory-used", args.date),
+                metric_path(
+                    args.csv_dir, "memory", "memory-used", window.file_date
+                ),
                 "value",
                 scale=1 / GIB,
+                start_epoch=window.start_epoch,
+                end_epoch=window.end_epoch,
             ),
         )
         minimum, maximum = result if result is not None else (None, None)
@@ -173,8 +224,10 @@ def summarize(args):
                     args.csv_dir,
                     f"interface-{args.interface}",
                     "if_octets",
-                    args.date,
-                )
+                    window.file_date,
+                ),
+                start_epoch=window.start_epoch,
+                end_epoch=window.end_epoch,
             ),
         )
         fields.append(
@@ -183,14 +236,13 @@ def summarize(args):
             else f"{args.interface}_rx=NA"
         )
 
-    return f"{args.date.isoformat()}  {'  '.join(fields)}", warnings
+    return f"{window.label}  {'  '.join(fields)}", warnings
 
 
-def write_summary(output, summary_date, line):
+def write_summary(output, summary_key, line):
     output.parent.mkdir(parents=True, exist_ok=True)
     existing = output.read_text(encoding="utf-8").splitlines() if output.exists() else []
-    date_prefix = summary_date.isoformat()
-    updated = [entry for entry in existing if not entry.startswith(f"{date_prefix}  ")]
+    updated = [entry for entry in existing if not entry.startswith(f"{summary_key}  ")]
     updated.append(line)
     updated.sort(key=lambda entry: entry.split(maxsplit=1)[0])
 
@@ -213,24 +265,24 @@ def main(argv=None):
     args = parse_args(argv)
     try:
         validate_args(args)
+        window = summary_window(args)
         args.lock_file.parent.mkdir(parents=True, exist_ok=True)
         with args.lock_file.open("a+") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
-                print("collectd daily summary is already running; skipping")
+                print("collectd summary is already running; skipping")
                 return 0
 
-            line, warnings = summarize(args)
-            write_summary(args.output, args.date, line)
+            line, warnings = summarize(args, window)
+            write_summary(args.output, window.label, line)
     except (OSError, ValueError) as error:
-        print(f"collectd daily summary failed: {error}", file=sys.stderr)
+        print(f"collectd summary failed: {error}", file=sys.stderr)
         return 1
-
 
     print(line)
     for warning in warnings:
-        print(f"collectd daily summary warning: {warning}", file=sys.stderr)
+        print(f"collectd summary warning: {warning}", file=sys.stderr)
     return 0
 
 

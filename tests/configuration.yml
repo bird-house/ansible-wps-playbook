@@ -82,6 +82,11 @@
           - collectd_summary_enabled
           - collectd_summary_schedule == '*-*-* 00:10:00'
           - collectd_summary_output == '/var/log/collectd-daily-summary.log'
+          - not collectd_hourly_summary_enabled
+          - collectd_hourly_summary_schedule == '*-*-* *:05:00'
+          - >-
+            collectd_hourly_summary_output
+            == '/var/log/collectd-hourly-summary.log'
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -132,6 +137,14 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/collectd/templates/collectd-daily-summary.timer.j2') }}
+        test_collectd_hourly_summary_load_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-hourly-summary.service.j2') }}
+        test_collectd_hourly_summary_timer: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-hourly-summary.timer.j2') }}
       vars:
         item: "{{ test_primary_service }}"
         wps_enable_https: true
@@ -149,6 +162,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/collectd/templates/collectd-daily-summary.service.j2') }}
+        test_collectd_hourly_summary_all_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-hourly-summary.service.j2') }}
       vars:
         collectd_disk_enabled: true
         collectd_memory_enabled: true
@@ -329,6 +346,23 @@
           - "'--interface ens3' in test_collectd_summary_all_service"
           - "'OnCalendar=*-*-* 00:10:00' in test_collectd_summary_timer"
           - "'Persistent=true' in test_collectd_summary_timer"
+          - >-
+            '--period hourly' in test_collectd_hourly_summary_load_service
+          - "'--load' in test_collectd_hourly_summary_load_service"
+          - >-
+            '--output /var/log/collectd-hourly-summary.log'
+            in test_collectd_hourly_summary_load_service
+          - "'--disk-mount' not in test_collectd_hourly_summary_load_service"
+          - "'--memory' not in test_collectd_hourly_summary_load_service"
+          - "'--interface' not in test_collectd_hourly_summary_load_service"
+          - >-
+            '--disk-mount /mnt/ext_pywps_outputs'
+            in test_collectd_hourly_summary_all_service
+          - "'--memory' in test_collectd_hourly_summary_all_service"
+          - "'--interface ens3' in test_collectd_hourly_summary_all_service"
+          - >-
+            'OnCalendar=*-*-* *:05:00' in test_collectd_hourly_summary_timer
+          - "'Persistent=true' in test_collectd_hourly_summary_timer"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
           - "'poll_window_minutes = 60' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"

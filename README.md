@@ -238,18 +238,25 @@ overridden independently:
 ```yaml
 collectd_summary_enabled: true
 collectd_summary_schedule: "*-*-* 00:10:00"
+# Optional previous-hour summaries, recorded five minutes after each hour.
+collectd_hourly_summary_enabled: false
+collectd_hourly_summary_schedule: "*-*-* *:05:00"
 collectd_cleanup_enabled: true
 collectd_cleanup_schedule: "*-*-* 00:30:00"
 collectd_compress_after_days: 7
 collectd_keep_days: 30
 ```
 
-The summary is written to `/var/log/collectd-daily-summary.log`. Inspect timer
-state and recent errors with `systemctl list-timers` and `journalctl`:
+The daily summary is written to `/var/log/collectd-daily-summary.log`. When
+enabled, hourly summaries are written separately to
+`/var/log/collectd-hourly-summary.log`. Inspect timer state and recent errors
+with `systemctl list-timers` and `journalctl`:
 
 ```sh
-systemctl status collectd-daily-summary.timer collectd-cleanup.timer
-journalctl -u collectd-daily-summary.service -u collectd-cleanup.service
+systemctl status collectd-daily-summary.timer collectd-hourly-summary.timer
+systemctl status collectd-cleanup.timer
+journalctl -u collectd-daily-summary.service -u collectd-hourly-summary.service
+journalctl -u collectd-cleanup.service
 ```
 
 ### Configure WPS response caching

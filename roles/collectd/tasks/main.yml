@@ -27,13 +27,28 @@
           - >-
             not (collectd_cleanup_enabled | bool)
             or collectd_keep_days | int > collectd_compress_after_days | int
-          - not (collectd_summary_enabled | bool) or collectd_summary_script is match('^/')
+          - >-
+            not (
+              (collectd_summary_enabled | bool)
+              or (collectd_hourly_summary_enabled | bool)
+            )
+            or collectd_summary_script is match('^/')
           - not (collectd_summary_enabled | bool) or collectd_summary_schedule | length > 0
           - not (collectd_summary_enabled | bool) or collectd_summary_output_dir is match('^/')
           - not (collectd_summary_enabled | bool) or collectd_summary_output is match('^/')
           - >-
             not (collectd_summary_enabled | bool)
             or (collectd_summary_output | dirname) == collectd_summary_output_dir
+          - >-
+            not (collectd_hourly_summary_enabled | bool)
+            or collectd_hourly_summary_schedule | length > 0
+          - >-
+            not (collectd_hourly_summary_enabled | bool)
+            or collectd_hourly_summary_output is match('^/')
+          - >-
+            not (collectd_hourly_summary_enabled | bool)
+            or (collectd_hourly_summary_output | dirname)
+               == collectd_summary_output_dir
         fail_msg: >-
           collectd monitoring supports only Red Hat family version 9 hosts,
           requires at least one metric, a positive interval, a hostname, an
@@ -123,7 +138,10 @@
         - /etc/cron.daily/collectd-csv-maintenance
         - /etc/cron.daily/collectd-daily-summary
       when:
-        - (collectd_cleanup_enabled | bool) or (collectd_summary_enabled | bool)
+        - >-
+          (collectd_cleanup_enabled | bool)
+          or (collectd_summary_enabled | bool)
+          or (collectd_hourly_summary_enabled | bool)
 
     - name: Configure collectd CSV cleanup
       when: collectd_cleanup_enabled | bool
@@ -291,6 +309,101 @@
       loop:
         - /etc/systemd/system/collectd-daily-summary.service
         - /etc/systemd/system/collectd-daily-summary.timer
-        - "{{ collectd_summary_script }}"
       notify: Reload systemd
       when: not (collectd_summary_enabled | bool)
+
+    - name: Configure collectd hourly summary
+      when: collectd_hourly_summary_enabled | bool
+      block:
+        - name: Validate collectd hourly summary schedule
+          ansible.builtin.command:
+            argv:
+              - systemd-analyze
+              - calendar
+              - "{{ collectd_hourly_summary_schedule }}"
+          changed_when: false
+
+        - name: Ensure collectd hourly summary output directory exists
+          ansible.builtin.file:
+            path: "{{ collectd_summary_output_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Install collectd hourly summary script
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/scripts/collectd-daily-summary"
+            dest: "{{ collectd_summary_script }}"
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Install collectd hourly summary service
+          ansible.builtin.template:
+            src: collectd-hourly-summary.service.j2
+            dest: /etc/systemd/system/collectd-hourly-summary.service
+            owner: root
+            group: root
+            mode: "0644"
+          notify: Reload systemd
+
+        - name: Install collectd hourly summary timer
+          ansible.builtin.template:
+            src: collectd-hourly-summary.timer.j2
+            dest: /etc/systemd/system/collectd-hourly-summary.timer
+            owner: root
+            group: root
+            mode: "0644"
+          notify: Reload systemd
+
+        - name: Validate collectd hourly summary units
+          ansible.builtin.command:
+            argv:
+              - systemd-analyze
+              - verify
+              - /etc/systemd/system/collectd-hourly-summary.service
+              - /etc/systemd/system/collectd-hourly-summary.timer
+          changed_when: false
+
+        - name: Apply collectd hourly summary unit changes
+          ansible.builtin.meta: flush_handlers
+
+        - name: Enable and start collectd hourly summary timer
+          ansible.builtin.systemd:
+            name: collectd-hourly-summary.timer
+            enabled: true
+            state: started
+
+    - name: Check for an installed collectd hourly summary timer
+      ansible.builtin.stat:
+        path: /etc/systemd/system/collectd-hourly-summary.timer
+      register: collectd_hourly_summary_timer_file
+      when: not (collectd_hourly_summary_enabled | bool)
+
+    - name: Disable and stop collectd hourly summary timer
+      ansible.builtin.systemd:
+        name: collectd-hourly-summary.timer
+        enabled: false
+        state: stopped
+      when:
+        - not (collectd_hourly_summary_enabled | bool)
+        - collectd_hourly_summary_timer_file.stat.exists
+
+    - name: Remove disabled collectd hourly summary files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/collectd-hourly-summary.service
+        - /etc/systemd/system/collectd-hourly-summary.timer
+      notify: Reload systemd
+      when: not (collectd_hourly_summary_enabled | bool)
+
+    - name: Remove unused collectd summary script
+      ansible.builtin.file:
+        path: "{{ collectd_summary_script }}"
+        state: absent
+      when:
+        - not (collectd_summary_enabled | bool)
+        - not (collectd_hourly_summary_enabled | bool)

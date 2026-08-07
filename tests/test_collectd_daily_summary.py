@@ -1,4 +1,5 @@
 import gzip
+from datetime import datetime
 from pathlib import Path
 import subprocess
 import sys
@@ -34,7 +35,8 @@ class CollectdDailySummaryTests(unittest.TestCase):
             path.write_text(content, encoding="utf-8")
         return path
 
-    def run_script(self, *metrics):
+    def run_script(self, *metrics, period_args=None):
+        selected_period = period_args or ("--date", SUMMARY_DATE)
         return subprocess.run(
             [
                 sys.executable,
@@ -43,8 +45,7 @@ class CollectdDailySummaryTests(unittest.TestCase):
                 str(self.csv_dir),
                 "--output",
                 str(self.output),
-                "--date",
-                SUMMARY_DATE,
+                *selected_period,
                 "--lock-file",
                 str(self.root / "summary.lock"),
                 *metrics,
@@ -142,6 +143,35 @@ class CollectdDailySummaryTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("load_min=1.5  load_max=2.5", self.output.read_text())
+
+    def test_hourly_summary_filters_to_the_selected_hour(self):
+        hour = datetime(2026, 8, 6, 13)
+        before = int(hour.timestamp()) - 1
+        start = int(hour.timestamp())
+        end = int(hour.timestamp()) + 3600
+        self.write_metric(
+            "load",
+            "load",
+            "epoch,shortterm,midterm,longterm",
+            (
+                f"{before},99,0,0",
+                f"{start},1,0,0",
+                f"{end - 1},4,0,0",
+                f"{end},88,0,0",
+            ),
+        )
+
+        result = self.run_script(
+            "--load",
+            period_args=("--period", "hourly", "--hour", "2026-08-06T13"),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = self.output.read_text(encoding="utf-8")
+        self.assertIn("2026-08-06T13:00", summary)
+        self.assertIn("load_min=1.0  load_max=4.0", summary)
+        self.assertNotIn("99", summary)
+        self.assertNotIn("88", summary)
 
 
 if __name__ == "__main__":

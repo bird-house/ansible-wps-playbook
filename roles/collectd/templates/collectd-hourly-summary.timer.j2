@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly summary of collectd statistics
+
+[Timer]
+OnCalendar={{ collectd_hourly_summary_schedule }}
+Persistent=true
+AccuracySec=1m
+Unit=collectd-hourly-summary.service
+
+[Install]
+WantedBy=timers.target
