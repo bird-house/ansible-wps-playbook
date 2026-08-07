@@ -13,7 +13,7 @@ import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable
@@ -66,6 +66,10 @@ class Settings:
     missing_status_recovery_enabled: bool = False
     statistics_enabled: bool = True
     service_name: str = "unknown"
+    incident_archive_enabled: bool = False
+    incident_archive_dir: Path | None = None
+    recovery_limit: int = 100
+    missing_status_recovery_limit: int = 20
 
 
 @dataclass
@@ -107,6 +111,8 @@ class XmlStatus:
     modification_time: datetime
     source_identity: tuple[int, int, int, int]
     namespaces: list[tuple[str, str]]
+    process_identifier: str
+    contents: bytes
 
     @property
     def last_update(self) -> datetime:
@@ -183,6 +189,18 @@ def read_xml_status(path: Path) -> tuple[XmlStatus, ET.ElementTree]:
     states = [child for child in list(status) if local_name(child.tag).startswith("Process")]
     if len(states) != 1:
         raise ValueError("Status must contain exactly one process state")
+    process = next(
+        (element for element in root.iter() if local_name(element.tag) == "Process"),
+        None,
+    )
+    identifier = next(
+        (
+            element.text.strip()
+            for element in process.iter()
+            if local_name(element.tag) == "Identifier" and element.text
+        ),
+        "unknown",
+    ) if process is not None else "unknown"
 
     return (
         XmlStatus(
@@ -193,9 +211,78 @@ def read_xml_status(path: Path) -> tuple[XmlStatus, ET.ElementTree]:
             modification_time=datetime.fromtimestamp(path_stat.st_mtime, UTC),
             source_identity=stat_identity(path_stat),
             namespaces=namespaces,
+            process_identifier=identifier,
+            contents=contents,
         ),
         tree,
     )
+
+
+def safe_filename_component(value: str, fallback: str = "unknown") -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "-", value.strip()).strip("-.")
+    return (sanitized or fallback)[:80]
+
+
+def failure_incident_kind(tree: ET.ElementTree) -> str:
+    messages = " ".join(
+        element.text or ""
+        for element in tree.getroot().iter()
+        if local_name(element.tag) == "ExceptionText"
+    )
+    if "stalled-job recovery" in messages or "repeated polling" in messages:
+        return "recovered"
+    return "error"
+
+
+def archive_failed_xml(
+    document: XmlStatus,
+    tree: ET.ElementTree,
+    settings: Settings,
+    logger: logging.Logger,
+) -> Path | None:
+    if not settings.incident_archive_enabled:
+        return None
+    if settings.incident_archive_dir is None:
+        raise ValueError("incident archiving requires incident_archive_dir")
+    if document.state != "ProcessFailed":
+        raise ValueError("only failed status documents can be archived")
+    if stat_identity(document.path.stat()) != document.source_identity:
+        raise RuntimeError("status file changed before incident archiving")
+
+    archive_dir = settings.incident_archive_dir
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = document.creation_time.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    kind = failure_incident_kind(tree)
+    service = safe_filename_component(settings.service_name)
+    process = safe_filename_component(document.process_identifier)
+    destination = archive_dir / (
+        f"{timestamp}__{kind}__{service}__{process}__{document.job_uuid}.xml"
+    )
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{document.job_uuid}.", suffix=".tmp", dir=archive_dir
+    )
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(document.contents)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary_name, 0o640)
+        try:
+            os.link(temporary_name, destination)
+        except FileExistsError:
+            return destination
+    finally:
+        try:
+            os.unlink(temporary_name)
+        except FileNotFoundError:
+            pass
+    logger.info(
+        "layer=xml job=%s status=failed incident=%s archive=%s result=created",
+        document.job_uuid,
+        kind,
+        destination,
+    )
+    return destination
 
 
 def find_status_files(output_dir: Path) -> Iterable[Path]:
@@ -293,6 +380,8 @@ def run_xml_layer(
         try:
             document, tree = read_xml_status(path)
             if document.state in FINAL_XML_STATES:
+                if document.state == "ProcessFailed":
+                    archive_failed_xml(document, tree, settings, logger)
                 logger.debug(
                     "layer=xml job=%s status=%s finding=final",
                     document.job_uuid,
@@ -321,6 +410,8 @@ def run_xml_layer(
                     f"for at least {settings.stale_after_minutes:g} minutes."
                 )
                 write_failed_xml(document, tree, message, now)
+                recovered_document, recovered_tree = read_xml_status(path)
+                archive_failed_xml(recovered_document, recovered_tree, settings, logger)
                 summary.recovered += 1
                 logger.warning(
                     "layer=xml job=%s status=failed action=recovered",
@@ -600,6 +691,8 @@ def run_polling_layer(
             if settings.mode == "recover":
                 contents = missing_status_xml(candidate, settings.output_url or "", now)
                 if create_missing_status_file(status_path, contents):
+                    recovered_document, recovered_tree = read_xml_status(status_path)
+                    archive_failed_xml(recovered_document, recovered_tree, settings, logger)
                     summary.recovered += 1
                     logger.warning(
                         "layer=polling job=%s status=failed action=recovered polls=%d",
@@ -942,8 +1035,14 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     if args.mode == "statistics":
         args.status_counts = True
     limit = args.limit
-    if limit is None and args.mode == "recover":
-        limit = int(control_config.get("recovery_limit", "100"))
+    recovery_limit = int(control_config.get("recovery_limit", "100"))
+    missing_status_recovery_limit = int(
+        control_config.get("missing_status_recovery_limit", "20")
+    )
+    incident_archive_enabled = control_config.getboolean(
+        "incident_archive_enabled", fallback=False
+    )
+    incident_archive_dir = optional_path(control_config.get("incident_archive_dir"))
     layers = args.layer or configured_layers
     invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
     if invalid:
@@ -954,6 +1053,10 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("--stale-after-minutes must be greater than zero")
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
+    if recovery_limit <= 0 or missing_status_recovery_limit <= 0:
+        parser.error("configured recovery limits must be greater than zero")
+    if incident_archive_enabled and incident_archive_dir is None:
+        parser.error("incident_archive_dir is required when incident archiving is enabled")
     if args.status_counts and args.mode not in {"monitor", "statistics"}:
         parser.error("--status-counts is only available in monitor or statistics mode")
     if args.poll_window_minutes <= 0:
@@ -995,6 +1098,10 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         ),
         statistics_enabled=control_config.getboolean("statistics_enabled", fallback=True),
         service_name=(preliminary.config.stem if preliminary.config else "unknown"),
+        incident_archive_enabled=incident_archive_enabled,
+        incident_archive_dir=incident_archive_dir,
+        recovery_limit=recovery_limit,
+        missing_status_recovery_limit=missing_status_recovery_limit,
     )
 
 
@@ -1055,7 +1162,11 @@ def execute_layers(
         "polling": run_polling_layer,
     }
     summaries: list[LayerSummary] = []
-    for layer in settings.layers:
+    layers = settings.layers
+    if settings.mode == "recover":
+        order = {"xml": 0, "database": 1, "polling": 2}
+        layers = sorted(layers, key=order.__getitem__)
+    for layer in layers:
         if not layer_is_enabled(settings, layer):
             logger.info(
                 "layer=%s result=skip reason=recovery-disabled",
@@ -1063,7 +1174,14 @@ def execute_layers(
             )
             continue
         try:
-            summary = runners[layer](settings, now, logger)
+            layer_limit = settings.limit
+            if settings.mode == "recover" and layer_limit is None:
+                layer_limit = (
+                    settings.missing_status_recovery_limit
+                    if layer == "polling"
+                    else settings.recovery_limit
+                )
+            summary = runners[layer](replace(settings, limit=layer_limit), now, logger)
         except Exception as error:
             logger.exception("layer=%s decision=error reason=%s", layer, error)
             summary = LayerSummary(layer, errors=1)

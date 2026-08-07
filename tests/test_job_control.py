@@ -225,6 +225,43 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 self.assertEqual(summary.stalled, 0)
                 self.assertEqual(self.status.read_bytes(), before)
 
+    def test_failed_status_is_archived_once_with_searchable_filename(self):
+        self.write_status("ProcessFailed")
+        settings = self.settings()
+        settings.service_name = "alpha"
+        settings.incident_archive_enabled = True
+        settings.incident_archive_dir = self.root / "incidents"
+        original = self.status.read_bytes()
+
+        MODULE.run_xml_layer(settings, self.now, mock.Mock())
+        MODULE.run_xml_layer(settings, self.now, mock.Mock())
+
+        archived = list(settings.incident_archive_dir.glob("*.xml"))
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(
+            archived[0].name,
+            f"20260731T020000Z__error__alpha__test-process__{JOB_UUID}.xml",
+        )
+        self.assertEqual(archived[0].read_bytes(), original)
+        self.assertEqual(archived[0].stat().st_mode & 0o777, 0o640)
+
+    def test_recovered_status_is_archived_after_failure_rewrite(self):
+        self.write_status("ProcessStarted")
+        settings = self.settings("recover")
+        settings.service_name = "alpha"
+        settings.incident_archive_enabled = True
+        settings.incident_archive_dir = self.root / "incidents"
+
+        MODULE.run_xml_layer(settings, self.now, mock.Mock())
+
+        archived = list(settings.incident_archive_dir.glob("*.xml"))
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(
+            archived[0].name,
+            f"20260731T100000Z__recovered__alpha__test-process__{JOB_UUID}.xml",
+        )
+        self.assertIn(b"stalled-job recovery", archived[0].read_bytes())
+
     def test_unknown_process_state_is_nonfinal(self):
         self.write_status("ProcessQueued")
         summary = MODULE.run_xml_layer(self.settings(), self.now, mock.Mock())
@@ -248,6 +285,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
     def test_access_log_recovery_creates_failure_after_repeated_recent_404s(self):
         settings = self.polling_settings()
+        settings.service_name = "alpha"
+        settings.incident_archive_enabled = True
+        settings.incident_archive_dir = self.root / "incidents"
         settings.access_log.write_text(
             "".join(
                 self.access_log_line(self.now - timedelta(minutes=minutes))
@@ -267,6 +307,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(document.state, "ProcessFailed")
         self.assertEqual(document.creation_time, self.now)
         self.assertEqual(self.status.stat().st_mode & 0o777, 0o644)
+        archived = list(settings.incident_archive_dir.glob("*.xml"))
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(
+            archived[0].name,
+            f"20260731T100000Z__recovered__alpha__unknown__{JOB_UUID}.xml",
+        )
         logger.warning.assert_called_once_with(
             "layer=polling job=%s status=failed action=recovered polls=%d",
             JOB_UUID,
@@ -452,10 +498,13 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "layers = xml, database\n"
             "stale_after_minutes = 360\n"
             "recovery_limit = 100\n"
+            "incident_archive_enabled = true\n"
+            f"incident_archive_dir = {self.root / 'incidents'}\n"
             f"access_log = {self.root / 'nginx-access.log'}\n"
             "poll_window_minutes = 45\n"
             "min_poll_count = 4\n"
             "min_poll_duration_minutes = 7\n"
+            "missing_status_recovery_limit = 20\n"
             "missing_status_database_guard = true\n"
             f"lock_file = {self.root / 'configured.lock'}\n",
             encoding="utf-8",
@@ -476,6 +525,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertTrue(settings.recovery_enabled)
         self.assertTrue(settings.missing_status_recovery_enabled)
         self.assertTrue(settings.statistics_enabled)
+        self.assertTrue(settings.incident_archive_enabled)
+        self.assertEqual(settings.incident_archive_dir, self.root / "incidents")
+        self.assertEqual(settings.recovery_limit, 100)
+        self.assertEqual(settings.missing_status_recovery_limit, 20)
         self.assertEqual(settings.service_name, "alpha")
         self.assertEqual(
             settings.log_file,
@@ -493,7 +546,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         ])
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
-        self.assertEqual(overridden.limit, 100)
+        self.assertIsNone(overridden.limit)
 
         selected_layers = MODULE.parse_args([
             "--config",
@@ -618,6 +671,27 @@ class RecoverStalledJobsTests(unittest.TestCase):
         logger.info.assert_any_call(
             "layer=%s result=skip reason=recovery-disabled", "polling"
         )
+
+    def test_recovery_uses_fixed_layer_order_and_independent_limits(self):
+        settings = self.settings("recover", ["polling", "database", "xml"])
+        settings.missing_status_recovery_enabled = True
+        calls = []
+
+        def record(layer):
+            def runner(received, *_args):
+                calls.append((layer, received.limit))
+                return MODULE.LayerSummary(layer)
+
+            return runner
+
+        MODULE.execute_layers(
+            settings,
+            self.now,
+            mock.Mock(),
+            runners={layer: record(layer) for layer in settings.layers},
+        )
+
+        self.assertEqual(calls, [("xml", 100), ("database", 100), ("polling", 20)])
 
     def test_summary_severity_reflects_layer_result(self):
         cases = (
