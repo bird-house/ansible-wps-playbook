@@ -1,0 +1,27 @@
+#!/bin/bash
+# /etc/cron.daily/collectd-csv-maintenance
+# Purpose: Keep last 30 days of collectd daily files, compress older files in place
+
+CSV_BASE_DIR="/var/lib/collectd/csv/localhost"  # Base collectd CSV directory
+KEEP_DAYS=30                                     # Keep this many days
+COMPRESS_AFTER_DAYS=7                            # Compress files older than this
+
+# Recursively process all subdirectories
+find "$CSV_BASE_DIR" -type f -name '*-????-??-??' | while read -r file; do
+    # Compress files older than COMPRESS_AFTER_DAYS but younger than KEEP_DAYS
+    file_mtime=$(stat -c %Y "$file")
+    cutoff_compress=$(date -d "$COMPRESS_AFTER_DAYS days ago" +%s)
+    cutoff_delete=$(date -d "$KEEP_DAYS days ago" +%s)
+
+    if [[ $file_mtime -le $cutoff_compress && $file_mtime -gt $cutoff_delete ]]; then
+        gzip -9 -c "$file" > "$file.gz" && rm -f "$file"
+    fi
+
+    # Delete files older than KEEP_DAYS (compressed or uncompressed)
+    if [[ $file_mtime -le $cutoff_delete ]]; then
+        rm -f "$file"
+    fi
+done
+
+# Also delete old compressed files
+find "$CSV_BASE_DIR" -type f -name '*-????-??-??.gz' -mtime +"$KEEP_DAYS" -exec rm -f {} \;

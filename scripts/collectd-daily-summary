@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+
+import csv
+from datetime import datetime, timedelta
+from pathlib import Path
+
+DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+LOAD_FILE = Path(f"/var/lib/collectd/csv/localhost/load/load-{DATE}")
+DISK_FILE = Path(f"/var/lib/collectd/csv/localhost/df-mnt-rook_disk8/percent_bytes-used-{DATE}")
+MEM_FILE = Path(f"/var/lib/collectd/csv/localhost/memory/memory-used-{DATE}")
+ETH0_FILE = Path(f"/var/lib/collectd/csv/localhost/interface-eth0/if_octets-{DATE}")
+
+LOGFILE = Path("/var/log/collectd-daily-summary.log")
+
+
+# --- Functions ---
+
+def read_load_min_max(file_path):
+    """Read shortterm load min/max from second column."""
+    try:
+        with open(file_path) as f:
+            reader = csv.DictReader(f)
+            col = reader.fieldnames[1]  # shortterm
+            values = [float(row[col]) for row in reader if row[col].strip()]
+            if not values:
+                return "NA", "NA"
+            return round(min(values), 2), round(max(values), 2)
+    except Exception:
+        return "NA", "NA"
+
+
+def read_min_max(file_path, column_name="value", scale=1.0):
+    """Generic min/max function for disk or other single-column CSVs."""
+    try:
+        with open(file_path) as f:
+            reader = csv.DictReader(f)
+            values = [float(row[column_name])*scale for row in reader if row[column_name].strip()]
+            if not values:
+                return "NA", "NA"
+            return round(min(values), 2), round(max(values), 2)
+    except Exception:
+        return "NA", "NA"
+
+
+def read_mem_gib(file_path):
+    # Convert bytes to GiB
+    return read_min_max(file_path, column_name="value", scale=1/(1024**3))
+
+
+def read_eth0_rx_gib(file_path):
+    """Compute total RX in GiB, handling counter resets."""
+    try:
+        with open(file_path) as f:
+            reader = csv.DictReader(f)
+            rx_total = 0
+            last = None
+            for row in reader:
+                if not row["rx"].strip():
+                    continue
+                val = int(float(row["rx"]))
+                if last is not None:
+                    delta = val - last
+                    if delta < 0:  # counter reset
+                        delta = val
+                    rx_total += delta
+                last = val
+            if last is None:
+                return "NA"
+            return round(rx_total / (1024**3), 2)
+    except Exception:
+        return "NA"
+
+
+# --- Collect metrics ---
+
+# Load
+load_min, load_max = read_load_min_max(LOAD_FILE)
+
+# Disk
+disk_min, disk_max = read_min_max(DISK_FILE, column_name="value")
+
+# Memory in GiB
+mem_min, mem_max = read_mem_gib(MEM_FILE)
+mem_min_str = f"{mem_min} GiB" if mem_min != "NA" else "NA"
+mem_max_str = f"{mem_max} GiB" if mem_max != "NA" else "NA"
+
+# eth0 RX
+eth0_rx = read_eth0_rx_gib(ETH0_FILE)
+eth0_rx_str = f"{eth0_rx} GiB" if eth0_rx != "NA" else "NA"
+
+# --- Output nicely aligned ---
+with open(LOGFILE, "a") as log:
+    log.write(
+        f"{DATE:<12}  "
+        f"load_min={load_min:<10}  load_max={load_max:<10}  "
+        f"disk_min={disk_min:<10}  disk_max={disk_max:<10}  "
+        f"mem_min={mem_min_str:<12}  mem_max={mem_max_str:<12}  "
+        f"eth0_rx={eth0_rx_str}\n"
+    )
