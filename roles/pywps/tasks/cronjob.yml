@@ -60,6 +60,7 @@
   ansible.builtin.assert:
     that:
       - pywps_job_control_schedule | type_debug == 'dict'
+      - pywps_job_control_recovery_schedule | type_debug == 'dict'
       - pywps_job_statistics_schedule | type_debug == 'dict'
       - pywps_job_control_stale_after_minutes | float > 0
       - pywps_job_control_recovery_limit | int > 0
@@ -216,7 +217,7 @@
 - name: Schedule PyWPS job monitoring
   ansible.builtin.cron:
     name: "monitor stalled PyWPS jobs for {{ item.name }}"
-    minute: "{{ pywps_job_control_schedule.minute | default('15') }}"
+    minute: "{{ pywps_job_control_schedule.minute | default('*/5') }}"
     hour: "{{ pywps_job_control_schedule.hour | default('*') }}"
     day: "{{ pywps_job_control_schedule.day | default('*') }}"
     month: "{{ pywps_job_control_schedule.month | default('*') }}"
@@ -233,10 +234,32 @@
     state: present
   loop: "{{ wps_services }}"
 
+- name: Schedule recovery of stalled PyWPS XML and database jobs
+  ansible.builtin.cron:
+    name: "recover stalled PyWPS jobs for {{ item.name }}"
+    minute: "{{ pywps_job_control_recovery_schedule.minute | default('1-56/5') }}"
+    hour: "{{ pywps_job_control_recovery_schedule.hour | default('*') }}"
+    day: "{{ pywps_job_control_recovery_schedule.day | default('*') }}"
+    month: "{{ pywps_job_control_recovery_schedule.month | default('*') }}"
+    weekday: "{{ pywps_job_control_recovery_schedule.weekday | default('*') }}"
+    user: root
+    job: >-
+      {{ conda_envs_dir }}/{{ item.name }}/bin/python
+      {{ cron_script_dir }}/pywps-job-control.py
+      --config /etc/pywps/{{ item.name }}.cfg recover
+      --layer xml --layer database
+      --limit {{ pywps_job_control_recovery_limit }}
+    cron_file: ansible_pywps
+    disabled: >-
+      {{ (cron_disabled | bool)
+         or not (pywps_job_control_recovery_enabled | bool) }}
+    state: present
+  loop: "{{ wps_services }}"
+
 - name: Schedule recovery of repeatedly polled missing PyWPS status documents
   ansible.builtin.cron:
     name: "recover missing pywps status documents for {{ item.name }}"
-    minute: "{{ pywps_missing_status_recovery_schedule.minute | default('*/10') }}"
+    minute: "{{ pywps_missing_status_recovery_schedule.minute | default('2-57/5') }}"
     hour: "{{ pywps_missing_status_recovery_schedule.hour | default('*') }}"
     day: "{{ pywps_missing_status_recovery_schedule.day | default('*') }}"
     month: "{{ pywps_missing_status_recovery_schedule.month | default('*') }}"
@@ -250,14 +273,24 @@
       --limit {{ pywps_missing_status_recovery_limit }}
     cron_file: ansible_pywps
     disabled: >-
-      {{ cron_disabled }}
+      {{ (cron_disabled | bool)
+         or not (pywps_job_control_recovery_enabled | bool)
+         or not (pywps_missing_status_recovery_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
-- name: Schedule daily PyWPS job statistics
+- name: Remove obsolete daily PyWPS statistics cron entries
   ansible.builtin.cron:
     name: "record daily PyWPS job statistics for {{ item.name }}"
-    minute: "{{ pywps_job_statistics_schedule.minute | default('5') }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Schedule hourly PyWPS job statistics
+  ansible.builtin.cron:
+    name: "record hourly PyWPS job statistics for {{ item.name }}"
+    minute: "{{ pywps_job_statistics_schedule.minute | default('4') }}"
     hour: "{{ pywps_job_statistics_schedule.hour | default('0') }}"
     day: "{{ pywps_job_statistics_schedule.day | default('*') }}"
     month: "{{ pywps_job_statistics_schedule.month | default('*') }}"

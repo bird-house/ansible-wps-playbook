@@ -333,15 +333,19 @@ remains available and can still be run manually:
 
 ### Monitor and recover stalled jobs
 
-The playbook installs the job-control script once. Its scheduled
-entries are disabled by default and always run in read-only monitoring mode:
+The playbook installs the job-control script once. Scheduled monitoring is
+read-only. Scheduled recovery remains disabled until its explicit switches are
+enabled:
 
 ```yaml
 cron_enabled: true
 pywps_job_control_monitor_enabled: true
 pywps_job_control_recovery_enabled: false
 pywps_job_control_schedule:
-  minute: "15"
+  minute: "*/5"
+  hour: "*"
+pywps_job_control_recovery_schedule:
+  minute: "1-56/5"
   hour: "*"
 pywps_job_control_stale_after_minutes: 120
 pywps_job_control_recovery_limit: 100
@@ -350,7 +354,9 @@ pywps_job_control_layers:
   - database
 ```
 
-The default runs hourly at 15 minutes past the hour. Standard cron fields
+The read-only monitor runs every five minutes. When recovery is enabled, XML
+and database recovery runs every five minutes with a one-minute offset.
+Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
 shorter than `wps_outputs_keep_minutes`; otherwise status files could be removed
@@ -378,9 +384,9 @@ last database status time, falling back to the request start time. Timestamps
 with `Z`, and database timestamps without an offset, are interpreted as UTC;
 the deployment host should therefore keep its clock and timezone consistent.
 
-Monitoring never changes state. After reviewing
-`/var/log/pywps/SERVICE_NAME-job-monitor.log`, run the appropriate recovery
-shortcut manually.
+Monitoring never changes state. Review
+`/var/log/pywps/SERVICE_NAME-job-monitor.log` before enabling scheduled
+recovery, or run the appropriate recovery shortcut manually.
 This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard manages this log together with
 the other PyWPS logs. By default, a log becomes eligible for rotation after
@@ -399,7 +405,7 @@ sudo /var/lib/pywps/monitor SERVICE_NAME
 
 The helper checks all three layers and prints their quick summaries to the
 terminal. It does not calculate the complete database status aggregate. The
-hourly scheduled monitor performs the same all-layer check and remains quiet
+five-minute scheduled monitor performs the same all-layer check and remains quiet
 unless it finds stalled jobs or errors.
 
 Recover only stalled XML documents with:
@@ -450,16 +456,16 @@ complete database aggregate for explicit low-level invocations.
 Slurm timeout enforcement and host-wide queue monitoring are described under
 [Use the Slurm scheduler](#use-the-slurm-scheduler).
 
-### Record daily PyWPS job statistics
+### Record hourly PyWPS job statistics
 
-When cron is enabled, a separate read-only statistics job runs daily at 00:05
-by default:
+When cron is enabled, a separate read-only statistics job runs hourly at four
+minutes past the hour by default:
 
 ```yaml
 pywps_job_statistics_enabled: true
 pywps_job_statistics_schedule:
-  minute: "5"
-  hour: "0"
+  minute: "4"
+  hour: "*"
 ```
 
 It records complete XML and database layer summaries plus a full status
@@ -488,7 +494,7 @@ instead of polling forever.
 pywps_job_control_recovery_enabled: true
 pywps_missing_status_recovery_enabled: true
 pywps_missing_status_recovery_schedule:
-  minute: "*/10"
+  minute: "2-57/5"
   hour: "*"
 pywps_missing_status_poll_window_minutes: 60
 pywps_missing_status_min_poll_count: 3
@@ -498,8 +504,9 @@ pywps_missing_status_access_log: /var/log/nginx/access.log
 pywps_missing_status_database_guard: true
 ```
 
-The default schedule runs every ten minutes and considers only requests from
-the preceding hour. Recovery requires at least three `GET` or `HEAD` responses
+The default schedule runs every five minutes, offset from the main monitor by
+two minutes, and considers only requests from the preceding hour. Recovery
+requires at least three `GET` or `HEAD` responses
 with status `404`, spanning at least 15 minutes rather than arriving in one
 short burst. Only the exact output path configured for that PyWPS service and a
 syntactically valid UUID filename are accepted. Only the configured active log

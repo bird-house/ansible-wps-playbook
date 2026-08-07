@@ -59,7 +59,7 @@ monitor_enabled = {{ pywps_job_control_monitor_enabled | bool | lower }}
 recovery_enabled = {{ pywps_job_control_recovery_enabled | bool | lower }}
 # Create failure XML for repeated Nginx 404 status polling.
 missing_status_recovery_enabled = {{ pywps_missing_status_recovery_enabled | bool | lower }}
-# Write a complete daily job statistics report.
+# Write a complete hourly job statistics report.
 statistics_enabled = {{ pywps_job_statistics_enabled | bool | lower }}
 # Layers used when a command does not specify --layer.
 layers = {{ pywps_job_control_layers | join(',') }}

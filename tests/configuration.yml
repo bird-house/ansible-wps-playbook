@@ -39,9 +39,13 @@
           - pywps_logrotate_min_size == '10M'
           - pywps_logrotate_rotations == 7
           - pywps_job_control_schedule | type_debug == 'dict'
+          - pywps_job_control_recovery_schedule | type_debug == 'dict'
           - pywps_job_statistics_schedule | type_debug == 'dict'
-          - pywps_job_statistics_schedule.hour == '0'
+          - pywps_job_statistics_schedule.minute == '4'
+          - pywps_job_statistics_schedule.hour == '*'
           - pywps_job_statistics_enabled
+          - pywps_job_control_schedule.minute == '*/5'
+          - pywps_job_control_recovery_schedule.minute == '1-56/5'
           - pywps_job_control_schedule.hour == '*'
           - pywps_job_control_stale_after_minutes | float > 0
           - pywps_job_control_recovery_limit | int == 100
@@ -52,7 +56,7 @@
           - not pywps_job_control_recovery_enabled
           - pywps_job_control_layers == ['xml', 'database']
           - not pywps_missing_status_recovery_enabled
-          - pywps_missing_status_recovery_schedule.minute == '*/10'
+          - pywps_missing_status_recovery_schedule.minute == '2-57/5'
           - pywps_missing_status_poll_window_minutes == 60
           - pywps_missing_status_min_poll_count == 3
           - pywps_missing_status_min_poll_duration_minutes == 15
