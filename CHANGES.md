@@ -13,9 +13,11 @@ Changes:
   configurable load, disk, memory, and interface metrics, retained CSV data,
   and systemd-managed daily and optional hourly summaries
 - enforce a configurable native Slurm partition timeout and add optional
-  read-only monitoring for queue pressure and long-running PyWPS jobs
-- express PyWPS stale-request thresholds in minutes across Ansible variables,
-  generated configuration, operator commands, and recovery messages
+  read-only `squeue`/`sinfo` monitoring for queue pressure, long-running jobs,
+  scheduler capacity, and a health-check red-alert file
+- express PyWPS stale-request thresholds in minutes and run Slurm monitoring,
+  XML/database recovery, and polling recovery on staggered five-minute
+  schedules, while retaining hourly job statistics
 
 ## 0.9.0 (2026-07-31)
 
