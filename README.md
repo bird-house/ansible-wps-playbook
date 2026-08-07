@@ -447,7 +447,8 @@ cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery default. The underlying `--status-counts` option enables a
 complete database aggregate for explicit low-level invocations.
 
-Slurm inspection and recovery are intentionally deferred to a later iteration.
+Slurm runtime control is host-wide rather than a per-service storage layer and
+is described under [Use the Slurm scheduler](#use-the-slurm-scheduler).
 
 ### Record daily PyWPS job statistics
 
@@ -582,6 +583,51 @@ Keep `slurm_drmaa_version` matched to the Slurm version installed on the host.
 Changing either version or the scheduler policy should be tested with a real
 job submission before production rollout. The existing PyWPS smoke tests
 provide this validation when the service runs in scheduler mode.
+
+#### Cancel overdue Slurm jobs
+
+The optional host-wide control runs `squeue` for `RUNNING` jobs owned by the
+configured PyWPS Unix account. It compares Slurm's elapsed runtime with a fixed
+limit; it does not attempt to infer progress from PyWPS status documents or the
+database. Because every PyWPS service uses the same account on the dedicated
+VM, Ansible creates one cron entry rather than one per service.
+
+Start in read-only mode:
+
+```yaml
+slurm_job_control_enabled: true
+slurm_job_control_recovery_enabled: false
+slurm_job_control_schedule:
+  minute: "15"
+  hour: "*"
+slurm_job_control_user: wps
+slurm_job_control_timeout_hours: 6
+slurm_job_control_limit: 100
+```
+
+The default schedule checks at 15 minutes past every hour. Findings and
+summaries are appended to `/var/log/pywps/slurm-job-control.log`, which uses the
+existing PyWPS log rotation. Inspect the current queue manually without making
+changes:
+
+```sh
+sudo /usr/local/sbin/slurm-job-control monitor \
+  --user wps --timeout-hours 6 --limit 100
+```
+
+After confirming that the runtime limit is appropriate for every workload on
+the account, set `slurm_job_control_recovery_enabled: true`. The same scheduled
+command then invokes `scancel` once for each overdue job, up to the configured
+limit. Only jobs reported as `RUNNING` by `squeue` are considered; queued jobs
+are not cancelled. An operator can perform the same recovery manually with:
+
+```sh
+sudo /usr/local/sbin/slurm-job-control recover \
+  --user wps --timeout-hours 6 --limit 100
+```
+
+This limit is a maximum runtime, not an inactivity detector. A legitimate job
+that runs longer than the configured number of hours will also be cancelled.
 
 ### Configure the database
 

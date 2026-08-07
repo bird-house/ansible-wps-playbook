@@ -67,6 +67,17 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
+          - not slurm_job_control_enabled
+          - not slurm_job_control_recovery_enabled
+          - slurm_job_control_schedule.minute == '15'
+          - slurm_job_control_user == 'wps'
+          - slurm_job_control_timeout_hours == 6
+          - slurm_job_control_limit == 100
+          - slurm_job_control_script == '/usr/local/sbin/slurm-job-control'
+          - slurm_job_control_lock_file == '/run/lock/slurm-job-control.lock'
+          - >-
+            slurm_job_control_log_file
+            == '/var/log/pywps/slurm-job-control.log'
           - not collectd_enabled
           - collectd_load_enabled
           - not collectd_disk_enabled

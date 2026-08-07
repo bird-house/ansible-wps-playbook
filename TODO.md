@@ -46,12 +46,6 @@ by the PyWPS deployment.
   specifications during the longer PyWPS environment update. In particular,
   retain the Conda-linked `psycopg2` build: the pip `psycopg2-binary` wheel's
   bundled libraries segfaulted on a fresh Python 3.13 connection.
-- Add a Slurm monitoring and recovery layer after a reliable mapping between a
-  WPS request UUID and its Slurm job ID has been identified.
-- Detect stalled Slurm jobs as well as stalled WPS requests. Define separate,
-  configurable thresholds for queued and running jobs, account for legitimate
-  scheduler states and long-running workloads, and make recovery actions safe
-  to repeat.
 - Review and update the existing job-control setup, including submission,
   status reconciliation, cancellation, timeout handling, and retry behaviour.
   Preserve the scheduler as the source of truth while keeping WPS request

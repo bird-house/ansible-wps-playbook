@@ -67,6 +67,11 @@ ssl_certs_privkey_path: /etc/ssl/wps.example.org/wps.example.org.key
 
 # Keep Slurm disabled for a regular single-host deployment.
 slurm_enabled: false
+# When Slurm is enabled, first inspect overdue running jobs without cancelling.
+slurm_job_control_enabled: false
+slurm_job_control_recovery_enabled: false
+slurm_job_control_timeout_hours: 6
+slurm_job_control_limit: 100
 
 # Tune these values for the CPUs and workload available on the target.
 gunicorn_workers: 5
