@@ -73,22 +73,19 @@ slurm_partitions:
 slurm_munge_key: /etc/munge/munge.key
 # The local prerequisite role creates the key and manages the Munge service.
 slurm_configure_munge: false
-# Slurm applies this as both the default and maximum partition runtime. It
-# follows the PyWPS stale threshold unless an administrator overrides it.
-slurm_job_timeout_minutes: >-
-  {{ (pywps_job_control_stale_after_hours | float * 60) | int }}
+# Slurm stops the process before PyWPS treats its request as stale.
+slurm_job_timeout_minutes: 90
 # Optionally report host-wide Slurm queue pressure and long-running jobs.
 slurm_job_monitor_enabled: false
 slurm_job_monitor_schedule:
-  minute: "15"
+  minute: "*/5"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
 slurm_job_monitor_user: "{{ wps_user }}"
-# Warn before Slurm reaches the hard timeout. This can be overridden directly.
-slurm_job_monitor_long_running_minutes: >-
-  {{ (slurm_job_timeout_minutes | int * 0.8) | int }}
+# Warn well before Slurm reaches the hard timeout.
+slurm_job_monitor_long_running_minutes: 10
 slurm_job_monitor_pending_warning: 20
 slurm_job_monitor_script: /usr/local/sbin/slurm-job-monitor
 slurm_job_monitor_lock_file: /run/lock/slurm-job-monitor.lock
@@ -202,7 +199,7 @@ pywps_job_control_schedule:
   day: "*"
   month: "*"
   weekday: "*"
-pywps_job_control_stale_after_hours: 6
+pywps_job_control_stale_after_hours: 2
 # Maximum recovered jobs per layer.
 pywps_job_control_recovery_limit: 100
 # Layers used when a command does not specify --layer.

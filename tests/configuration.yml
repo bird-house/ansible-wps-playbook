@@ -43,11 +43,11 @@
           - pywps_job_statistics_schedule.hour == '0'
           - pywps_job_statistics_enabled
           - pywps_job_control_schedule.hour == '*'
-          - pywps_job_control_stale_after_hours | int > 0
+          - pywps_job_control_stale_after_hours | float > 0
           - pywps_job_control_recovery_limit | int == 100
           - >-
-            pywps_job_control_stale_after_hours | int
-            < wps_outputs_keep_hours | int
+            pywps_job_control_stale_after_hours | float
+            < wps_outputs_keep_hours | float
           - pywps_job_control_monitor_enabled
           - not pywps_job_control_recovery_enabled
           - pywps_job_control_layers == ['xml', 'database']
@@ -67,13 +67,16 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
-          - slurm_job_timeout_minutes | int == 360
-          - slurm_partitions[0].DefaultTime | int == 360
-          - slurm_partitions[0].MaxTime | int == 360
+          - slurm_job_timeout_minutes | int == 90
+          - slurm_partitions[0].DefaultTime | int == 90
+          - slurm_partitions[0].MaxTime | int == 90
+          - >-
+            slurm_job_timeout_minutes | int
+            < pywps_job_control_stale_after_hours | float * 60
           - not slurm_job_monitor_enabled
-          - slurm_job_monitor_schedule.minute == '15'
+          - slurm_job_monitor_schedule.minute == '*/5'
           - slurm_job_monitor_user == 'wps'
-          - slurm_job_monitor_long_running_minutes | int == 288
+          - slurm_job_monitor_long_running_minutes | int == 10
           - slurm_job_monitor_pending_warning == 20
           - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
           - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
@@ -247,7 +250,7 @@
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
           - >-
-            'PartitionName=fast Default=YES DefaultTime=360 MaxTime=360 Nodes=localhost'
+            'PartitionName=fast Default=YES DefaultTime=90 MaxTime=90 Nodes=localhost'
             in test_slurm_config
           - "'set -euo pipefail' in test_restart_script"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
@@ -323,7 +326,7 @@
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
-          - "'stale_after_hours = 6' in test_pywps_config"
+          - "'stale_after_hours = 2' in test_pywps_config"
           - "'recovery_limit = 100' in test_pywps_config"
           - "'LoadPlugin load' in test_collectd_load_config"
           - "'LoadPlugin df' not in test_collectd_load_config"
