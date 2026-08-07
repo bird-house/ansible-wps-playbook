@@ -59,11 +59,11 @@ monitor_enabled = {{ pywps_job_control_monitor_enabled | bool | lower }}
 recovery_enabled = {{ pywps_job_control_recovery_enabled | bool | lower }}
 # Create failure XML for repeated Nginx 404 status polling.
 missing_status_recovery_enabled = {{ pywps_missing_status_recovery_enabled | bool | lower }}
-# Write a complete daily job statistics report.
+# Write a complete hourly job statistics report.
 statistics_enabled = {{ pywps_job_statistics_enabled | bool | lower }}
 # Layers used when a command does not specify --layer.
 layers = {{ pywps_job_control_layers | join(',') }}
-stale_after_hours = {{ pywps_job_control_stale_after_hours }}
+stale_after_minutes = {{ pywps_job_control_stale_after_minutes }}
 recovery_limit = {{ pywps_job_control_recovery_limit }}
 lock_file = /run/lock/pywps-job-control-{{ item.name }}.lock
 access_log = {{ pywps_missing_status_access_log }}

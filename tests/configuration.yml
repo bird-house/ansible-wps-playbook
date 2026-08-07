@@ -39,20 +39,24 @@
           - pywps_logrotate_min_size == '10M'
           - pywps_logrotate_rotations == 7
           - pywps_job_control_schedule | type_debug == 'dict'
+          - pywps_job_control_recovery_schedule | type_debug == 'dict'
           - pywps_job_statistics_schedule | type_debug == 'dict'
-          - pywps_job_statistics_schedule.hour == '0'
+          - pywps_job_statistics_schedule.minute == '4'
+          - pywps_job_statistics_schedule.hour == '*'
           - pywps_job_statistics_enabled
+          - pywps_job_control_schedule.minute == '*/5'
+          - pywps_job_control_recovery_schedule.minute == '1-56/5'
           - pywps_job_control_schedule.hour == '*'
-          - pywps_job_control_stale_after_hours | int > 0
+          - pywps_job_control_stale_after_minutes | float > 0
           - pywps_job_control_recovery_limit | int == 100
           - >-
-            pywps_job_control_stale_after_hours | int
-            < wps_outputs_keep_hours | int
+            pywps_job_control_stale_after_minutes | float
+            < wps_outputs_keep_minutes | float
           - pywps_job_control_monitor_enabled
           - not pywps_job_control_recovery_enabled
           - pywps_job_control_layers == ['xml', 'database']
           - not pywps_missing_status_recovery_enabled
-          - pywps_missing_status_recovery_schedule.minute == '*/10'
+          - pywps_missing_status_recovery_schedule.minute == '2-57/5'
           - pywps_missing_status_poll_window_minutes == 60
           - pywps_missing_status_min_poll_count == 3
           - pywps_missing_status_min_poll_duration_minutes == 15
@@ -67,6 +71,25 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
+          - slurm_job_timeout_minutes | int == 90
+          - slurm_partitions[0].DefaultTime | int == 90
+          - slurm_partitions[0].MaxTime | int == 90
+          - >-
+            slurm_job_timeout_minutes | int
+            < pywps_job_control_stale_after_minutes | float
+          - not slurm_job_monitor_enabled
+          - slurm_job_monitor_schedule.minute == '*/5'
+          - slurm_job_monitor_user == 'wps'
+          - slurm_job_monitor_long_running_minutes | int == 10
+          - slurm_job_monitor_pending_warning == 20
+          - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
+          - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
+          - >-
+            slurm_job_monitor_log_file
+            == '/var/log/pywps/slurm-job-monitor.log'
+          - >-
+            slurm_job_monitor_alert_file
+            == '/run/pywps/slurm-red-alert.json'
           - not collectd_enabled
           - collectd_load_enabled
           - not collectd_disk_enabled
@@ -177,9 +200,14 @@
         test_slurm_run_script: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/run.sh.j2') }}
+        test_slurm_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/galaxyproject.slurm/templates/slurm.conf.j2') }}
       vars:
         item: "{{ test_primary_service }}"
         slurm_enabled: true
+        __slurm_config_merged: "{{ slurm_config }}"
 
     - name: Render alternate configuration
       ansible.builtin.set_fact:
@@ -228,6 +256,9 @@
           - >-
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
+          - >-
+            'PartitionName=fast Default=YES DefaultTime=90 MaxTime=90 Nodes=localhost'
+            in test_slurm_config
           - "'set -euo pipefail' in test_restart_script"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"
@@ -302,7 +333,7 @@
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
-          - "'stale_after_hours = 6' in test_pywps_config"
+          - "'stale_after_minutes = 120' in test_pywps_config"
           - "'recovery_limit = 100' in test_pywps_config"
           - "'LoadPlugin load' in test_collectd_load_config"
           - "'LoadPlugin df' not in test_collectd_load_config"

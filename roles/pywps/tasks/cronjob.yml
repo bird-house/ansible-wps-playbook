@@ -60,8 +60,9 @@
   ansible.builtin.assert:
     that:
       - pywps_job_control_schedule | type_debug == 'dict'
+      - pywps_job_control_recovery_schedule | type_debug == 'dict'
       - pywps_job_statistics_schedule | type_debug == 'dict'
-      - pywps_job_control_stale_after_hours | float > 0
+      - pywps_job_control_stale_after_minutes | float > 0
       - pywps_job_control_recovery_limit | int > 0
       - pywps_job_control_layers | length > 0
       - pywps_job_control_layers | difference(['xml', 'database', 'polling']) | length == 0
@@ -77,7 +78,7 @@
         not (cron_enabled | bool)
         or not (pywps_job_control_monitor_enabled | bool)
         or 'xml' not in pywps_job_control_layers
-        or (pywps_job_control_stale_after_hours | float) < (wps_outputs_keep_hours | float)
+        or (pywps_job_control_stale_after_minutes | float) < (wps_outputs_keep_minutes | float)
     fail_msg: >-
       The job-control schedule must be a cron-field mapping, age must be
       positive and shorter than output retention for scheduled XML checks,
@@ -93,6 +94,76 @@
     owner: root
     group: root
     mode: "0755"
+
+- name: Validate Slurm timeout and monitoring settings
+  ansible.builtin.assert:
+    that:
+      - slurm_job_timeout_minutes | int > 0
+      - >-
+        slurm_job_timeout_minutes | int
+        < pywps_job_control_stale_after_minutes | float
+      - slurm_job_monitor_schedule | type_debug == 'dict'
+      - slurm_job_monitor_user | length > 0
+      - slurm_job_monitor_long_running_minutes | int > 0
+      - >-
+        slurm_job_monitor_long_running_minutes | int
+        < slurm_job_timeout_minutes | int
+      - slurm_job_monitor_pending_warning | int > 0
+    fail_msg: >-
+      Slurm requires a positive runtime limit below the PyWPS stale threshold.
+      Its optional monitor requires a cron-field mapping, a user, a positive
+      pending-job warning threshold, and a positive long-running threshold
+      below the hard runtime limit.
+  when: slurm_enabled | bool
+
+- name: Install Slurm job-monitor script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scripts/slurm-job-monitor.py"
+    dest: "{{ slurm_job_monitor_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: slurm_enabled | bool
+
+- name: Remove obsolete Slurm job-control script
+  ansible.builtin.file:
+    path: /usr/local/sbin/slurm-job-control
+    state: absent
+
+- name: Remove Slurm job-monitor script when Slurm is disabled
+  ansible.builtin.file:
+    path: "{{ slurm_job_monitor_script }}"
+    state: absent
+  when: not (slurm_enabled | bool)
+
+- name: Remove obsolete Slurm job-control cron entry
+  ansible.builtin.cron:
+    name: control overdue Slurm jobs
+    user: root
+    cron_file: ansible_slurm
+    state: absent
+
+- name: Schedule host-wide Slurm job monitoring
+  ansible.builtin.cron:
+    name: monitor Slurm jobs
+    minute: "{{ slurm_job_monitor_schedule.minute | default('*/5') }}"
+    hour: "{{ slurm_job_monitor_schedule.hour | default('*') }}"
+    day: "{{ slurm_job_monitor_schedule.day | default('*') }}"
+    month: "{{ slurm_job_monitor_schedule.month | default('*') }}"
+    weekday: "{{ slurm_job_monitor_schedule.weekday | default('*') }}"
+    user: root
+    job: >-
+      {{ slurm_job_monitor_script }}
+      --user {{ slurm_job_monitor_user | quote }}
+      --long-running-minutes {{ slurm_job_monitor_long_running_minutes }}
+      --pending-warning {{ slurm_job_monitor_pending_warning }}
+      --lock-file {{ slurm_job_monitor_lock_file | quote }}
+      --log-file {{ slurm_job_monitor_log_file | quote }}
+      --alert-file {{ slurm_job_monitor_alert_file | quote }}
+    cron_file: ansible_slurm
+    disabled: >-
+      {{ (cron_disabled | bool) or not (slurm_job_monitor_enabled | bool) }}
+    state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
 
 - name: Remove obsolete stalled-job script alias
   ansible.builtin.file:
@@ -147,7 +218,7 @@
 - name: Schedule PyWPS job monitoring
   ansible.builtin.cron:
     name: "monitor stalled PyWPS jobs for {{ item.name }}"
-    minute: "{{ pywps_job_control_schedule.minute | default('15') }}"
+    minute: "{{ pywps_job_control_schedule.minute | default('*/5') }}"
     hour: "{{ pywps_job_control_schedule.hour | default('*') }}"
     day: "{{ pywps_job_control_schedule.day | default('*') }}"
     month: "{{ pywps_job_control_schedule.month | default('*') }}"
@@ -164,10 +235,32 @@
     state: present
   loop: "{{ wps_services }}"
 
+- name: Schedule recovery of stalled PyWPS XML and database jobs
+  ansible.builtin.cron:
+    name: "recover stalled PyWPS jobs for {{ item.name }}"
+    minute: "{{ pywps_job_control_recovery_schedule.minute | default('1-56/5') }}"
+    hour: "{{ pywps_job_control_recovery_schedule.hour | default('*') }}"
+    day: "{{ pywps_job_control_recovery_schedule.day | default('*') }}"
+    month: "{{ pywps_job_control_recovery_schedule.month | default('*') }}"
+    weekday: "{{ pywps_job_control_recovery_schedule.weekday | default('*') }}"
+    user: root
+    job: >-
+      {{ conda_envs_dir }}/{{ item.name }}/bin/python
+      {{ cron_script_dir }}/pywps-job-control.py
+      --config /etc/pywps/{{ item.name }}.cfg recover
+      --layer xml --layer database
+      --limit {{ pywps_job_control_recovery_limit }}
+    cron_file: ansible_pywps
+    disabled: >-
+      {{ (cron_disabled | bool)
+         or not (pywps_job_control_recovery_enabled | bool) }}
+    state: present
+  loop: "{{ wps_services }}"
+
 - name: Schedule recovery of repeatedly polled missing PyWPS status documents
   ansible.builtin.cron:
     name: "recover missing pywps status documents for {{ item.name }}"
-    minute: "{{ pywps_missing_status_recovery_schedule.minute | default('*/10') }}"
+    minute: "{{ pywps_missing_status_recovery_schedule.minute | default('2-57/5') }}"
     hour: "{{ pywps_missing_status_recovery_schedule.hour | default('*') }}"
     day: "{{ pywps_missing_status_recovery_schedule.day | default('*') }}"
     month: "{{ pywps_missing_status_recovery_schedule.month | default('*') }}"
@@ -181,15 +274,25 @@
       --limit {{ pywps_missing_status_recovery_limit }}
     cron_file: ansible_pywps
     disabled: >-
-      {{ cron_disabled }}
+      {{ (cron_disabled | bool)
+         or not (pywps_job_control_recovery_enabled | bool)
+         or not (pywps_missing_status_recovery_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
-- name: Schedule daily PyWPS job statistics
+- name: Remove obsolete daily PyWPS statistics cron entries
   ansible.builtin.cron:
     name: "record daily PyWPS job statistics for {{ item.name }}"
-    minute: "{{ pywps_job_statistics_schedule.minute | default('5') }}"
-    hour: "{{ pywps_job_statistics_schedule.hour | default('0') }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Schedule hourly PyWPS job statistics
+  ansible.builtin.cron:
+    name: "record hourly PyWPS job statistics for {{ item.name }}"
+    minute: "{{ pywps_job_statistics_schedule.minute | default('4') }}"
+    hour: "{{ pywps_job_statistics_schedule.hour | default('*') }}"
     day: "{{ pywps_job_statistics_schedule.day | default('*') }}"
     month: "{{ pywps_job_statistics_schedule.month | default('*') }}"
     weekday: "{{ pywps_job_statistics_schedule.weekday | default('*') }}"

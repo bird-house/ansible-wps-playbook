@@ -21,15 +21,18 @@ pywps_logrotate_rotations: 7
 pywps_job_control_monitor_enabled: true
 # Allow commands that recover stalled requests or status documents.
 pywps_job_control_recovery_enabled: false
-# Write a complete daily job statistics report.
+# Write a complete hourly job statistics report.
 pywps_job_statistics_enabled: true
 pywps_job_statistics_schedule:
-  minute: "5"
-  hour: "0"
-pywps_job_control_schedule:
-  minute: "15"
+  minute: "4"
   hour: "*"
-pywps_job_control_stale_after_hours: 6
+pywps_job_control_schedule:
+  minute: "*/5"
+  hour: "*"
+pywps_job_control_recovery_schedule:
+  minute: "1-56/5"
+  hour: "*"
+pywps_job_control_stale_after_minutes: 120
 # Maximum recovered jobs per layer.
 pywps_job_control_recovery_limit: 100
 # Layers used when a command does not specify --layer.
@@ -39,7 +42,7 @@ pywps_job_control_layers:
 # Create failure XML for repeated Nginx 404 status polling.
 pywps_missing_status_recovery_enabled: false
 pywps_missing_status_recovery_schedule:
-  minute: "*/10"
+  minute: "2-57/5"
   hour: "*"
 pywps_missing_status_poll_window_minutes: 60
 pywps_missing_status_min_poll_count: 3
@@ -67,6 +70,13 @@ ssl_certs_privkey_path: /etc/ssl/wps.example.org/wps.example.org.key
 
 # Keep Slurm disabled for a regular single-host deployment.
 slurm_enabled: false
+# Stop the Slurm process before PyWPS treats its request as stale.
+slurm_job_timeout_minutes: 90
+# Optionally report queue pressure and jobs approaching the hard timeout.
+slurm_job_monitor_enabled: false
+slurm_job_monitor_long_running_minutes: 10
+slurm_job_monitor_pending_warning: 20
+slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 
 # Tune these values for the CPUs and workload available on the target.
 gunicorn_workers: 5

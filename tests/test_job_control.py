@@ -75,7 +75,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         return MODULE.Settings(
             mode=mode,
             layers=layers or ["xml"],
-            stale_after_hours=6,
+            stale_after_minutes=360,
             output_dir=self.outputs,
             pywps_config=None,
             lock_file=self.root / "lock",
@@ -179,7 +179,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(exception.attrib["exceptionCode"], "NoApplicableCode")
         self.assertEqual(exception.attrib["locator"], "None")
         self.assertIn(
-            "at least 6 hours",
+            "at least 360 minutes",
             status.find(f".//{{{OWS}}}ExceptionText").text,
         )
 
@@ -214,7 +214,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(len(execution.errors), 1)
         self.assertEqual(execution.errors[0].code, "NoApplicableCode")
         self.assertEqual(execution.errors[0].locator, "None")
-        self.assertIn("at least 6 hours", execution.errors[0].text)
+        self.assertIn("at least 360 minutes", execution.errors[0].text)
 
     def test_final_statuses_are_never_stalled(self):
         for state in ("ProcessSucceeded", "ProcessFailed"):
@@ -450,7 +450,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "missing_status_recovery_enabled = true\n"
             "statistics_enabled = true\n"
             "layers = xml, database\n"
-            "stale_after_hours = 6\n"
+            "stale_after_minutes = 360\n"
             "recovery_limit = 100\n"
             f"access_log = {self.root / 'nginx-access.log'}\n"
             "poll_window_minutes = 45\n"
@@ -462,7 +462,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         settings = MODULE.parse_args(["--config", str(config), "monitor"])
         self.assertEqual(settings.layers, ["xml", "database"])
-        self.assertEqual(settings.stale_after_hours, 6)
+        self.assertEqual(settings.stale_after_minutes, 360)
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
         self.assertEqual(settings.pywps_config, config)
@@ -488,11 +488,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "recover",
             "--layer",
             "xml",
-            "--stale-after-hours",
-            "12",
+            "--stale-after-minutes",
+            "720",
         ])
         self.assertEqual(overridden.layers, ["xml"])
-        self.assertEqual(overridden.stale_after_hours, 12)
+        self.assertEqual(overridden.stale_after_minutes, 720)
         self.assertEqual(overridden.limit, 100)
 
         selected_layers = MODULE.parse_args([
@@ -526,12 +526,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "--config",
             str(config),
             "monitor",
-            "--stale-after-hours",
-            "3.5",
+            "--stale-after-minutes",
+            "210",
             "--limit",
             "500",
         ])
-        self.assertEqual(overridden_monitor.stale_after_hours, 3.5)
+        self.assertEqual(overridden_monitor.stale_after_minutes, 210)
         self.assertEqual(overridden_monitor.limit, 500)
 
     def test_configuration_requires_job_control_section(self):
@@ -547,6 +547,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             ["monitor", "--layer", "access-log"],
             ["monitor", "--layer", "all"],
             ["monitor", "--hours", "3.5"],
+            ["monitor", "--stale-after-hours", "6"],
             ["monitor", "--min-poll-age-minutes", "5"],
         ):
             with self.subTest(arguments=arguments), mock.patch(

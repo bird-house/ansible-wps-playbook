@@ -333,27 +333,33 @@ remains available and can still be run manually:
 
 ### Monitor and recover stalled jobs
 
-The playbook installs the job-control script once. Its scheduled
-entries are disabled by default and always run in read-only monitoring mode:
+The playbook installs the job-control script once. Scheduled monitoring is
+read-only. Scheduled recovery remains disabled until its explicit switches are
+enabled:
 
 ```yaml
 cron_enabled: true
 pywps_job_control_monitor_enabled: true
 pywps_job_control_recovery_enabled: false
 pywps_job_control_schedule:
-  minute: "15"
+  minute: "*/5"
   hour: "*"
-pywps_job_control_stale_after_hours: 6
+pywps_job_control_recovery_schedule:
+  minute: "1-56/5"
+  hour: "*"
+pywps_job_control_stale_after_minutes: 120
 pywps_job_control_recovery_limit: 100
 pywps_job_control_layers:
   - xml
   - database
 ```
 
-The default runs hourly at 15 minutes past the hour. Standard cron fields
+The read-only monitor runs every five minutes. When recovery is enabled, XML
+and database recovery runs every five minutes with a one-minute offset.
+Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
-shorter than `wps_outputs_keep_hours`; otherwise status files could be removed
+shorter than `wps_outputs_keep_minutes`; otherwise status files could be removed
 before the monitor sees them.
 
 The playbook renders the operation switches into every service configuration:
@@ -378,9 +384,9 @@ last database status time, falling back to the request start time. Timestamps
 with `Z`, and database timestamps without an offset, are interpreted as UTC;
 the deployment host should therefore keep its clock and timezone consistent.
 
-Monitoring never changes state. After reviewing
-`/var/log/pywps/SERVICE_NAME-job-monitor.log`, run the appropriate recovery
-shortcut manually.
+Monitoring never changes state. Review
+`/var/log/pywps/SERVICE_NAME-job-monitor.log` before enabling scheduled
+recovery, or run the appropriate recovery shortcut manually.
 This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard manages this log together with
 the other PyWPS logs. By default, a log becomes eligible for rotation after
@@ -399,7 +405,7 @@ sudo /var/lib/pywps/monitor SERVICE_NAME
 
 The helper checks all three layers and prints their quick summaries to the
 terminal. It does not calculate the complete database status aggregate. The
-hourly scheduled monitor performs the same all-layer check and remains quiet
+five-minute scheduled monitor performs the same all-layer check and remains quiet
 unless it finds stalled jobs or errors.
 
 Recover only stalled XML documents with:
@@ -422,8 +428,8 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-hours 12
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12
+sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-minutes 720
+sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-minutes 720
 sudo /var/lib/pywps/recover-xml-db SERVICE_NAME --limit 500
 ```
 
@@ -436,7 +442,7 @@ The concise command names are intentionally scoped by their installation in
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
 selection, call `pywps-job-control.py` directly and repeat `--layer`, for
 example `--layer xml --layer database`. Without an explicit layer, the script
-uses the service's `[job_control] layers` setting. `--stale-after-hours`
+uses the service's `[job_control] layers` setting. `--stale-after-minutes`
 overrides the configured threshold.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
@@ -447,18 +453,19 @@ cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery default. The underlying `--status-counts` option enables a
 complete database aggregate for explicit low-level invocations.
 
-Slurm inspection and recovery are intentionally deferred to a later iteration.
+Slurm timeout enforcement and host-wide queue monitoring are described under
+[Use the Slurm scheduler](#use-the-slurm-scheduler).
 
-### Record daily PyWPS job statistics
+### Record hourly PyWPS job statistics
 
-When cron is enabled, a separate read-only statistics job runs daily at 00:05
-by default:
+When cron is enabled, a separate read-only statistics job runs hourly at four
+minutes past the hour by default:
 
 ```yaml
 pywps_job_statistics_enabled: true
 pywps_job_statistics_schedule:
-  minute: "5"
-  hour: "0"
+  minute: "4"
+  hour: "*"
 ```
 
 It records complete XML and database layer summaries plus a full status
@@ -487,7 +494,7 @@ instead of polling forever.
 pywps_job_control_recovery_enabled: true
 pywps_missing_status_recovery_enabled: true
 pywps_missing_status_recovery_schedule:
-  minute: "*/10"
+  minute: "2-57/5"
   hour: "*"
 pywps_missing_status_poll_window_minutes: 60
 pywps_missing_status_min_poll_count: 3
@@ -497,8 +504,9 @@ pywps_missing_status_access_log: /var/log/nginx/access.log
 pywps_missing_status_database_guard: true
 ```
 
-The default schedule runs every ten minutes and considers only requests from
-the preceding hour. Recovery requires at least three `GET` or `HEAD` responses
+The default schedule runs every five minutes, offset from the main monitor by
+two minutes, and considers only requests from the preceding hour. Recovery
+requires at least three `GET` or `HEAD` responses
 with status `404`, spanning at least 15 minutes rather than arriving in one
 short burst. Only the exact output path configured for that PyWPS service and a
 syntactically valid UUID filename are accepted. Only the configured active log
@@ -582,6 +590,65 @@ Keep `slurm_drmaa_version` matched to the Slurm version installed on the host.
 Changing either version or the scheduler policy should be tested with a real
 job submission before production rollout. The existing PyWPS smoke tests
 provide this validation when the service runs in scheduler mode.
+
+#### Limit and monitor Slurm jobs
+
+Slurm enforces a default and maximum runtime on the `fast` partition. Its
+90-minute default is deliberately shorter than the two-hour PyWPS stale
+threshold, so Slurm ends the process before the existing XML and database
+recovery reconciles a request which remains non-final. Both limits can be
+overridden independently, but the Slurm timeout must remain shorter:
+
+```yaml
+pywps_job_control_stale_after_minutes: 120
+slurm_job_timeout_minutes: 90
+```
+
+Slurm uses its value as both `DefaultTime` and `MaxTime`, so jobs receive the
+limit even when PyWPS does not pass `--time` during submission and cannot
+request a higher limit. This native enforcement does not require Slurm
+accounting or `slurmdbd`.
+
+An independent, optional read-only monitor makes one `squeue` request for
+`PENDING` and `RUNNING` jobs owned by the configured PyWPS Unix account. Because
+every PyWPS service uses the same account on the dedicated VM, Ansible creates
+one cron entry rather than one per service.
+
+```yaml
+slurm_job_monitor_enabled: true
+slurm_job_monitor_schedule:
+  minute: "*/5"
+  hour: "*"
+slurm_job_monitor_user: wps
+slurm_job_monitor_long_running_minutes: 10
+slurm_job_monitor_pending_warning: 20
+slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
+```
+
+The long-running warning defaults to 10 minutes. The default queue threshold
+warns when 20 or more jobs are pending. Every run
+records running, pending, total, and long-running counts in
+`/var/log/pywps/slurm-job-monitor.log`, which uses the existing PyWPS log
+rotation. Individual long-running jobs and a full pending queue produce
+warnings suitable for cron mail.
+
+The monitor also maintains a root-owned, mode `0644` red-alert file for a
+future PyWPS health check. It atomically writes JSON when the pending threshold
+is reached, `squeue` or `sinfo` cannot query Slurm, the partition is unavailable,
+or the single node is unusable or non-responsive. A healthy run removes the
+file. Long-running jobs alone do not set the red alert. The file reports a
+timestamp and one of `pending-queue-full`, `slurm-capacity-unavailable`, or
+`slurm-monitor-error`; it does not automatically drain nodes or restart Slurm.
+
+Inspect the current queue manually without making changes:
+
+```sh
+sudo /usr/local/sbin/slurm-job-monitor \
+  --user wps --long-running-minutes 10 --pending-warning 20
+```
+
+The monitor never changes or cancels jobs. Its long-running threshold indicates
+elapsed runtime, not lack of progress.
 
 ### Configure the database
 
