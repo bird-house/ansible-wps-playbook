@@ -28,6 +28,11 @@ collectd_cleanup_script: /usr/local/sbin/collectd-cleanup
 collectd_cleanup_schedule: "*-*-* 00:30:00"
 collectd_compress_after_days: 7
 collectd_keep_days: 30
+collectd_summary_enabled: true
+collectd_summary_script: /usr/local/sbin/collectd-daily-summary
+collectd_summary_schedule: "*-*-* 00:10:00"
+collectd_summary_output_dir: /var/log
+collectd_summary_output: "{{ collectd_summary_output_dir }}/collectd-daily-summary.log"
 
 # postgres
 db_install_postgresql: true

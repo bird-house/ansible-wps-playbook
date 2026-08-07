@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily summary of collectd statistics
+
+[Timer]
+OnCalendar={{ collectd_summary_schedule }}
+Persistent=true
+AccuracySec=1m
+Unit=collectd-daily-summary.service
+
+[Install]
+WantedBy=timers.target

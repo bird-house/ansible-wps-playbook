@@ -27,6 +27,13 @@
           - >-
             not (collectd_cleanup_enabled | bool)
             or collectd_keep_days | int > collectd_compress_after_days | int
+          - not (collectd_summary_enabled | bool) or collectd_summary_script is match('^/')
+          - not (collectd_summary_enabled | bool) or collectd_summary_schedule | length > 0
+          - not (collectd_summary_enabled | bool) or collectd_summary_output_dir is match('^/')
+          - not (collectd_summary_enabled | bool) or collectd_summary_output is match('^/')
+          - >-
+            not (collectd_summary_enabled | bool)
+            or (collectd_summary_output | dirname) == collectd_summary_output_dir
         fail_msg: >-
           collectd monitoring supports only Red Hat family version 9 hosts,
           requires at least one metric, a positive interval, a hostname, an
@@ -108,6 +115,16 @@
         enabled: true
         state: started
 
+    - name: Remove legacy collectd cron scripts
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/cron.daily/collectd-csv-maintenance
+        - /etc/cron.daily/collectd-daily-summary
+      when:
+        - (collectd_cleanup_enabled | bool) or (collectd_summary_enabled | bool)
+
     - name: Configure collectd CSV cleanup
       when: collectd_cleanup_enabled | bool
       block:
@@ -188,3 +205,92 @@
         - "{{ collectd_cleanup_script }}"
       notify: Reload systemd
       when: not (collectd_cleanup_enabled | bool)
+
+    - name: Configure collectd daily summary
+      when: collectd_summary_enabled | bool
+      block:
+        - name: Validate collectd summary schedule
+          ansible.builtin.command:
+            argv:
+              - systemd-analyze
+              - calendar
+              - "{{ collectd_summary_schedule }}"
+          changed_when: false
+
+        - name: Ensure collectd summary output directory exists
+          ansible.builtin.file:
+            path: "{{ collectd_summary_output_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Install collectd daily summary script
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/scripts/collectd-daily-summary"
+            dest: "{{ collectd_summary_script }}"
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Install collectd daily summary service
+          ansible.builtin.template:
+            src: collectd-daily-summary.service.j2
+            dest: /etc/systemd/system/collectd-daily-summary.service
+            owner: root
+            group: root
+            mode: "0644"
+          notify: Reload systemd
+
+        - name: Install collectd daily summary timer
+          ansible.builtin.template:
+            src: collectd-daily-summary.timer.j2
+            dest: /etc/systemd/system/collectd-daily-summary.timer
+            owner: root
+            group: root
+            mode: "0644"
+          notify: Reload systemd
+
+        - name: Validate collectd daily summary units
+          ansible.builtin.command:
+            argv:
+              - systemd-analyze
+              - verify
+              - /etc/systemd/system/collectd-daily-summary.service
+              - /etc/systemd/system/collectd-daily-summary.timer
+          changed_when: false
+
+        - name: Apply collectd daily summary unit changes
+          ansible.builtin.meta: flush_handlers
+
+        - name: Enable and start collectd daily summary timer
+          ansible.builtin.systemd:
+            name: collectd-daily-summary.timer
+            enabled: true
+            state: started
+
+    - name: Check for an installed collectd daily summary timer
+      ansible.builtin.stat:
+        path: /etc/systemd/system/collectd-daily-summary.timer
+      register: collectd_summary_timer_file
+      when: not (collectd_summary_enabled | bool)
+
+    - name: Disable and stop collectd daily summary timer
+      ansible.builtin.systemd:
+        name: collectd-daily-summary.timer
+        enabled: false
+        state: stopped
+      when:
+        - not (collectd_summary_enabled | bool)
+        - collectd_summary_timer_file.stat.exists
+
+    - name: Remove disabled collectd daily summary files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/collectd-daily-summary.service
+        - /etc/systemd/system/collectd-daily-summary.timer
+        - "{{ collectd_summary_script }}"
+      notify: Reload systemd
+      when: not (collectd_summary_enabled | bool)

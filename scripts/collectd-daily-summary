@@ -1,100 +1,238 @@
 #!/usr/bin/env python3
+"""Write a readable daily summary from collectd CSV files."""
 
+import argparse
 import csv
-from datetime import datetime, timedelta
+from datetime import date, timedelta
+import fcntl
+import gzip
+import os
 from pathlib import Path
-
-DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-LOAD_FILE = Path(f"/var/lib/collectd/csv/localhost/load/load-{DATE}")
-DISK_FILE = Path(f"/var/lib/collectd/csv/localhost/df-mnt-rook_disk8/percent_bytes-used-{DATE}")
-MEM_FILE = Path(f"/var/lib/collectd/csv/localhost/memory/memory-used-{DATE}")
-ETH0_FILE = Path(f"/var/lib/collectd/csv/localhost/interface-eth0/if_octets-{DATE}")
-
-LOGFILE = Path("/var/log/collectd-daily-summary.log")
+import sys
+import tempfile
 
 
-# --- Functions ---
+GIB = 1024**3
 
-def read_load_min_max(file_path):
-    """Read shortterm load min/max from second column."""
+
+def iso_date(value):
     try:
-        with open(file_path) as f:
-            reader = csv.DictReader(f)
-            col = reader.fieldnames[1]  # shortterm
-            values = [float(row[col]) for row in reader if row[col].strip()]
-            if not values:
-                return "NA", "NA"
-            return round(min(values), 2), round(max(values), 2)
-    except Exception:
-        return "NA", "NA"
+        return date.fromisoformat(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must use YYYY-MM-DD") from error
 
 
-def read_min_max(file_path, column_name="value", scale=1.0):
-    """Generic min/max function for disk or other single-column CSVs."""
-    try:
-        with open(file_path) as f:
-            reader = csv.DictReader(f)
-            values = [float(row[column_name])*scale for row in reader if row[column_name].strip()]
-            if not values:
-                return "NA", "NA"
-            return round(min(values), 2), round(max(values), 2)
-    except Exception:
-        return "NA", "NA"
-
-
-def read_mem_gib(file_path):
-    # Convert bytes to GiB
-    return read_min_max(file_path, column_name="value", scale=1/(1024**3))
-
-
-def read_eth0_rx_gib(file_path):
-    """Compute total RX in GiB, handling counter resets."""
-    try:
-        with open(file_path) as f:
-            reader = csv.DictReader(f)
-            rx_total = 0
-            last = None
-            for row in reader:
-                if not row["rx"].strip():
-                    continue
-                val = int(float(row["rx"]))
-                if last is not None:
-                    delta = val - last
-                    if delta < 0:  # counter reset
-                        delta = val
-                    rx_total += delta
-                last = val
-            if last is None:
-                return "NA"
-            return round(rx_total / (1024**3), 2)
-    except Exception:
-        return "NA"
-
-
-# --- Collect metrics ---
-
-# Load
-load_min, load_max = read_load_min_max(LOAD_FILE)
-
-# Disk
-disk_min, disk_max = read_min_max(DISK_FILE, column_name="value")
-
-# Memory in GiB
-mem_min, mem_max = read_mem_gib(MEM_FILE)
-mem_min_str = f"{mem_min} GiB" if mem_min != "NA" else "NA"
-mem_max_str = f"{mem_max} GiB" if mem_max != "NA" else "NA"
-
-# eth0 RX
-eth0_rx = read_eth0_rx_gib(ETH0_FILE)
-eth0_rx_str = f"{eth0_rx} GiB" if eth0_rx != "NA" else "NA"
-
-# --- Output nicely aligned ---
-with open(LOGFILE, "a") as log:
-    log.write(
-        f"{DATE:<12}  "
-        f"load_min={load_min:<10}  load_max={load_max:<10}  "
-        f"disk_min={disk_min:<10}  disk_max={disk_max:<10}  "
-        f"mem_min={mem_min_str:<12}  mem_max={mem_max_str:<12}  "
-        f"eth0_rx={eth0_rx_str}\n"
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--csv-dir", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--date", type=iso_date, default=date.today() - timedelta(days=1))
+    parser.add_argument("--load", action="store_true")
+    parser.add_argument("--disk-mount")
+    parser.add_argument("--memory", action="store_true")
+    parser.add_argument("--interface")
+    parser.add_argument(
+        "--lock-file",
+        type=Path,
+        default=Path("/run/collectd-summary/lock"),
     )
+    return parser.parse_args(argv)
+
+
+def validate_args(args):
+    if not args.csv_dir.is_absolute() or args.csv_dir == Path("/"):
+        raise ValueError("--csv-dir must be an absolute path other than /")
+    if not args.csv_dir.is_dir():
+        raise ValueError(f"collectd CSV directory does not exist: {args.csv_dir}")
+    if not args.output.is_absolute():
+        raise ValueError("--output must be an absolute path")
+    if not args.lock_file.is_absolute():
+        raise ValueError("--lock-file must be an absolute path")
+    if not any((args.load, args.disk_mount, args.memory, args.interface)):
+        raise ValueError("at least one metric must be enabled")
+    if args.disk_mount and not args.disk_mount.startswith("/"):
+        raise ValueError("--disk-mount must be an absolute path")
+
+
+def open_csv(path):
+    if path.is_file():
+        return path.open(encoding="utf-8", newline="")
+    compressed = Path(f"{path}.gz")
+    if compressed.is_file():
+        return gzip.open(compressed, mode="rt", encoding="utf-8", newline="")
+    raise FileNotFoundError(path)
+
+
+def values_from_column(path, column):
+    with open_csv(path) as source:
+        reader = csv.DictReader(source)
+        if not reader.fieldnames or column not in reader.fieldnames:
+            raise ValueError(f"missing column {column!r} in {path}")
+        values = []
+        for row in reader:
+            value = row[column].strip()
+            if value:
+                values.append(float(value))
+    if not values:
+        raise ValueError(f"no values in column {column!r} in {path}")
+    return values
+
+
+def min_max(path, column, scale=1.0):
+    values = values_from_column(path, column)
+    return round(min(values) * scale, 2), round(max(values) * scale, 2)
+
+
+def received_gib(path):
+    values = values_from_column(path, "rx")
+    total = 0
+    previous = None
+    for value in values:
+        current = int(value)
+        if previous is not None:
+            delta = current - previous
+            total += current if delta < 0 else delta
+        previous = current
+    return round(total / GIB, 2)
+
+
+def disk_plugin_instance(mount_point):
+    if mount_point == "/":
+        return "root"
+    return mount_point.strip("/").replace("/", "-")
+
+
+def metric_path(csv_dir, plugin, metric, summary_date):
+    return csv_dir / plugin / f"{metric}-{summary_date.isoformat()}"
+
+
+def format_value(value):
+    return "NA" if value is None else str(value)
+
+
+def summarize(args):
+    fields = []
+    warnings = []
+
+    def capture(label, callback):
+        try:
+            return callback()
+        except (OSError, ValueError) as error:
+            warnings.append(f"{label}: {error}")
+            return None
+
+    if args.load:
+        result = capture(
+            "load",
+            lambda: min_max(
+                metric_path(args.csv_dir, "load", "load", args.date),
+                "shortterm",
+            ),
+        )
+        minimum, maximum = result if result is not None else (None, None)
+        fields.extend(
+            (f"load_min={format_value(minimum)}", f"load_max={format_value(maximum)}")
+        )
+
+    if args.disk_mount:
+        plugin = f"df-{disk_plugin_instance(args.disk_mount)}"
+        result = capture(
+            "disk",
+            lambda: min_max(
+                metric_path(args.csv_dir, plugin, "percent_bytes-used", args.date),
+                "value",
+            ),
+        )
+        minimum, maximum = result if result is not None else (None, None)
+        fields.extend(
+            (f"disk_min={format_value(minimum)}", f"disk_max={format_value(maximum)}")
+        )
+
+    if args.memory:
+        result = capture(
+            "memory",
+            lambda: min_max(
+                metric_path(args.csv_dir, "memory", "memory-used", args.date),
+                "value",
+                scale=1 / GIB,
+            ),
+        )
+        minimum, maximum = result if result is not None else (None, None)
+        fields.extend(
+            (
+                f"mem_min={format_value(minimum)} GiB" if minimum is not None else "mem_min=NA",
+                f"mem_max={format_value(maximum)} GiB" if maximum is not None else "mem_max=NA",
+            )
+        )
+
+    if args.interface:
+        received = capture(
+            "interface",
+            lambda: received_gib(
+                metric_path(
+                    args.csv_dir,
+                    f"interface-{args.interface}",
+                    "if_octets",
+                    args.date,
+                )
+            ),
+        )
+        fields.append(
+            f"{args.interface}_rx={format_value(received)} GiB"
+            if received is not None
+            else f"{args.interface}_rx=NA"
+        )
+
+    return f"{args.date.isoformat()}  {'  '.join(fields)}", warnings
+
+
+def write_summary(output, summary_date, line):
+    output.parent.mkdir(parents=True, exist_ok=True)
+    existing = output.read_text(encoding="utf-8").splitlines() if output.exists() else []
+    date_prefix = summary_date.isoformat()
+    updated = [entry for entry in existing if not entry.startswith(f"{date_prefix}  ")]
+    updated.append(line)
+    updated.sort(key=lambda entry: entry.split(maxsplit=1)[0])
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=output.parent,
+        prefix=f".{output.name}.",
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as target:
+            target.write("\n".join(updated))
+            target.write("\n")
+        os.chmod(temporary, 0o644)
+        temporary.replace(output)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    try:
+        validate_args(args)
+        args.lock_file.parent.mkdir(parents=True, exist_ok=True)
+        with args.lock_file.open("a+") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print("collectd daily summary is already running; skipping")
+                return 0
+
+            line, warnings = summarize(args)
+            write_summary(args.output, args.date, line)
+    except (OSError, ValueError) as error:
+        print(f"collectd daily summary failed: {error}", file=sys.stderr)
+        return 1
+
+
+    print(line)
+    for warning in warnings:
+        print(f"collectd daily summary warning: {warning}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
