@@ -1,0 +1,16 @@
+[Unit]
+Description=Create a readable hourly summary of collectd statistics
+After=collectd.service
+ConditionPathIsDirectory={{ collectd_csv_dir }}/{{ collectd_hostname }}
+
+[Service]
+Type=oneshot
+ExecStart={{ collectd_summary_script }} --period hourly --csv-dir {{ collectd_csv_dir }}/{{ collectd_hostname }} --output {{ collectd_hourly_summary_output }}{% if collectd_load_enabled | bool %} --load{% endif %}{% if collectd_disk_enabled | bool %} --disk-mount {{ collectd_disk_mount }}{% endif %}{% if collectd_memory_enabled | bool %} --memory{% endif %}{% if collectd_interface_enabled | bool %} --interface {{ collectd_interface }}{% endif %} --lock-file /run/collectd-hourly-summary/lock
+RuntimeDirectory=collectd-hourly-summary
+Nice=19
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ collectd_summary_output_dir }}

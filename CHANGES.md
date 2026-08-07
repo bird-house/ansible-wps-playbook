@@ -9,6 +9,9 @@ Changes:
 - rename the PyWPS job-management configuration from `[stalled_jobs]` to
   `[job_control]`, including its Ansible variables, lock file, source names,
   tests, and documentation
+- add optional collectd monitoring for Red Hat family 9 hosts, with
+  configurable load, disk, memory, and interface metrics, retained CSV data,
+  and systemd-managed daily and optional hourly summaries
 
 ## 0.9.0 (2026-07-31)
 

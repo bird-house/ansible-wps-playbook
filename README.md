@@ -212,6 +212,53 @@ host:
 make play
 ```
 
+### Configure optional collectd monitoring
+
+Collectd monitoring is optional and supports Red Hat family version 9 hosts.
+The collectd package must be available from a configured repository such as
+EPEL. Enabling the role collects load by default; disk, memory, and network
+interface statistics are independent options:
+
+```yaml
+collectd_enabled: true
+collectd_load_enabled: true
+collectd_disk_enabled: true
+collectd_disk_mount: /mnt/ext_pywps_outputs
+collectd_memory_enabled: true
+collectd_interface_enabled: true
+# Defaults to the interface used by the default route.
+# collectd_interface: ens3
+```
+
+Collectd writes daily CSV files under `/var/lib/collectd/csv`. A systemd timer
+records a readable summary at 00:10, and another compresses files older than
+seven days and deletes files older than 30 days at 00:30. These settings can be
+overridden independently:
+
+```yaml
+collectd_summary_enabled: true
+collectd_summary_schedule: "*-*-* 00:10:00"
+# Optional previous-hour summaries, recorded five minutes after each hour.
+collectd_hourly_summary_enabled: false
+collectd_hourly_summary_schedule: "*-*-* *:05:00"
+collectd_cleanup_enabled: true
+collectd_cleanup_schedule: "*-*-* 00:30:00"
+collectd_compress_after_days: 7
+collectd_keep_days: 30
+```
+
+The daily summary is written to `/var/log/collectd-daily-summary.log`. When
+enabled, hourly summaries are written separately to
+`/var/log/collectd-hourly-summary.log`. Inspect timer state and recent errors
+with `systemctl list-timers` and `journalctl`:
+
+```sh
+systemctl status collectd-daily-summary.timer collectd-hourly-summary.timer
+systemctl status collectd-cleanup.timer
+journalctl -u collectd-daily-summary.service -u collectd-hourly-summary.service
+journalctl -u collectd-cleanup.service
+```
+
 ### Configure WPS response caching
 
 GetCapabilities and DescribeProcess responses are cached for 10 minutes by

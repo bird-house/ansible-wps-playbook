@@ -67,6 +67,26 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
+          - not collectd_enabled
+          - collectd_load_enabled
+          - not collectd_disk_enabled
+          - collectd_disk_mount == '/mnt/ext_pywps_outputs'
+          - not collectd_memory_enabled
+          - not collectd_interface_enabled
+          - collectd_interval == 60
+          - collectd_cleanup_enabled
+          - collectd_cleanup_schedule == '*-*-* 00:30:00'
+          - collectd_compress_after_days == 7
+          - collectd_keep_days == 30
+          - collectd_compress_after_days < collectd_keep_days
+          - collectd_summary_enabled
+          - collectd_summary_schedule == '*-*-* 00:10:00'
+          - collectd_summary_output == '/var/log/collectd-daily-summary.log'
+          - not collectd_hourly_summary_enabled
+          - collectd_hourly_summary_schedule == '*-*-* *:05:00'
+          - >-
+            collectd_hourly_summary_output
+            == '/var/log/collectd-hourly-summary.log'
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -98,6 +118,33 @@
         test_nginx_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
+        test_collectd_load_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/collectd/templates/collectd.conf.j2') }}
+        test_collectd_cleanup_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-cleanup.service.j2') }}
+        test_collectd_cleanup_timer: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-cleanup.timer.j2') }}
+        test_collectd_summary_load_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-daily-summary.service.j2') }}
+        test_collectd_summary_timer: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-daily-summary.timer.j2') }}
+        test_collectd_hourly_summary_load_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-hourly-summary.service.j2') }}
+        test_collectd_hourly_summary_timer: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-hourly-summary.timer.j2') }}
       vars:
         item: "{{ test_primary_service }}"
         wps_enable_https: true
@@ -105,6 +152,25 @@
         wps_acl_allow:
           - 192.0.2.0/24
         slurm_enabled: false
+
+    - name: Render collectd configuration with all metrics
+      ansible.builtin.set_fact:
+        test_collectd_all_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/collectd/templates/collectd.conf.j2') }}
+        test_collectd_summary_all_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-daily-summary.service.j2') }}
+        test_collectd_hourly_summary_all_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-hourly-summary.service.j2') }}
+      vars:
+        collectd_disk_enabled: true
+        collectd_memory_enabled: true
+        collectd_interface_enabled: true
+        collectd_interface: ens3
 
     - name: Render Slurm service launcher
       ansible.builtin.set_fact:
@@ -238,6 +304,65 @@
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
           - "'recovery_limit = 100' in test_pywps_config"
+          - "'LoadPlugin load' in test_collectd_load_config"
+          - "'LoadPlugin df' not in test_collectd_load_config"
+          - "'LoadPlugin memory' not in test_collectd_load_config"
+          - "'LoadPlugin interface' not in test_collectd_load_config"
+          - "'StoreRates false' in test_collectd_load_config"
+          - "'LoadPlugin load' in test_collectd_all_config"
+          - "'LoadPlugin df' in test_collectd_all_config"
+          - "'MountPoint \"/mnt/ext_pywps_outputs\"' in test_collectd_all_config"
+          - "'ValuesPercentage true' in test_collectd_all_config"
+          - "'LoadPlugin memory' in test_collectd_all_config"
+          - "'LoadPlugin interface' in test_collectd_all_config"
+          - "'Interface \"ens3\"' in test_collectd_all_config"
+          - >-
+            'ExecStart=/usr/local/sbin/collectd-cleanup'
+            in test_collectd_cleanup_service
+          - >-
+            '--csv-dir /var/lib/collectd/csv/localhost'
+            in test_collectd_cleanup_service
+          - >-
+            '--compress-after-days 7 --keep-days 30'
+            in test_collectd_cleanup_service
+          - "'ProtectSystem=strict' in test_collectd_cleanup_service"
+          - >-
+            'ReadWritePaths=/var/lib/collectd/csv/localhost'
+            in test_collectd_cleanup_service
+          - "'OnCalendar=*-*-* 00:30:00' in test_collectd_cleanup_timer"
+          - "'Persistent=true' in test_collectd_cleanup_timer"
+          - "'--load' in test_collectd_summary_load_service"
+          - "'--disk-mount' not in test_collectd_summary_load_service"
+          - "'--memory' not in test_collectd_summary_load_service"
+          - "'--interface' not in test_collectd_summary_load_service"
+          - >-
+            '--output /var/log/collectd-daily-summary.log'
+            in test_collectd_summary_load_service
+          - "'--load' in test_collectd_summary_all_service"
+          - >-
+            '--disk-mount /mnt/ext_pywps_outputs'
+            in test_collectd_summary_all_service
+          - "'--memory' in test_collectd_summary_all_service"
+          - "'--interface ens3' in test_collectd_summary_all_service"
+          - "'OnCalendar=*-*-* 00:10:00' in test_collectd_summary_timer"
+          - "'Persistent=true' in test_collectd_summary_timer"
+          - >-
+            '--period hourly' in test_collectd_hourly_summary_load_service
+          - "'--load' in test_collectd_hourly_summary_load_service"
+          - >-
+            '--output /var/log/collectd-hourly-summary.log'
+            in test_collectd_hourly_summary_load_service
+          - "'--disk-mount' not in test_collectd_hourly_summary_load_service"
+          - "'--memory' not in test_collectd_hourly_summary_load_service"
+          - "'--interface' not in test_collectd_hourly_summary_load_service"
+          - >-
+            '--disk-mount /mnt/ext_pywps_outputs'
+            in test_collectd_hourly_summary_all_service
+          - "'--memory' in test_collectd_hourly_summary_all_service"
+          - "'--interface ens3' in test_collectd_hourly_summary_all_service"
+          - >-
+            'OnCalendar=*-*-* *:05:00' in test_collectd_hourly_summary_timer
+          - "'Persistent=true' in test_collectd_hourly_summary_timer"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
           - "'poll_window_minutes = 60' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"

@@ -12,6 +12,7 @@
         - null.yml
   roles:
     - common
+    - collectd
     - role: andrewrothstein.miniconda
       tags: conda
     - role: supervisor
