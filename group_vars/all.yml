@@ -23,6 +23,11 @@ collectd_disk_mount: /mnt/ext_pywps_outputs
 collectd_memory_enabled: false
 collectd_interface_enabled: false
 collectd_interface: "{{ ansible_default_ipv4.interface | default('eth0') }}"
+collectd_cleanup_enabled: true
+collectd_cleanup_script: /usr/local/sbin/collectd-cleanup
+collectd_cleanup_schedule: "*-*-* 00:30:00"
+collectd_compress_after_days: 7
+collectd_keep_days: 30
 
 # postgres
 db_install_postgresql: true

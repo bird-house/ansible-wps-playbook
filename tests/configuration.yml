@@ -74,6 +74,11 @@
           - not collectd_memory_enabled
           - not collectd_interface_enabled
           - collectd_interval == 60
+          - collectd_cleanup_enabled
+          - collectd_cleanup_schedule == '*-*-* 00:30:00'
+          - collectd_compress_after_days == 7
+          - collectd_keep_days == 30
+          - collectd_compress_after_days < collectd_keep_days
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -108,6 +113,14 @@
         test_collectd_load_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/collectd/templates/collectd.conf.j2') }}
+        test_collectd_cleanup_service: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-cleanup.service.j2') }}
+        test_collectd_cleanup_timer: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/collectd/templates/collectd-cleanup.timer.j2') }}
       vars:
         item: "{{ test_primary_service }}"
         wps_enable_https: true
@@ -271,6 +284,21 @@
           - "'LoadPlugin memory' in test_collectd_all_config"
           - "'LoadPlugin interface' in test_collectd_all_config"
           - "'Interface \"ens3\"' in test_collectd_all_config"
+          - >-
+            'ExecStart=/usr/local/sbin/collectd-cleanup'
+            in test_collectd_cleanup_service
+          - >-
+            '--csv-dir /var/lib/collectd/csv/localhost'
+            in test_collectd_cleanup_service
+          - >-
+            '--compress-after-days 7 --keep-days 30'
+            in test_collectd_cleanup_service
+          - "'ProtectSystem=strict' in test_collectd_cleanup_service"
+          - >-
+            'ReadWritePaths=/var/lib/collectd/csv/localhost'
+            in test_collectd_cleanup_service
+          - "'OnCalendar=*-*-* 00:30:00' in test_collectd_cleanup_timer"
+          - "'Persistent=true' in test_collectd_cleanup_timer"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
           - "'poll_window_minutes = 60' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"

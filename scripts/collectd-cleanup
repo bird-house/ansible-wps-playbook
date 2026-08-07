@@ -1,27 +1,128 @@
-#!/bin/bash
-# /etc/cron.daily/collectd-csv-maintenance
-# Purpose: Keep last 30 days of collectd daily files, compress older files in place
+#!/usr/bin/env python3
+"""Compress and expire date-suffixed collectd CSV files."""
 
-CSV_BASE_DIR="/var/lib/collectd/csv/localhost"  # Base collectd CSV directory
-KEEP_DAYS=30                                     # Keep this many days
-COMPRESS_AFTER_DAYS=7                            # Compress files older than this
+import argparse
+import fcntl
+import gzip
+import os
+from pathlib import Path
+import re
+import shutil
+import sys
+import time
 
-# Recursively process all subdirectories
-find "$CSV_BASE_DIR" -type f -name '*-????-??-??' | while read -r file; do
-    # Compress files older than COMPRESS_AFTER_DAYS but younger than KEEP_DAYS
-    file_mtime=$(stat -c %Y "$file")
-    cutoff_compress=$(date -d "$COMPRESS_AFTER_DAYS days ago" +%s)
-    cutoff_delete=$(date -d "$KEEP_DAYS days ago" +%s)
 
-    if [[ $file_mtime -le $cutoff_compress && $file_mtime -gt $cutoff_delete ]]; then
-        gzip -9 -c "$file" > "$file.gz" && rm -f "$file"
-    fi
+COLLECTD_FILE = re.compile(r".+-\d{4}-\d{2}-\d{2}(?:\.gz)?$")
 
-    # Delete files older than KEEP_DAYS (compressed or uncompressed)
-    if [[ $file_mtime -le $cutoff_delete ]]; then
-        rm -f "$file"
-    fi
-done
 
-# Also delete old compressed files
-find "$CSV_BASE_DIR" -type f -name '*-????-??-??.gz' -mtime +"$KEEP_DAYS" -exec rm -f {} \;
+def non_negative_int(value):
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be zero or greater")
+    return parsed
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--csv-dir", required=True, type=Path)
+    parser.add_argument(
+        "--compress-after-days", type=non_negative_int, default=7
+    )
+    parser.add_argument("--keep-days", type=non_negative_int, default=30)
+    parser.add_argument(
+        "--lock-file",
+        type=Path,
+        default=Path("/run/collectd-cleanup/lock"),
+    )
+    return parser.parse_args(argv)
+
+
+def validate_args(args):
+    if not args.csv_dir.is_absolute() or args.csv_dir == Path("/"):
+        raise ValueError("--csv-dir must be an absolute path other than /")
+    if not args.csv_dir.is_dir():
+        raise ValueError(f"collectd CSV directory does not exist: {args.csv_dir}")
+    if args.compress_after_days >= args.keep_days:
+        raise ValueError("--compress-after-days must be less than --keep-days")
+    if not args.lock_file.is_absolute():
+        raise ValueError("--lock-file must be an absolute path")
+
+
+def matching_files(csv_dir):
+    for path in csv_dir.rglob("*"):
+        if path.is_file() and COLLECTD_FILE.fullmatch(path.name):
+            yield path
+
+
+def compress_file(path):
+    destination = Path(f"{path}.gz")
+    if destination.exists():
+        raise FileExistsError(
+            f"refusing to replace existing compressed file: {destination}"
+        )
+
+    source_mtime = path.stat().st_mtime
+    temporary = Path(f"{destination}.tmp.{os.getpid()}")
+    try:
+        with path.open("rb") as source, temporary.open("xb") as raw_target:
+            with gzip.GzipFile(
+                filename="",
+                mode="wb",
+                compresslevel=9,
+                fileobj=raw_target,
+                mtime=int(source_mtime),
+            ) as target:
+                shutil.copyfileobj(source, target)
+        os.utime(temporary, (source_mtime, source_mtime))
+        temporary.replace(destination)
+        path.unlink()
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def clean(csv_dir, compress_after_days, keep_days, now=None):
+    current_time = time.time() if now is None else now
+    compress_before = current_time - compress_after_days * 86400
+    delete_before = current_time - keep_days * 86400
+    compressed = 0
+    deleted = 0
+
+    for path in matching_files(csv_dir):
+        modified = path.stat().st_mtime
+        if modified <= delete_before:
+            path.unlink()
+            deleted += 1
+        elif path.suffix != ".gz" and modified <= compress_before:
+            compress_file(path)
+            compressed += 1
+
+    return compressed, deleted
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    try:
+        validate_args(args)
+        args.lock_file.parent.mkdir(parents=True, exist_ok=True)
+        with args.lock_file.open("a+") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print("collectd cleanup is already running; skipping")
+                return 0
+
+            compressed, deleted = clean(
+                args.csv_dir,
+                args.compress_after_days,
+                args.keep_days,
+            )
+    except (OSError, ValueError) as error:
+        print(f"collectd cleanup failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"collectd cleanup complete: compressed={compressed} deleted={deleted}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

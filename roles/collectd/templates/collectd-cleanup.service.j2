@@ -1,0 +1,16 @@
+[Unit]
+Description=Compress and expire collectd CSV statistics
+After=collectd.service
+ConditionPathIsDirectory={{ collectd_csv_dir }}/{{ collectd_hostname }}
+
+[Service]
+Type=oneshot
+ExecStart={{ collectd_cleanup_script }} --csv-dir {{ collectd_csv_dir }}/{{ collectd_hostname }} --compress-after-days {{ collectd_compress_after_days }} --keep-days {{ collectd_keep_days }}
+RuntimeDirectory=collectd-cleanup
+Nice=19
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ collectd_csv_dir }}/{{ collectd_hostname }}

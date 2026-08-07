@@ -19,10 +19,19 @@
           - collectd_csv_dir is match('^/')
           - not (collectd_disk_enabled | bool) or collectd_disk_mount is match('^/')
           - not (collectd_interface_enabled | bool) or collectd_interface | length > 0
+          - not (collectd_cleanup_enabled | bool) or collectd_cleanup_script is match('^/')
+          - not (collectd_cleanup_enabled | bool) or collectd_cleanup_schedule | length > 0
+          - >-
+            not (collectd_cleanup_enabled | bool)
+            or collectd_compress_after_days | int >= 0
+          - >-
+            not (collectd_cleanup_enabled | bool)
+            or collectd_keep_days | int > collectd_compress_after_days | int
         fail_msg: >-
           collectd monitoring supports only Red Hat family version 9 hosts,
           requires at least one metric, a positive interval, a hostname, an
-          absolute CSV directory, and valid settings for enabled metrics.
+          absolute CSV directory, valid enabled metrics, and a cleanup
+          retention period longer than its compression threshold.
 
     - name: Check configured collectd disk mount
       ansible.builtin.command:
@@ -98,3 +107,84 @@
         name: collectd
         enabled: true
         state: started
+
+    - name: Configure collectd CSV cleanup
+      when: collectd_cleanup_enabled | bool
+      block:
+        - name: Validate collectd cleanup schedule
+          ansible.builtin.command:
+            argv:
+              - systemd-analyze
+              - calendar
+              - "{{ collectd_cleanup_schedule }}"
+          changed_when: false
+
+        - name: Install collectd cleanup script
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/scripts/collectd-cleanup"
+            dest: "{{ collectd_cleanup_script }}"
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Install collectd cleanup service
+          ansible.builtin.template:
+            src: collectd-cleanup.service.j2
+            dest: /etc/systemd/system/collectd-cleanup.service
+            owner: root
+            group: root
+            mode: "0644"
+          notify: Reload systemd
+
+        - name: Install collectd cleanup timer
+          ansible.builtin.template:
+            src: collectd-cleanup.timer.j2
+            dest: /etc/systemd/system/collectd-cleanup.timer
+            owner: root
+            group: root
+            mode: "0644"
+          notify: Reload systemd
+
+        - name: Validate collectd cleanup units
+          ansible.builtin.command:
+            argv:
+              - systemd-analyze
+              - verify
+              - /etc/systemd/system/collectd-cleanup.service
+              - /etc/systemd/system/collectd-cleanup.timer
+          changed_when: false
+
+        - name: Apply collectd cleanup unit changes
+          ansible.builtin.meta: flush_handlers
+
+        - name: Enable and start collectd cleanup timer
+          ansible.builtin.systemd:
+            name: collectd-cleanup.timer
+            enabled: true
+            state: started
+
+    - name: Check for an installed collectd cleanup timer
+      ansible.builtin.stat:
+        path: /etc/systemd/system/collectd-cleanup.timer
+      register: collectd_cleanup_timer_file
+      when: not (collectd_cleanup_enabled | bool)
+
+    - name: Disable and stop collectd cleanup timer
+      ansible.builtin.systemd:
+        name: collectd-cleanup.timer
+        enabled: false
+        state: stopped
+      when:
+        - not (collectd_cleanup_enabled | bool)
+        - collectd_cleanup_timer_file.stat.exists
+
+    - name: Remove disabled collectd cleanup files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/collectd-cleanup.service
+        - /etc/systemd/system/collectd-cleanup.timer
+        - "{{ collectd_cleanup_script }}"
+      notify: Reload systemd
+      when: not (collectd_cleanup_enabled | bool)
