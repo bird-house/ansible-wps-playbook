@@ -67,14 +67,13 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
-          - slurm_job_timeout_hours | int == 6
+          - slurm_job_timeout_minutes | int == 360
           - slurm_partitions[0].DefaultTime | int == 360
           - slurm_partitions[0].MaxTime | int == 360
           - not slurm_job_monitor_enabled
           - slurm_job_monitor_schedule.minute == '15'
           - slurm_job_monitor_user == 'wps'
-          - slurm_job_monitor_long_running_hours | float > 4.79
-          - slurm_job_monitor_long_running_hours | float < 4.81
+          - slurm_job_monitor_long_running_minutes | int == 288
           - slurm_job_monitor_pending_warning == 20
           - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
           - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'

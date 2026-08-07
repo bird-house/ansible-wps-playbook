@@ -145,7 +145,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--user", required=True, help="inspect jobs owned by this user")
     parser.add_argument(
-        "--long-running-hours",
+        "--long-running-minutes",
         required=True,
         type=float,
         help="warn when a running job reaches this age",
@@ -163,8 +163,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--log-file", type=Path)
     args = parser.parse_args(argv)
-    if args.long_running_hours <= 0:
-        parser.error("--long-running-hours must be greater than zero")
+    if args.long_running_minutes <= 0:
+        parser.error("--long-running-minutes must be greater than zero")
     if args.pending_warning <= 0:
         parser.error("--pending-warning must be greater than zero")
     return args
@@ -185,7 +185,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             lock.flush()
             summary = inspect_jobs(
                 args.user,
-                args.long_running_hours * 3600,
+                args.long_running_minutes * 60,
                 args.pending_warning,
                 logger,
             )

@@ -97,13 +97,13 @@
 - name: Validate Slurm timeout and monitoring settings
   ansible.builtin.assert:
     that:
-      - slurm_job_timeout_hours | float > 0
+      - slurm_job_timeout_minutes | int > 0
       - slurm_job_monitor_schedule | type_debug == 'dict'
       - slurm_job_monitor_user | length > 0
-      - slurm_job_monitor_long_running_hours | float > 0
+      - slurm_job_monitor_long_running_minutes | int > 0
       - >-
-        slurm_job_monitor_long_running_hours | float
-        < slurm_job_timeout_hours | float
+        slurm_job_monitor_long_running_minutes | int
+        < slurm_job_timeout_minutes | int
       - slurm_job_monitor_pending_warning | int > 0
     fail_msg: >-
       Slurm requires a positive runtime limit. Its optional monitor requires a
@@ -150,7 +150,7 @@
     job: >-
       {{ slurm_job_monitor_script }}
       --user {{ slurm_job_monitor_user | quote }}
-      --long-running-hours {{ slurm_job_monitor_long_running_hours }}
+      --long-running-minutes {{ slurm_job_monitor_long_running_minutes }}
       --pending-warning {{ slurm_job_monitor_pending_warning }}
       --lock-file {{ slurm_job_monitor_lock_file | quote }}
       --log-file {{ slurm_job_monitor_log_file | quote }}

@@ -594,13 +594,14 @@ a different hard limit:
 
 ```yaml
 pywps_job_control_stale_after_hours: 6
-slurm_job_timeout_hours: 12
+slurm_job_timeout_minutes: 720
 ```
 
-The playbook converts the Slurm timeout to minutes and applies it as both
-`DefaultTime` and `MaxTime`. Jobs therefore receive the limit even when PyWPS
-does not pass `--time` during submission, and cannot request a higher limit.
-This native enforcement does not require Slurm accounting or `slurmdbd`.
+The default converts the PyWPS stale threshold from hours to minutes. Slurm
+uses the resulting value as both `DefaultTime` and `MaxTime`, so jobs receive
+the limit even when PyWPS does not pass `--time` during submission and cannot
+request a higher limit. This native enforcement does not require Slurm
+accounting or `slurmdbd`.
 
 An independent, optional read-only monitor makes one `squeue` request for
 `PENDING` and `RUNNING` jobs owned by the configured PyWPS Unix account. Because
@@ -613,11 +614,11 @@ slurm_job_monitor_schedule:
   minute: "15"
   hour: "*"
 slurm_job_monitor_user: wps
-slurm_job_monitor_long_running_hours: 4.8
+slurm_job_monitor_long_running_minutes: 288
 slurm_job_monitor_pending_warning: 20
 ```
 
-The long-running warning defaults to 80 percent of `slurm_job_timeout_hours`.
+The long-running warning defaults to 80 percent of `slurm_job_timeout_minutes`.
 The default queue threshold warns when 20 or more jobs are pending. Every run
 records running, pending, total, and long-running counts in
 `/var/log/pywps/slurm-job-monitor.log`, which uses the existing PyWPS log
@@ -628,7 +629,7 @@ Inspect the current queue manually without making changes:
 
 ```sh
 sudo /usr/local/sbin/slurm-job-monitor \
-  --user wps --long-running-hours 4.8 --pending-warning 20
+  --user wps --long-running-minutes 288 --pending-warning 20
 ```
 
 The monitor never changes or cancels jobs. Its long-running threshold indicates
