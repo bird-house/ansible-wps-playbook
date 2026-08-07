@@ -40,22 +40,6 @@ by the PyWPS deployment.
   recovery; do not introduce a database schema change or mark an undated row
   failed without a reliable minimum age signal.
 
-### Patch release: host resource monitoring
-
-- Inventory and review the manually installed production scripts for disk
-  capacity and CPU-usage monitoring before copying them into the repository.
-  Record their current paths, schedules, users, thresholds, dependencies,
-  output, logging, and alert recipients so deployment preserves known-good
-  behaviour.
-- Manage the monitoring scripts and their scheduler entries with Ansible.
-  Make installation and scheduling configurable, keep thresholds and alert
-  destinations in variables rather than script source, use the existing cron
-  management where appropriate, and avoid overwriting a manually installed
-  script until its deployed content has been compared with the managed version.
-- Add syntax and rendered-configuration tests, verify repeated Ansible runs do
-  not create duplicate scheduler entries, and exercise alert/no-alert paths on
-  a test host before enabling the managed scripts in production.
-
 ### Stalled-job follow-up
 
 - Move the playbook-added runtime Conda packages into the application Conda
