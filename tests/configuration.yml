@@ -35,35 +35,35 @@
           - >-
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
-          - pywps_restart_schedule in ['hourly', 'daily']
-          - pywps_logrotate_min_size == '10M'
-          - pywps_logrotate_rotations == 7
-          - pywps_job_control_schedule | type_debug == 'dict'
-          - pywps_job_control_recovery_schedule | type_debug == 'dict'
-          - pywps_job_statistics_schedule | type_debug == 'dict'
-          - pywps_job_statistics_schedule.minute == '4'
-          - pywps_job_statistics_schedule.hour == '*'
-          - pywps_job_statistics_enabled
-          - pywps_job_control_schedule.minute == '*/5'
-          - pywps_job_control_recovery_schedule.minute == '1-56/5'
-          - pywps_job_control_schedule.hour == '*'
-          - pywps_job_control_stale_after_minutes | float > 0
-          - pywps_job_control_recovery_limit | int == 100
-          - pywps_job_incident_archive_enabled
-          - pywps_job_incident_archive_dir == '/var/lib/pywps/job-incidents'
-          - pywps_job_incident_keep_days == 30
-          - pywps_job_incident_keep_minutes | int == 43200
+          - wps_restart_schedule in ['hourly', 'daily']
+          - wps_logrotate_min_size == '10M'
+          - wps_logrotate_rotations == 7
+          - wps_job_control_schedule | type_debug == 'dict'
+          - wps_job_control_recovery_schedule | type_debug == 'dict'
+          - wps_job_statistics_schedule | type_debug == 'dict'
+          - wps_job_statistics_schedule.minute == '4'
+          - wps_job_statistics_schedule.hour == '*'
+          - wps_job_statistics_enabled
+          - wps_job_control_schedule.minute == '*/5'
+          - wps_job_control_recovery_schedule.minute == '1-56/5'
+          - wps_job_control_schedule.hour == '*'
+          - wps_job_control_stale_after_minutes | float > 0
+          - wps_job_control_recovery_limit | int == 100
+          - wps_job_incident_archive_enabled
+          - wps_job_incident_archive_dir == '/var/lib/pywps/job-incidents'
+          - wps_job_incident_keep_days == 30
+          - wps_job_incident_keep_minutes | int == 43200
           - >-
-            pywps_job_control_stale_after_minutes | float
+            wps_job_control_stale_after_minutes | float
             < wps_outputs_keep_minutes | float
-          - pywps_job_control_monitor_enabled
-          - not pywps_job_control_recovery_enabled
-          - not pywps_missing_status_recovery_enabled
-          - pywps_missing_status_poll_window_minutes == 60
-          - pywps_missing_status_min_poll_count == 3
-          - pywps_missing_status_min_poll_duration_minutes == 15
-          - pywps_missing_status_recovery_limit == 20
-          - pywps_missing_status_database_guard
+          - wps_job_control_monitor_enabled
+          - not wps_job_control_recovery_enabled
+          - not wps_missing_status_recovery_enabled
+          - wps_missing_status_poll_window_minutes == 60
+          - wps_missing_status_min_poll_count == 3
+          - wps_missing_status_min_poll_duration_minutes == 15
+          - wps_missing_status_recovery_limit == 20
+          - wps_missing_status_database_guard
           - wps_conda_channel == 'conda-forge'
           - "'psycopg2=2.9.12' in wps_conda_packages"
           - "'drmaa=0.7.9' in wps_conda_packages"
@@ -78,7 +78,7 @@
           - slurm_partitions[0].MaxTime | int == 90
           - >-
             slurm_job_timeout_minutes | int
-            < pywps_job_control_stale_after_minutes | float
+            < wps_job_control_stale_after_minutes | float
           - slurm_job_monitor_enabled
           - slurm_job_monitor_schedule.minute == '*/5'
           - slurm_job_monitor_user == 'wps'

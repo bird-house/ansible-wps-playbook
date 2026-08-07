@@ -21,6 +21,7 @@ Changes:
   searchable, per-service 30-day incident archive with UTC filenames
 - enable the read-only Slurm monitor by default and simplify PyWPS job control
   to the `monitor`, ordered `recover`, and `statistics` operator commands
+- standardize public PyWPS role variables on the established `wps_` prefix
 
 ## 0.9.0 (2026-07-31)
 

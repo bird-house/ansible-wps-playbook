@@ -177,51 +177,51 @@ cron_enabled: false
 cron_disabled: "{{ cron_enabled | bool == false }}"
 cron_mailto: root
 cron_user: root
-pywps_restart_enabled: true
-pywps_restart_schedule: daily
+wps_restart_enabled: true
+wps_restart_schedule: daily
 # Rotate PyWPS logs after one day only when they exceed this size.
-pywps_logrotate_min_size: 10M
-pywps_logrotate_rotations: 7
+wps_logrotate_min_size: 10M
+wps_logrotate_rotations: 7
 # Report stalled requests without changing them.
-pywps_job_control_monitor_enabled: true
+wps_job_control_monitor_enabled: true
 # Allow commands that recover stalled requests or status documents.
-pywps_job_control_recovery_enabled: false
+wps_job_control_recovery_enabled: false
 # Write a complete hourly job statistics report.
-pywps_job_statistics_enabled: true
-pywps_job_statistics_schedule:
+wps_job_statistics_enabled: true
+wps_job_statistics_schedule:
   minute: "4"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
-pywps_job_control_schedule:
+wps_job_control_schedule:
   minute: "*/5"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
-pywps_job_control_recovery_schedule:
+wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
-pywps_job_control_stale_after_minutes: 120
+wps_job_control_stale_after_minutes: 120
 # Maximum recovered jobs per layer.
-pywps_job_control_recovery_limit: 100
+wps_job_control_recovery_limit: 100
 # Preserve failed status documents separately from routine output cleanup.
-pywps_job_incident_archive_enabled: true
-pywps_job_incident_archive_dir: "{{ service_user_home }}/job-incidents"
-pywps_job_incident_keep_days: 30
-pywps_job_incident_keep_minutes: "{{ (pywps_job_incident_keep_days | int) * 1440 }}"
+wps_job_incident_archive_enabled: true
+wps_job_incident_archive_dir: "{{ service_user_home }}/job-incidents"
+wps_job_incident_keep_days: 30
+wps_job_incident_keep_minutes: "{{ (wps_job_incident_keep_days | int) * 1440 }}"
 # Create failure XML for repeated Nginx 404 status polling.
-pywps_missing_status_recovery_enabled: false
-pywps_missing_status_poll_window_minutes: 60
-pywps_missing_status_min_poll_count: 3
-pywps_missing_status_min_poll_duration_minutes: 15
-pywps_missing_status_recovery_limit: 20
-pywps_missing_status_access_log: "{{ wps_http_log_dir }}/access.log"
-pywps_missing_status_database_guard: true
+wps_missing_status_recovery_enabled: false
+wps_missing_status_poll_window_minutes: 60
+wps_missing_status_min_poll_count: 3
+wps_missing_status_min_poll_duration_minutes: 15
+wps_missing_status_recovery_limit: 20
+wps_missing_status_access_log: "{{ wps_http_log_dir }}/access.log"
+wps_missing_status_database_guard: true
 
 # selinux
 # https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html
@@ -241,7 +241,7 @@ wps_enable_acl: false
 wps_acl_allow: []
 wps_run_dir: /run/pywps
 wps_database: "postgresql+psycopg2://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/pywps"
-pywps_webservice_enabled: true
+wps_webservice_enabled: true
 wps_basedir: "{{ service_user_home }}"
 wps_cache_dir: "{{ wps_basedir }}/cache"
 # Cache WPS GetCapabilities and DescribeProcess responses.

@@ -29,7 +29,7 @@
     - role: galaxyproject.slurm
       when: slurm_enabled
     - role: pywps
-      pywps_webservice_enabled: true
+      wps_webservice_enabled: true  # noqa var-naming[no-role-prefix]
     - role: roocs
       when: roocs_enabled
 
@@ -56,6 +56,6 @@
     - role: andrewrothstein.miniconda
       tags: conda
     - role: pywps
-      pywps_webservice_enabled: false
+      wps_webservice_enabled: false  # noqa var-naming[no-role-prefix]
     - role: roocs
       when: roocs_enabled
