@@ -15,9 +15,10 @@ Changes:
 - enforce a configurable native Slurm partition timeout and add optional
   read-only `squeue`/`sinfo` monitoring for queue pressure, long-running jobs,
   scheduler capacity, and a health-check red-alert file
-- express PyWPS stale-request thresholds in minutes and run Slurm monitoring,
-  XML/database recovery, and polling recovery on staggered five-minute
-  schedules, while retaining hourly job statistics
+- express PyWPS stale-request thresholds in minutes, run monitoring and ordered
+  recovery on a five-minute cadence, and retain hourly job statistics
+- preserve failed and recovery-generated PyWPS status documents in a
+  searchable, per-service 30-day incident archive with UTC filenames
 
 ## 0.9.0 (2026-07-31)
 

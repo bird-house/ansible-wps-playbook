@@ -46,10 +46,6 @@ by the PyWPS deployment.
   specifications during the longer PyWPS environment update. In particular,
   retain the Conda-linked `psycopg2` build: the pip `psycopg2-binary` wheel's
   bundled libraries segfaulted on a fresh Python 3.13 connection.
-- Add a persistent, bounded incident history for stalled, failed, timed-out,
-  and recovered jobs. Record the request UUID, Slurm job ID when available,
-  timestamps, state or reason, and recovery action and result, and provide a
-  simple way for administrators to inspect it.
 - Consolidate and clean up the monitoring and recovery scripts after further
   production validation. Normalize locking, scheduling, batch limits, logging,
   and exit status handling, and remove obsolete compatibility paths.

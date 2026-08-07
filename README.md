@@ -301,9 +301,9 @@ ln -s etc/custom-production.yml custom.yml
 
 ### Configure output and temporary-file retention
 
-When the cleanup cron jobs are enabled, they run hourly and remove PyWPS
-outputs and temporary process directories older than 12 hours. Enable the
-jobs and configure their retention periods with:
+When the cleanup cron jobs are enabled, they run hourly at minute 3 and remove
+PyWPS outputs and temporary process directories older than 12 hours. Enable
+the jobs and configure their retention periods with:
 
 ```yaml
 cron_enabled: true
@@ -349,13 +349,18 @@ pywps_job_control_recovery_schedule:
   hour: "*"
 pywps_job_control_stale_after_minutes: 120
 pywps_job_control_recovery_limit: 100
+pywps_job_incident_archive_enabled: true
+pywps_job_incident_keep_days: 30
 pywps_job_control_layers:
   - xml
   - database
 ```
 
-The read-only monitor runs every five minutes. When recovery is enabled, XML
-and database recovery runs every five minutes with a one-minute offset.
+The monitor runs every five minutes. It does not change live request state,
+but it preserves failed XML documents in the incident archive. When recovery
+is enabled, one locked recovery command runs every five minutes with a
+one-minute offset. It always processes XML, database, and then polling evidence;
+disabled polling recovery is skipped within that ordered run.
 Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
@@ -370,6 +375,8 @@ monitor_enabled = true
 recovery_enabled = false
 missing_status_recovery_enabled = false
 statistics_enabled = true
+incident_archive_enabled = true
+incident_archive_dir = /var/lib/pywps/job-incidents/SERVICE_NAME
 ```
 
 The cron entries are controlled globally by `cron_enabled`; when invoked, the
@@ -384,7 +391,7 @@ last database status time, falling back to the request start time. Timestamps
 with `Z`, and database timestamps without an offset, are interpreted as UTC;
 the deployment host should therefore keep its clock and timezone consistent.
 
-Monitoring never changes state. Review
+Monitoring never changes live request state. Review
 `/var/log/pywps/SERVICE_NAME-job-monitor.log` before enabling scheduled
 recovery, or run the appropriate recovery shortcut manually.
 This path is derived from the service's existing `[logging] file` setting.
@@ -450,8 +457,38 @@ batches bounded even when years of unfinished requests have accumulated.
 Recovery defaults to `pywps_job_control_recovery_limit`, which is 100. Monitoring
 remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
-configured recovery default. The underlying `--status-counts` option enables a
-complete database aggregate for explicit low-level invocations.
+configured recovery defaults for every selected layer. Polling recovery uses
+its separate default of `pywps_missing_status_recovery_limit`, which is 20.
+The underlying `--status-counts` option enables a complete database aggregate
+for explicit low-level invocations.
+
+### Preserve failed-job evidence
+
+Failed PyWPS status documents are copied into a separate, bounded archive
+before routine output cleanup can remove them:
+
+```yaml
+pywps_job_incident_archive_enabled: true
+pywps_job_incident_archive_dir: /var/lib/pywps/job-incidents
+pywps_job_incident_keep_days: 30
+```
+
+Each service has its own subdirectory. Files use UTC timestamps and searchable
+names such as
+`20260807T142530Z__error__rook__subset__UUID.xml`. Failures created by the
+recovery layers use `recovered` instead of `error`. The complete status
+document is preserved, including the process identifier, submitted inputs,
+and failure message. Archive creation is atomic and idempotent; an existing
+incident is never overwritten. The job-control log records the incident type
+and archive path.
+
+The archive cleanup runs hourly at minute 3 and removes incident XML older than
+30 days by default. Ordinary successful status documents retain the shorter
+`wps_outputs_keep_hours` period. Inspect incidents with, for example:
+
+```sh
+sudo find /var/lib/pywps/job-incidents/rook -type f -name '*.xml' -print
+```
 
 Slurm timeout enforcement and host-wide queue monitoring are described under
 [Use the Slurm scheduler](#use-the-slurm-scheduler).
@@ -484,18 +521,15 @@ sudo /var/lib/pywps/statistics SERVICE_NAME
 
 ### Recover repeatedly polled missing status documents
 
-An independent, opt-in cron job can inspect recent Nginx access logs for WPS
+The ordered, opt-in recovery run can inspect recent Nginx access logs for WPS
 clients repeatedly polling a status URL that returns `404`. Once the same valid
-UUID has reached the configured request count and polling duration, the job creates
+UUID has reached the configured request count and polling duration, it creates
 a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
 instead of polling forever.
 
 ```yaml
 pywps_job_control_recovery_enabled: true
 pywps_missing_status_recovery_enabled: true
-pywps_missing_status_recovery_schedule:
-  minute: "2-57/5"
-  hour: "*"
 pywps_missing_status_poll_window_minutes: 60
 pywps_missing_status_min_poll_count: 3
 pywps_missing_status_min_poll_duration_minutes: 15
@@ -504,9 +538,10 @@ pywps_missing_status_access_log: /var/log/nginx/access.log
 pywps_missing_status_database_guard: true
 ```
 
-The default schedule runs every five minutes, offset from the main monitor by
-two minutes, and considers only requests from the preceding hour. Recovery
-requires at least three `GET` or `HEAD` responses
+The default recovery schedule runs every five minutes at minute 1 and considers
+only requests from the preceding hour. Polling is the last recovery layer, so
+XML and database reconciliation has already completed in the same locked run.
+Recovery requires at least three `GET` or `HEAD` responses
 with status `404`, spanning at least 15 minutes rather than arriving in one
 short burst. Only the exact output path configured for that PyWPS service and a
 syntactically valid UUID filename are accepted. Only the configured active log
@@ -514,8 +549,8 @@ is inspected. Rotated logs are intentionally ignored: persistent polling
 appears in the active log again and qualifies after the configured minimum
 duration.
 
-On a VM hosting multiple PyWPS services, Ansible creates one recovery cron
-entry per service. Each entry uses that service's `/etc/pywps/SERVICE.cfg`,
+On a VM hosting multiple PyWPS services, Ansible creates one ordered recovery
+cron entry per service. Each entry uses that service's `/etc/pywps/SERVICE.cfg`,
 filters the shared Nginx log to its exact configured output URL path, and writes
 only to its configured output directory.
 

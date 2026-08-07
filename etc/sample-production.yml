@@ -35,15 +35,16 @@ pywps_job_control_recovery_schedule:
 pywps_job_control_stale_after_minutes: 120
 # Maximum recovered jobs per layer.
 pywps_job_control_recovery_limit: 100
+# Preserve failed status XML for later investigation.
+pywps_job_incident_archive_enabled: true
+pywps_job_incident_archive_dir: /var/lib/pywps/job-incidents
+pywps_job_incident_keep_days: 30
 # Layers used when a command does not specify --layer.
 pywps_job_control_layers:
   - xml
   - database
 # Create failure XML for repeated Nginx 404 status polling.
 pywps_missing_status_recovery_enabled: false
-pywps_missing_status_recovery_schedule:
-  minute: "2-57/5"
-  hour: "*"
 pywps_missing_status_poll_window_minutes: 60
 pywps_missing_status_min_poll_count: 3
 pywps_missing_status_min_poll_duration_minutes: 15
