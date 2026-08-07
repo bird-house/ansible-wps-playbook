@@ -10,6 +10,7 @@ cron_enabled: false
 slurm_enabled: false
 roocs_enabled: false
 fs_enabled: false
+collectd_enabled: false
 
 conda_env_use_spec: false
 conda_env_file: environment.yml

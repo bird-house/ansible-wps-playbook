@@ -12,6 +12,18 @@ service_groups: "{{ service_group }}"
 service_user_home: /var/lib/pywps
 cron_script_dir: "{{ service_user_home }}"
 
+# collectd host monitoring (Red Hat family version 9 only)
+collectd_enabled: false
+collectd_hostname: localhost
+collectd_interval: 60
+collectd_csv_dir: /var/lib/collectd/csv
+collectd_load_enabled: true
+collectd_disk_enabled: false
+collectd_disk_mount: /mnt/ext_pywps_outputs
+collectd_memory_enabled: false
+collectd_interface_enabled: false
+collectd_interface: "{{ ansible_default_ipv4.interface | default('eth0') }}"
+
 # postgres
 db_install_postgresql: true
 db_install_sqlite: false

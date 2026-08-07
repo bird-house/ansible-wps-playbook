@@ -1,0 +1,57 @@
+# {{ ansible_managed }}
+
+Hostname "{{ collectd_hostname }}"
+FQDNLookup false
+BaseDir "/var/lib/collectd"
+PIDFile "/run/collectd.pid"
+PluginDir "/usr/lib64/collectd"
+TypesDB "/usr/share/collectd/types.db"
+Interval {{ collectd_interval }}
+Timeout 2
+ReadThreads 5
+
+LoadPlugin syslog
+<Plugin syslog>
+  LogLevel info
+</Plugin>
+
+LoadPlugin csv
+<Plugin csv>
+  DataDir "{{ collectd_csv_dir }}"
+  StoreRates false
+</Plugin>
+
+{% if collectd_load_enabled | bool %}
+LoadPlugin load
+<Plugin load>
+  ReportRelative false
+</Plugin>
+{% endif %}
+
+{% if collectd_disk_enabled | bool %}
+LoadPlugin df
+<Plugin df>
+  MountPoint "{{ collectd_disk_mount }}"
+  IgnoreSelected false
+  ReportByDevice false
+  ValuesAbsolute false
+  ValuesPercentage true
+</Plugin>
+{% endif %}
+
+{% if collectd_memory_enabled | bool %}
+LoadPlugin memory
+<Plugin memory>
+  ValuesAbsolute true
+  ValuesPercentage false
+</Plugin>
+{% endif %}
+
+{% if collectd_interface_enabled | bool %}
+LoadPlugin interface
+<Plugin interface>
+  Interface "{{ collectd_interface }}"
+  IgnoreSelected false
+  ReportInactive true
+</Plugin>
+{% endif %}

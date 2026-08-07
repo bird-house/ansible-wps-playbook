@@ -1,0 +1,100 @@
+---
+- name: Configure collectd monitoring
+  when: collectd_enabled | bool
+  tags:
+    - collectd
+  block:
+    - name: Validate collectd platform and settings
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'RedHat'
+          - ansible_distribution_major_version | int == 9
+          - >-
+            (collectd_load_enabled | bool)
+            or (collectd_disk_enabled | bool)
+            or (collectd_memory_enabled | bool)
+            or (collectd_interface_enabled | bool)
+          - collectd_interval | int > 0
+          - collectd_hostname | length > 0
+          - collectd_csv_dir is match('^/')
+          - not (collectd_disk_enabled | bool) or collectd_disk_mount is match('^/')
+          - not (collectd_interface_enabled | bool) or collectd_interface | length > 0
+        fail_msg: >-
+          collectd monitoring supports only Red Hat family version 9 hosts,
+          requires at least one metric, a positive interval, a hostname, an
+          absolute CSV directory, and valid settings for enabled metrics.
+
+    - name: Check configured collectd disk mount
+      ansible.builtin.command:
+        argv:
+          - mountpoint
+          - --quiet
+          - "{{ collectd_disk_mount }}"
+      changed_when: false
+      register: collectd_disk_mount_check
+      failed_when: false
+      when: collectd_disk_enabled | bool
+
+    - name: Validate configured collectd disk mount
+      ansible.builtin.assert:
+        that:
+          - collectd_disk_mount_check.rc == 0
+        fail_msg: >-
+          collectd_disk_mount must refer to a mounted filesystem when disk
+          monitoring is enabled: {{ collectd_disk_mount }}
+      when: collectd_disk_enabled | bool
+
+    - name: Validate configured collectd network interface
+      ansible.builtin.assert:
+        that:
+          - collectd_interface in ansible_interfaces
+        fail_msg: >-
+          collectd_interface must name an interface present on the host when
+          interface monitoring is enabled: {{ collectd_interface }}
+      when: collectd_interface_enabled | bool
+
+    - name: Install collectd
+      block:
+        - name: Install collectd package
+          ansible.builtin.package:
+            name: collectd
+            state: present
+      rescue:
+        - name: Report unavailable collectd package
+          ansible.builtin.fail:
+            msg: >-
+              The collectd package could not be installed. On Red Hat family
+              version 9, enable an appropriate package repository such as
+              EPEL before enabling collectd monitoring.
+
+    - name: Ensure collectd CSV directory exists
+      ansible.builtin.file:
+        path: "{{ collectd_csv_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure collectd
+      ansible.builtin.template:
+        src: collectd.conf.j2
+        dest: /etc/collectd.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart collectd
+
+    - name: Validate collectd configuration
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/collectd
+          - -t
+          - -C
+          - /etc/collectd.conf
+      changed_when: false
+
+    - name: Enable and start collectd
+      ansible.builtin.service:
+        name: collectd
+        enabled: true
+        state: started

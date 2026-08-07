@@ -67,6 +67,13 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
+          - not collectd_enabled
+          - collectd_load_enabled
+          - not collectd_disk_enabled
+          - collectd_disk_mount == '/mnt/ext_pywps_outputs'
+          - not collectd_memory_enabled
+          - not collectd_interface_enabled
+          - collectd_interval == 60
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -98,6 +105,9 @@
         test_nginx_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/nginx.conf.j2') }}
+        test_collectd_load_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/collectd/templates/collectd.conf.j2') }}
       vars:
         item: "{{ test_primary_service }}"
         wps_enable_https: true
@@ -105,6 +115,17 @@
         wps_acl_allow:
           - 192.0.2.0/24
         slurm_enabled: false
+
+    - name: Render collectd configuration with all metrics
+      ansible.builtin.set_fact:
+        test_collectd_all_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/collectd/templates/collectd.conf.j2') }}
+      vars:
+        collectd_disk_enabled: true
+        collectd_memory_enabled: true
+        collectd_interface_enabled: true
+        collectd_interface: ens3
 
     - name: Render Slurm service launcher
       ansible.builtin.set_fact:
@@ -238,6 +259,18 @@
           - "'layers = xml,database' in test_pywps_config"
           - "'stale_after_hours = 6' in test_pywps_config"
           - "'recovery_limit = 100' in test_pywps_config"
+          - "'LoadPlugin load' in test_collectd_load_config"
+          - "'LoadPlugin df' not in test_collectd_load_config"
+          - "'LoadPlugin memory' not in test_collectd_load_config"
+          - "'LoadPlugin interface' not in test_collectd_load_config"
+          - "'StoreRates false' in test_collectd_load_config"
+          - "'LoadPlugin load' in test_collectd_all_config"
+          - "'LoadPlugin df' in test_collectd_all_config"
+          - "'MountPoint \"/mnt/ext_pywps_outputs\"' in test_collectd_all_config"
+          - "'ValuesPercentage true' in test_collectd_all_config"
+          - "'LoadPlugin memory' in test_collectd_all_config"
+          - "'LoadPlugin interface' in test_collectd_all_config"
+          - "'Interface \"ens3\"' in test_collectd_all_config"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
           - "'poll_window_minutes = 60' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"

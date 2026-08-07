@@ -49,7 +49,7 @@ lint:
 			[[ -f "$$file" ]] && files+=("$$file"); \
 		done; (("$${#files[@]}" == 0)) \
 			|| yamllint --config-file .yamllint.yml "$${files[@]}"' _
-	ansible-lint playbook.yml tests/configuration.yml roles/common roles/pywps roles/roocs roles/slurm roles/supervisor
+	ansible-lint playbook.yml tests/configuration.yml roles/collectd roles/common roles/pywps roles/roocs roles/slurm roles/supervisor
 	bash -n scripts/install-ansible-dependencies.sh tests/convergence/run.sh
 
 .PHONY: script-test
