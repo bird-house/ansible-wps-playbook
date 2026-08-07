@@ -47,7 +47,7 @@ ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
 class Settings:
     mode: str
     layers: list[str]
-    stale_after_hours: float
+    stale_after_minutes: float
     output_dir: Path | None
     pywps_config: Path | None
     lock_file: Path
@@ -287,7 +287,7 @@ def run_xml_layer(
     summary = LayerSummary("xml")
     if settings.output_dir is None:
         raise ValueError("the XML layer requires output_dir")
-    threshold = timedelta(hours=settings.stale_after_hours)
+    threshold = timedelta(minutes=settings.stale_after_minutes)
     for path in find_status_files(settings.output_dir):
         summary.checked += 1
         try:
@@ -318,7 +318,7 @@ def run_xml_layer(
             if settings.mode == "recover":
                 message = (
                     "Process failed: stalled-job recovery found no status update "
-                    f"for at least {settings.stale_after_hours:g} hours."
+                    f"for at least {settings.stale_after_minutes:g} minutes."
                 )
                 write_failed_xml(document, tree, message, now)
                 summary.recovered += 1
@@ -687,7 +687,7 @@ def run_database_layer(
             "the database layer must run with the service Conda environment"
         ) from error
 
-    threshold = timedelta(hours=settings.stale_after_hours)
+    threshold = timedelta(minutes=settings.stale_after_minutes)
     database_url = configuration.get_config_value("logging", "database")
     engine = create_engine(database_url)
     if not inspect(engine).has_table(dblog.ProcessInstance.__tablename__):
@@ -761,7 +761,7 @@ def run_database_layer(
                     record.percent_done = 100
                     record.message = (
                         "Process failed: stalled-job recovery found no database update "
-                        f"for at least {settings.stale_after_hours:g} hours."
+                        f"for at least {settings.stale_after_minutes:g} minutes."
                     )
                     record.time_end = now.astimezone(UTC).replace(tzinfo=None)
                     session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
@@ -872,10 +872,10 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="show complete database status counts; intended for manual monitoring",
     )
     parser.add_argument(
-        "--stale-after-hours",
+        "--stale-after-minutes",
         type=float,
-        default=float(control_config.get("stale_after_hours", "6")),
-        help="consider nonfinal jobs stalled after this many hours",
+        default=float(control_config.get("stale_after_minutes", "120")),
+        help="consider nonfinal jobs stalled after this many minutes",
     )
     parser.add_argument(
         "--limit",
@@ -950,8 +950,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error(f"unsupported configured layers: {', '.join(invalid)}")
     if not layers:
         parser.error("at least one layer must be configured")
-    if args.stale_after_hours <= 0:
-        parser.error("--stale-after-hours must be greater than zero")
+    if args.stale_after_minutes <= 0:
+        parser.error("--stale-after-minutes must be greater than zero")
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
     if args.status_counts and args.mode not in {"monitor", "statistics"}:
@@ -967,7 +967,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     return Settings(
         mode=args.mode,
         layers=list(dict.fromkeys(layers)),
-        stale_after_hours=args.stale_after_hours,
+        stale_after_minutes=args.stale_after_minutes,
         output_dir=args.output_dir,
         pywps_config=preliminary.config,
         lock_file=args.lock_file,

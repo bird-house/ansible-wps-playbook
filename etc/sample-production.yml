@@ -29,7 +29,7 @@ pywps_job_statistics_schedule:
 pywps_job_control_schedule:
   minute: "15"
   hour: "*"
-pywps_job_control_stale_after_hours: 2
+pywps_job_control_stale_after_minutes: 120
 # Maximum recovered jobs per layer.
 pywps_job_control_recovery_limit: 100
 # Layers used when a command does not specify --layer.

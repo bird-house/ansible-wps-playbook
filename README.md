@@ -343,7 +343,7 @@ pywps_job_control_recovery_enabled: false
 pywps_job_control_schedule:
   minute: "15"
   hour: "*"
-pywps_job_control_stale_after_hours: 2
+pywps_job_control_stale_after_minutes: 120
 pywps_job_control_recovery_limit: 100
 pywps_job_control_layers:
   - xml
@@ -353,7 +353,7 @@ pywps_job_control_layers:
 The default runs hourly at 15 minutes past the hour. Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
-shorter than `wps_outputs_keep_hours`; otherwise status files could be removed
+shorter than `wps_outputs_keep_minutes`; otherwise status files could be removed
 before the monitor sees them.
 
 The playbook renders the operation switches into every service configuration:
@@ -422,8 +422,8 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-hours 12
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-hours 12
+sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-minutes 720
+sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-minutes 720
 sudo /var/lib/pywps/recover-xml-db SERVICE_NAME --limit 500
 ```
 
@@ -436,7 +436,7 @@ The concise command names are intentionally scoped by their installation in
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
 selection, call `pywps-job-control.py` directly and repeat `--layer`, for
 example `--layer xml --layer database`. Without an explicit layer, the script
-uses the service's `[job_control] layers` setting. `--stale-after-hours`
+uses the service's `[job_control] layers` setting. `--stale-after-minutes`
 overrides the configured threshold.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
@@ -593,7 +593,7 @@ recovery reconciles a request which remains non-final. Both limits can be
 overridden independently, but the Slurm timeout must remain shorter:
 
 ```yaml
-pywps_job_control_stale_after_hours: 2
+pywps_job_control_stale_after_minutes: 120
 slurm_job_timeout_minutes: 90
 ```
 

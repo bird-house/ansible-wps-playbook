@@ -43,11 +43,11 @@
           - pywps_job_statistics_schedule.hour == '0'
           - pywps_job_statistics_enabled
           - pywps_job_control_schedule.hour == '*'
-          - pywps_job_control_stale_after_hours | float > 0
+          - pywps_job_control_stale_after_minutes | float > 0
           - pywps_job_control_recovery_limit | int == 100
           - >-
-            pywps_job_control_stale_after_hours | float
-            < wps_outputs_keep_hours | float
+            pywps_job_control_stale_after_minutes | float
+            < wps_outputs_keep_minutes | float
           - pywps_job_control_monitor_enabled
           - not pywps_job_control_recovery_enabled
           - pywps_job_control_layers == ['xml', 'database']
@@ -72,7 +72,7 @@
           - slurm_partitions[0].MaxTime | int == 90
           - >-
             slurm_job_timeout_minutes | int
-            < pywps_job_control_stale_after_hours | float * 60
+            < pywps_job_control_stale_after_minutes | float
           - not slurm_job_monitor_enabled
           - slurm_job_monitor_schedule.minute == '*/5'
           - slurm_job_monitor_user == 'wps'
@@ -326,7 +326,7 @@
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers = xml,database' in test_pywps_config"
-          - "'stale_after_hours = 2' in test_pywps_config"
+          - "'stale_after_minutes = 120' in test_pywps_config"
           - "'recovery_limit = 100' in test_pywps_config"
           - "'LoadPlugin load' in test_collectd_load_config"
           - "'LoadPlugin df' not in test_collectd_load_config"
