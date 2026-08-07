@@ -47,7 +47,11 @@
           - wps_job_control_schedule.minute == '*/5'
           - wps_job_control_recovery_schedule.minute == '1-56/5'
           - wps_job_control_schedule.hour == '*'
+          - wps_job_control_long_running_minutes | float == 10
           - wps_job_control_stale_after_minutes | float > 0
+          - >-
+            wps_job_control_long_running_minutes | float
+            < wps_job_control_stale_after_minutes | float
           - wps_job_control_recovery_limit | int == 100
           - wps_job_incident_archive_enabled
           - wps_job_incident_archive_dir == '/var/lib/pywps/job-incidents'
@@ -330,6 +334,7 @@
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers =' not in test_pywps_config"
+          - "'long_running_minutes = 10' in test_pywps_config"
           - "'stale_after_minutes = 120' in test_pywps_config"
           - "'recovery_limit = 100' in test_pywps_config"
           - "'incident_archive_enabled = true' in test_pywps_config"

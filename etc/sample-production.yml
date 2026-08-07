@@ -32,6 +32,7 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
+wps_job_control_long_running_minutes: 10
 wps_job_control_stale_after_minutes: 120
 # Maximum recovered jobs per layer.
 wps_job_control_recovery_limit: 100

@@ -495,6 +495,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
             "statistics_enabled = true\n"
+            "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "recovery_limit = 100\n"
             "incident_archive_enabled = true\n"
@@ -510,6 +511,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         settings = MODULE.parse_args(["--config", str(config), "monitor"])
         self.assertEqual(settings.layers, ["xml", "database", "polling"])
+        self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
@@ -699,6 +701,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         cases = (
             (MODULE.LayerSummary("xml", checked=2), "info"),
             (MODULE.LayerSummary("xml", checked=2, stalled=1), "warning"),
+            (MODULE.LayerSummary("database", checked=2, long_running=1), "warning"),
             (MODULE.LayerSummary("xml", checked=2, errors=1), "error"),
         )
         for summary, expected_method in cases:
@@ -711,11 +714,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     runners={"xml": lambda *_args, result=summary: result},
                 )
                 getattr(logger, expected_method).assert_called_once_with(
-                    "summary layer=%s checked=%d stalled=%d recovered=%d "
-                    "errors=%d mode=%s limit=%s",
+                    "summary layer=%s checked=%d stalled=%d long_running=%d "
+                    "recovered=%d errors=%d mode=%s limit=%s",
                     summary.name,
                     summary.checked,
                     summary.stalled,
+                    summary.long_running,
                     summary.recovered,
                     summary.errors,
                     "monitor",
@@ -842,6 +846,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
             stalled=2,
             stalled_jobs={OTHER_JOB_UUID, THIRD_JOB_UUID},
             status_counts=counts,
+            long_running=2,
+            long_running_jobs={JOB_UUID, OTHER_JOB_UUID},
         )
 
         summaries = MODULE.execute_layers(
@@ -857,8 +863,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
         logger.info.assert_called_once_with(
             "current_status total=%s accepted=%s running=%s successful=%s "
-            "failed=%s dismissed=%s unmapped=%s stalled=%d xml_stalled=%d "
-            "database_stalled=%d xml_documents=%d errors=%d",
+            "failed=%s dismissed=%s unmapped=%s long_running=%d stalled=%d "
+            "xml_stalled=%d database_stalled=%d xml_documents=%d errors=%d",
             58,
             3,
             12,
@@ -866,6 +872,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             13,
             0,
             19,
+            2,
             3,
             2,
             2,
@@ -916,6 +923,26 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         record.time_end = None
         self.assertEqual(MODULE.database_last_update(record), start.replace(tzinfo=UTC))
+        self.assertEqual(MODULE.database_start_time(record), start.replace(tzinfo=UTC))
+        record.time_start = None
+        self.assertIsNone(MODULE.database_start_time(record))
+
+    def test_database_long_running_uses_request_start_not_last_update(self):
+        record = argparse.Namespace(
+            time_start=self.now - timedelta(minutes=11),
+            time_end=self.now - timedelta(minutes=1),
+        )
+        self.assertTrue(
+            MODULE.is_database_job_long_running(
+                record, self.now, timedelta(minutes=10)
+            )
+        )
+        record.time_start = self.now - timedelta(minutes=9)
+        self.assertFalse(
+            MODULE.is_database_job_long_running(
+                record, self.now, timedelta(minutes=10)
+            )
+        )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
     def test_database_guard_vetoes_recent_and_old_nonfinal_requests(self):

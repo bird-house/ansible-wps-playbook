@@ -347,6 +347,7 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
+wps_job_control_long_running_minutes: 10
 wps_job_control_stale_after_minutes: 120
 wps_job_control_recovery_limit: 100
 wps_job_incident_archive_enabled: true
@@ -358,6 +359,10 @@ but it preserves failed XML documents in the incident archive. When recovery
 is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 disabled polling recovery is skipped within that ordered run.
+The database layer reports non-final requests as long-running after 10 minutes
+by default, based on their request start time. This is an early warning only;
+the request is not recovered until it also reaches the separate 120-minute
+stale threshold without a status update.
 Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
@@ -502,8 +507,10 @@ successful, failed, dismissed, and unmapped. PyWPS `started` and `paused`
 records are combined as `running`. It also reports the unique stalled-job
 count, the separate XML and database stalled counts, the number of XML status
 documents, and layer errors. A request stalled in both XML and the database is
-counted only once in `stalled`. Routine individual findings are excluded, and
-only actual errors add extra log records or reach the cron console. The
+counted only once in `stalled`. The line also includes the number of non-final
+database requests beyond the long-running warning threshold. Routine
+individual findings are excluded, and only actual errors add extra log records
+or reach the cron console. The
 statistics log uses the same daily maximum frequency and configured
 minimum-size threshold as the other service logs. Run the same report manually
 with:
