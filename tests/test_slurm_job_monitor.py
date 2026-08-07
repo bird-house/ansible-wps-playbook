@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -75,6 +76,54 @@ class SlurmJobMonitorTests(unittest.TestCase):
             14400,
         )
 
+    def test_list_capacity_uses_sinfo_node_and_partition_fields(self):
+        runner = mock.Mock(
+            return_value=subprocess.CompletedProcess(
+                [], 0, stdout="localhost|up|idle|none\n"
+            )
+        )
+
+        capacity = MODULE.list_capacity(runner)
+
+        self.assertEqual(
+            capacity,
+            [MODULE.SlurmCapacity("localhost", "up", "idle", "none")],
+        )
+        self.assertEqual(
+            runner.call_args.args[0],
+            [
+                "sinfo",
+                "--noheader",
+                "--Node",
+                "--format",
+                "%N|%a|%T|%E",
+            ],
+        )
+
+    def test_capacity_accepts_working_states_and_flags_bad_states(self):
+        healthy = [
+            MODULE.SlurmCapacity("node1", "up", state, "none")
+            for state in ("idle", "allocated", "allocated+", "mixed", "completing")
+        ]
+        self.assertEqual(MODULE.capacity_issues(healthy), [])
+
+        unhealthy = [
+            MODULE.SlurmCapacity("node1", "down", "idle", "maintenance"),
+            MODULE.SlurmCapacity("node2", "up", "down*", "not responding"),
+            MODULE.SlurmCapacity("node3", "up", "drained", "operator request"),
+        ]
+        issues = MODULE.capacity_issues(unhealthy)
+        self.assertEqual(len(issues), 3)
+        self.assertIn("partition_state=down", issues[0])
+        self.assertIn("node_state=down*", issues[1])
+        self.assertIn("node_state=drained", issues[2])
+
+    def test_missing_capacity_is_a_red_alert_condition(self):
+        self.assertEqual(
+            MODULE.capacity_issues([]),
+            ["reason=no-capacity-records"],
+        )
+
     def test_pending_queue_warning_uses_configured_threshold(self):
         runner = mock.Mock(
             return_value=subprocess.CompletedProcess(
@@ -114,6 +163,28 @@ class SlurmJobMonitorTests(unittest.TestCase):
         self.assertEqual(handlers[0].level, MODULE.logging.WARNING)
         self.assertEqual(handlers[1].level, MODULE.logging.INFO)
         handlers[1].close()
+
+    def test_red_alert_is_atomic_readable_json_and_can_be_cleared(self):
+        with tempfile.TemporaryDirectory() as directory:
+            alert = Path(directory) / "run" / "slurm-red-alert.json"
+
+            MODULE.write_alert(
+                alert,
+                "pending-queue-full",
+                pending=20,
+                threshold=20,
+            )
+
+            payload = json.loads(alert.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "red")
+            self.assertEqual(payload["reason"], "pending-queue-full")
+            self.assertEqual(payload["pending"], 20)
+            self.assertEqual(payload["threshold"], 20)
+            self.assertIn("checked_at", payload)
+            self.assertEqual(alert.stat().st_mode & 0o777, 0o644)
+
+            MODULE.clear_alert(alert)
+            self.assertFalse(alert.exists())
 
 
 if __name__ == "__main__":

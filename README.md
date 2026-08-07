@@ -622,6 +622,7 @@ slurm_job_monitor_schedule:
 slurm_job_monitor_user: wps
 slurm_job_monitor_long_running_minutes: 10
 slurm_job_monitor_pending_warning: 20
+slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 ```
 
 The long-running warning defaults to 10 minutes. The default queue threshold
@@ -630,6 +631,14 @@ records running, pending, total, and long-running counts in
 `/var/log/pywps/slurm-job-monitor.log`, which uses the existing PyWPS log
 rotation. Individual long-running jobs and a full pending queue produce
 warnings suitable for cron mail.
+
+The monitor also maintains a root-owned, mode `0644` red-alert file for a
+future PyWPS health check. It atomically writes JSON when the pending threshold
+is reached, `squeue` or `sinfo` cannot query Slurm, the partition is unavailable,
+or the single node is unusable or non-responsive. A healthy run removes the
+file. Long-running jobs alone do not set the red alert. The file reports a
+timestamp and one of `pending-queue-full`, `slurm-capacity-unavailable`, or
+`slurm-monitor-error`; it does not automatically drain nodes or restart Slurm.
 
 Inspect the current queue manually without making changes:
 

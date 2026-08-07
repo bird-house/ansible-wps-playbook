@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import json
 import logging
 import os
 import subprocess
+import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -18,6 +21,14 @@ class SlurmJob:
     job_id: str
     state: str
     elapsed_seconds: int | None
+
+
+@dataclass(frozen=True)
+class SlurmCapacity:
+    node: str
+    partition_state: str
+    node_state: str
+    reason: str
 
 
 @dataclass
@@ -32,6 +43,9 @@ class Summary:
 
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
+UTC = timezone.utc
+USABLE_NODE_STATES = {"allocated", "completing", "idle", "mixed"}
+NODE_STATE_FLAGS = "*~#!%$@^-+"
 
 
 def parse_elapsed(value: str) -> int:
@@ -91,6 +105,55 @@ def list_jobs(user: str, runner: CommandRunner = subprocess.run) -> list[SlurmJo
     return jobs
 
 
+def list_capacity(runner: CommandRunner = subprocess.run) -> list[SlurmCapacity]:
+    result = runner(
+        [
+            "sinfo",
+            "--noheader",
+            "--Node",
+            "--format",
+            "%N|%a|%T|%E",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "LC_ALL": "C"},
+    )
+    capacity: list[SlurmCapacity] = []
+    for line_number, line in enumerate(result.stdout.splitlines(), start=1):
+        if not line.strip():
+            continue
+        fields = [field.strip() for field in line.split("|")]
+        if len(fields) != 4 or not all(fields[:3]):
+            raise ValueError(f"invalid sinfo output on line {line_number}: {line}")
+        node, partition_state, node_state, reason = fields
+        capacity.append(SlurmCapacity(node, partition_state, node_state, reason))
+    return capacity
+
+
+def capacity_issues(capacity: Sequence[SlurmCapacity]) -> list[str]:
+    if not capacity:
+        return ["reason=no-capacity-records"]
+    issues: list[str] = []
+    for record in capacity:
+        normalized_state = record.node_state.lower().rstrip(NODE_STATE_FLAGS)
+        partition_is_usable = record.partition_state.lower() == "up"
+        node_is_responding = not record.node_state.endswith("*")
+        node_is_usable = normalized_state in USABLE_NODE_STATES
+        if partition_is_usable and node_is_responding and node_is_usable:
+            continue
+        issues.append(
+            "node=%s partition_state=%s node_state=%s reason=%s"
+            % (
+                record.node,
+                record.partition_state,
+                record.node_state,
+                record.reason or "none",
+            )
+        )
+    return issues
+
+
 def inspect_jobs(
     user: str,
     long_running_seconds: float,
@@ -122,6 +185,49 @@ def inspect_jobs(
             pending_warning,
         )
     return summary
+
+
+def write_alert(
+    path: Path,
+    reason: str,
+    *,
+    pending: int | None = None,
+    threshold: int | None = None,
+    detail: str | None = None,
+) -> None:
+    payload: dict[str, object] = {
+        "status": "red",
+        "checked_at": datetime.now(UTC).isoformat(),
+        "reason": reason,
+    }
+    if pending is not None:
+        payload["pending"] = pending
+    if threshold is not None:
+        payload["threshold"] = threshold
+    if detail:
+        payload["detail"] = detail
+    path.parent.mkdir(parents=True, exist_ok=True)
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary_name, 0o644)
+        os.replace(temporary_name, path)
+    except BaseException:
+        try:
+            os.unlink(temporary_name)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def clear_alert(path: Path) -> None:
+    path.unlink(missing_ok=True)
 
 
 def configure_logging(log_file: Path | None) -> logging.Logger:
@@ -162,6 +268,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=Path("/run/lock/slurm-job-monitor.lock"),
     )
     parser.add_argument("--log-file", type=Path)
+    parser.add_argument(
+        "--alert-file",
+        type=Path,
+        default=Path("/run/pywps/slurm-red-alert.json"),
+    )
     args = parser.parse_args(argv)
     if args.long_running_minutes <= 0:
         parser.error("--long-running-minutes must be greater than zero")
@@ -171,6 +282,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    args: argparse.Namespace | None = None
     try:
         args = parse_args(argv)
         logger = configure_logging(args.log_file)
@@ -189,20 +301,51 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.pending_warning,
                 logger,
             )
+            issues = capacity_issues(list_capacity())
+            for issue in issues:
+                logger.warning("finding=slurm-capacity-unavailable %s", issue)
         queue_warning = summary.pending >= args.pending_warning
-        log_summary = logger.warning if summary.long_running or queue_warning else logger.info
+        if issues:
+            write_alert(
+                args.alert_file,
+                "slurm-capacity-unavailable",
+                detail="; ".join(issues),
+            )
+        elif queue_warning:
+            write_alert(
+                args.alert_file,
+                "pending-queue-full",
+                pending=summary.pending,
+                threshold=args.pending_warning,
+            )
+        else:
+            clear_alert(args.alert_file)
+        log_summary = (
+            logger.warning
+            if summary.long_running or queue_warning or issues
+            else logger.info
+        )
         log_summary(
-            "summary running=%d pending=%d total=%d long_running=%d user=%s",
+            "summary running=%d pending=%d total=%d long_running=%d "
+            "capacity_issues=%d user=%s",
             summary.running,
             summary.pending,
             summary.total,
             summary.long_running,
+            len(issues),
             args.user,
         )
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
         logging.getLogger("slurm-job-monitor").error("result=error reason=%s", error)
+        if args is not None:
+            try:
+                write_alert(args.alert_file, "slurm-monitor-error", detail=str(error))
+            except OSError as alert_error:
+                logging.getLogger("slurm-job-monitor").error(
+                    "alert=red result=error reason=%s", alert_error
+                )
         return 1
 
 

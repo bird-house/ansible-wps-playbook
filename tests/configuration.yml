@@ -87,6 +87,9 @@
           - >-
             slurm_job_monitor_log_file
             == '/var/log/pywps/slurm-job-monitor.log'
+          - >-
+            slurm_job_monitor_alert_file
+            == '/run/pywps/slurm-red-alert.json'
           - not collectd_enabled
           - collectd_load_enabled
           - not collectd_disk_enabled

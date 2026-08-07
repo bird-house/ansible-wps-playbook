@@ -159,6 +159,7 @@
       --pending-warning {{ slurm_job_monitor_pending_warning }}
       --lock-file {{ slurm_job_monitor_lock_file | quote }}
       --log-file {{ slurm_job_monitor_log_file | quote }}
+      --alert-file {{ slurm_job_monitor_alert_file | quote }}
     cron_file: ansible_slurm
     disabled: >-
       {{ (cron_disabled | bool) or not (slurm_job_monitor_enabled | bool) }}

@@ -76,6 +76,7 @@ slurm_job_timeout_minutes: 90
 slurm_job_monitor_enabled: false
 slurm_job_monitor_long_running_minutes: 10
 slurm_job_monitor_pending_warning: 20
+slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 
 # Tune these values for the CPUs and workload available on the target.
 gunicorn_workers: 5
