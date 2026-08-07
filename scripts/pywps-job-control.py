@@ -13,7 +13,7 @@ import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable
@@ -33,6 +33,11 @@ XML_JOB_STATUSES = {
     "ProcessFailed": "failed",
 }
 SUPPORTED_LAYERS = ("xml", "database", "polling")
+DEFAULT_LAYERS = {
+    "monitor": SUPPORTED_LAYERS,
+    "recover": SUPPORTED_LAYERS,
+    "statistics": ("xml", "database"),
+}
 UTC = timezone.utc
 JOB_CONTROL_SECTION = "job_control"
 ACCESS_LOG_RE = re.compile(
@@ -70,6 +75,7 @@ class Settings:
     incident_archive_dir: Path | None = None
     recovery_limit: int = 100
     missing_status_recovery_limit: int = 20
+    long_running_minutes: float = 10
 
 
 @dataclass
@@ -79,6 +85,10 @@ class LayerSummary:
     stalled: int = 0
     recovered: int = 0
     errors: int = 0
+    stalled_jobs: set[str] = field(default_factory=set)
+    status_counts: dict[str, int] | None = None
+    long_running: int = 0
+    long_running_jobs: set[str] = field(default_factory=set)
 
 
 class SummaryConsoleFilter(logging.Filter):
@@ -86,7 +96,16 @@ class SummaryConsoleFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return record.levelno >= logging.WARNING or record.getMessage().startswith(
-            ("summary ", "status_summary ")
+            ("summary ", "status_summary ", "current_status ")
+        )
+
+
+class StatisticsFilter(logging.Filter):
+    """Keep one routine current-status line while retaining real errors."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= logging.WARNING or record.getMessage().startswith(
+            "current_status "
         )
 
 
@@ -398,6 +417,7 @@ def run_xml_layer(
                 )
                 continue
             summary.stalled += 1
+            summary.stalled_jobs.add(document.job_uuid)
             logger.info(
                 "layer=xml job=%s status=%s finding=stalled updated=%s",
                 document.job_uuid,
@@ -680,6 +700,7 @@ def run_polling_layer(
                 )
                 continue
             summary.stalled += 1
+            summary.stalled_jobs.add(candidate.job_uuid)
             logger.info(
                 "layer=polling job=%s decision=missing-status polls=%d "
                 "first_seen=%s last_seen=%s",
@@ -723,6 +744,24 @@ def database_last_update(record: object) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def database_start_time(record: object) -> datetime | None:
+    value = getattr(record, "time_start", None)
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def is_database_job_long_running(
+    record: object,
+    now: datetime,
+    threshold: timedelta,
+) -> bool:
+    started = database_start_time(record)
+    return started is not None and is_stalled(started, now, threshold)
 
 
 def database_job_status(value: object, wps_status: object) -> str | None:
@@ -781,6 +820,7 @@ def run_database_layer(
         ) from error
 
     threshold = timedelta(minutes=settings.stale_after_minutes)
+    long_running_threshold = timedelta(minutes=settings.long_running_minutes)
     database_url = configuration.get_config_value("logging", "database")
     engine = create_engine(database_url)
     if not inspect(engine).has_table(dblog.ProcessInstance.__tablename__):
@@ -800,17 +840,19 @@ def run_database_layer(
                 .all(),
                 WPS_STATUS,
             )
-            logger.info(
-                "status_summary total=%d accepted=%d running=%d "
-                "successful=%d failed=%d dismissed=%d unmapped=%d",
-                status_counts["total"],
-                status_counts["accepted"],
-                status_counts["running"],
-                status_counts["successful"],
-                status_counts["failed"],
-                status_counts["dismissed"],
-                status_counts["unmapped"],
-            )
+            summary.status_counts = status_counts
+            if settings.mode != "statistics":
+                logger.info(
+                    "status_summary total=%d accepted=%d running=%d "
+                    "successful=%d failed=%d dismissed=%d unmapped=%d",
+                    status_counts["total"],
+                    status_counts["accepted"],
+                    status_counts["running"],
+                    status_counts["successful"],
+                    status_counts["failed"],
+                    status_counts["dismissed"],
+                    status_counts["unmapped"],
+                )
         query = session.query(dblog.ProcessInstance).filter(
             or_(
                 dblog.ProcessInstance.status.is_(None),
@@ -820,13 +862,24 @@ def run_database_layer(
             )
         )
         cutoff = (now - threshold).astimezone(UTC).replace(tzinfo=None)
+        long_running_cutoff = (now - long_running_threshold).astimezone(UTC).replace(
+            tzinfo=None
+        )
         last_update = func.coalesce(
             dblog.ProcessInstance.time_end,
             dblog.ProcessInstance.time_start,
         )
-        query = query.filter(
-            or_(last_update.is_(None), last_update <= cutoff)
-        ).order_by(last_update, dblog.ProcessInstance.uuid)
+        stale_filter = or_(last_update.is_(None), last_update <= cutoff)
+        if settings.mode == "recover":
+            query = query.filter(stale_filter)
+        else:
+            query = query.filter(
+                or_(
+                    stale_filter,
+                    dblog.ProcessInstance.time_start <= long_running_cutoff,
+                )
+            )
+        query = query.order_by(last_update, dblog.ProcessInstance.uuid)
         if settings.limit is not None:
             query = query.limit(settings.limit)
         records = query.all()
@@ -834,6 +887,23 @@ def run_database_layer(
             summary.checked += 1
             try:
                 last_update = database_last_update(record)
+                started = database_start_time(record)
+                if (
+                    settings.mode != "recover"
+                    and is_database_job_long_running(
+                        record, now, long_running_threshold
+                    )
+                ):
+                    summary.long_running += 1
+                    summary.long_running_jobs.add(str(record.uuid))
+                    logger.info(
+                        "layer=database job=%s status=%s finding=long-running "
+                        "started=%s elapsed_minutes=%d",
+                        record.uuid,
+                        database_job_status(record.status, WPS_STATUS) or "unmapped",
+                        started.isoformat(),
+                        int((now - started).total_seconds() // 60),
+                    )
                 if not is_stalled(last_update, now, threshold):
                     logger.debug(
                         "layer=database job=%s status=%s finding=recent updated=%s",
@@ -843,6 +913,7 @@ def run_database_layer(
                     )
                     continue
                 summary.stalled += 1
+                summary.stalled_jobs.add(str(record.uuid))
                 logger.info(
                     "layer=database job=%s status=%s finding=stalled updated=%s",
                     record.uuid,
@@ -925,11 +996,6 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         config.add_section(JOB_CONTROL_SECTION)
     control_config = config[JOB_CONTROL_SECTION]
 
-    configured_layers = [
-        layer.strip()
-        for layer in control_config.get("layers", "xml,database").split(",")
-        if layer.strip()
-    ]
     parser = argparse.ArgumentParser(
         description=__doc__,
         parents=[pre_parser],
@@ -963,6 +1029,12 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--status-counts",
         action="store_true",
         help="show complete database status counts; intended for manual monitoring",
+    )
+    parser.add_argument(
+        "--long-running-minutes",
+        type=float,
+        default=float(control_config.get("long_running_minutes", "10")),
+        help="warn about nonfinal database jobs running this many minutes",
     )
     parser.add_argument(
         "--stale-after-minutes",
@@ -1043,14 +1115,18 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "incident_archive_enabled", fallback=False
     )
     incident_archive_dir = optional_path(control_config.get("incident_archive_dir"))
-    layers = args.layer or configured_layers
+    layers = args.layer or DEFAULT_LAYERS[args.mode]
     invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
     if invalid:
-        parser.error(f"unsupported configured layers: {', '.join(invalid)}")
+        parser.error(f"unsupported layers: {', '.join(invalid)}")
     if not layers:
         parser.error("at least one layer must be configured")
     if args.stale_after_minutes <= 0:
         parser.error("--stale-after-minutes must be greater than zero")
+    if args.long_running_minutes <= 0:
+        parser.error("--long-running-minutes must be greater than zero")
+    if args.long_running_minutes >= args.stale_after_minutes:
+        parser.error("--long-running-minutes must be shorter than --stale-after-minutes")
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
     if recovery_limit <= 0 or missing_status_recovery_limit <= 0:
@@ -1102,6 +1178,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         incident_archive_dir=incident_archive_dir,
         recovery_limit=recovery_limit,
         missing_status_recovery_limit=missing_status_recovery_limit,
+        long_running_minutes=args.long_running_minutes,
     )
 
 
@@ -1126,7 +1203,7 @@ def configure_logging(
         file_handler.addFilter(service_filter)
         file_handler.setLevel(logging.INFO)
         if statistics_only:
-            file_handler.addFilter(SummaryConsoleFilter())
+            file_handler.addFilter(StatisticsFilter())
         handlers.append(file_handler)
     logging.basicConfig(
         level=logging.INFO,
@@ -1186,24 +1263,61 @@ def execute_layers(
             logger.exception("layer=%s decision=error reason=%s", layer, error)
             summary = LayerSummary(layer, errors=1)
         summaries.append(summary)
+        if settings.mode == "statistics":
+            continue
         if summary.errors:
             log_summary = logger.error
-        elif summary.stalled:
+        elif summary.stalled or summary.long_running:
             log_summary = logger.warning
         else:
             log_summary = logger.info
         log_summary(
-            "summary layer=%s checked=%d stalled=%d recovered=%d errors=%d "
-            "mode=%s limit=%s",
+            "summary layer=%s checked=%d stalled=%d long_running=%d "
+            "recovered=%d errors=%d mode=%s limit=%s",
             summary.name,
             summary.checked,
             summary.stalled,
+            summary.long_running,
             summary.recovered,
             summary.errors,
             settings.mode,
             settings.limit if settings.limit is not None else "none",
         )
     return summaries
+
+
+def log_current_status(
+    summaries: list[LayerSummary],
+    logger: logging.Logger,
+) -> None:
+    by_name = {summary.name: summary for summary in summaries}
+    xml = by_name.get("xml", LayerSummary("xml"))
+    database = by_name.get("database", LayerSummary("database"))
+    counts = database.status_counts or {}
+    stalled_jobs = set().union(
+        *(summary.stalled_jobs for summary in summaries)
+    )
+    long_running_jobs = set().union(
+        *(summary.long_running_jobs for summary in summaries)
+    )
+    logger.info(
+        "current_status total=%s accepted=%s running=%s successful=%s "
+        "failed=%s dismissed=%s unmapped=%s long_running=%d stalled=%d "
+        "xml_stalled=%d database_stalled=%d xml_documents=%d errors=%d",
+        counts.get("total", "unknown"),
+        counts.get("accepted", "unknown"),
+        counts.get("running", "unknown"),
+        counts.get("successful", "unknown"),
+        counts.get("failed", "unknown"),
+        counts.get("dismissed", "unknown"),
+        counts.get("unmapped", "unknown"),
+        len(long_running_jobs),
+        len(stalled_jobs),
+        xml.stalled,
+        database.stalled,
+        xml.checked,
+        sum(summary.errors for summary in summaries),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1232,6 +1346,8 @@ def main(argv: list[str] | None = None) -> int:
             lock.write(f"{os.getpid()}\n")
             lock.flush()
             summaries = execute_layers(settings, datetime.now(UTC), logger)
+            if settings.mode == "statistics":
+                log_current_status(summaries, logger)
             return 1 if any(summary.errors for summary in summaries) else 0
     except (OSError, ValueError) as error:
         logging.basicConfig(

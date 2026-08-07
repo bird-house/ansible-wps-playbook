@@ -320,11 +320,11 @@ PyWPS services restart daily by default when cron is enabled. Scheduled
 restarts can be disabled, or the schedule changed to hourly:
 
 ```yaml
-pywps_restart_enabled: true
-pywps_restart_schedule: daily  # hourly or daily
+wps_restart_enabled: true
+wps_restart_schedule: daily  # hourly or daily
 ```
 
-Set `pywps_restart_enabled: false` to disable the cron entry. The script
+Set `wps_restart_enabled: false` to disable the cron entry. The script
 remains available and can still be run manually:
 
 ```sh
@@ -333,27 +333,25 @@ remains available and can still be run manually:
 
 ### Monitor and recover stalled jobs
 
-The playbook installs the job-control script once. Scheduled monitoring is
-read-only. Scheduled recovery remains disabled until its explicit switches are
-enabled:
+The playbook installs the job-control script once. Scheduled monitoring does
+not change live request state. Scheduled recovery remains disabled until its
+explicit switches are enabled:
 
 ```yaml
 cron_enabled: true
-pywps_job_control_monitor_enabled: true
-pywps_job_control_recovery_enabled: false
-pywps_job_control_schedule:
+wps_job_control_monitor_enabled: true
+wps_job_control_recovery_enabled: false
+wps_job_control_schedule:
   minute: "*/5"
   hour: "*"
-pywps_job_control_recovery_schedule:
+wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-pywps_job_control_stale_after_minutes: 120
-pywps_job_control_recovery_limit: 100
-pywps_job_incident_archive_enabled: true
-pywps_job_incident_keep_days: 30
-pywps_job_control_layers:
-  - xml
-  - database
+wps_job_control_long_running_minutes: 10
+wps_job_control_stale_after_minutes: 120
+wps_job_control_recovery_limit: 100
+wps_job_incident_archive_enabled: true
+wps_job_incident_keep_days: 30
 ```
 
 The monitor runs every five minutes. It does not change live request state,
@@ -361,6 +359,10 @@ but it preserves failed XML documents in the incident archive. When recovery
 is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 disabled polling recovery is skipped within that ordered run.
+The database layer reports non-final requests as long-running after 10 minutes
+by default, based on their request start time. This is an early warning only;
+the request is not recovered until it also reaches the separate 120-minute
+stale threshold without a status update.
 Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
@@ -398,8 +400,8 @@ This path is derived from the service's existing `[logging] file` setting.
 The existing `/etc/logrotate.d/pywps` wildcard manages this log together with
 the other PyWPS logs. By default, a log becomes eligible for rotation after
 one day only when it exceeds `10M`; both the size and retained archive count
-are configurable with `pywps_logrotate_min_size` and
-`pywps_logrotate_rotations`.
+are configurable with `wps_logrotate_min_size` and
+`wps_logrotate_rotations`.
 
 Individual stalled findings are written to the log file. Scheduled runs emit
 a single warning summary for each layer containing stalled jobs, rather than
@@ -415,50 +417,43 @@ terminal. It does not calculate the complete database status aggregate. The
 five-minute scheduled monitor performs the same all-layer check and remains quiet
 unless it finds stalled jobs or errors.
 
-Recover only stalled XML documents with:
+Recover stalled jobs with the single ordered operator command:
 
 ```sh
-sudo /var/lib/pywps/recover-xml SERVICE_NAME
+sudo /var/lib/pywps/recover SERVICE_NAME
 ```
 
-Recover the XML and database layers together with:
-
-```sh
-sudo /var/lib/pywps/recover-xml-db SERVICE_NAME
-```
-
-Recovery atomically changes stalled XML documents to `ProcessFailed`. In the
-database it marks the existing request failed and removes a matching stored
-queue entry; it does not change the database schema. The generated
+Recovery always runs XML, database, and polling in that order under one
+per-service lock. It atomically changes stalled XML documents to
+`ProcessFailed`. In the database it marks the existing request failed and
+removes a matching stored queue entry; it does not change the database schema.
+Polling recovery is skipped unless its separate switch is enabled. The generated
 `[job_control]` section lives in the service's existing PyWPS configuration,
 and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
 sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-minutes 720
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-minutes 720
-sudo /var/lib/pywps/recover-xml-db SERVICE_NAME --limit 500
+sudo /var/lib/pywps/recover SERVICE_NAME --stale-after-minutes 720
+sudo /var/lib/pywps/recover SERVICE_NAME --limit 500
 ```
 
-The concise command names are intentionally scoped by their installation in
-`/var/lib/pywps`: `monitor` checks all layers, `recover-xml` changes only XML,
-`recover-polling` handles missing status documents found through polling, and
-`recover-xml-db` selects XML and database. The deployed implementation is
-`pywps-job-control.py`.
+The concise commands installed in `/var/lib/pywps` are `monitor`, `recover`,
+and `statistics`. The deployed implementation is `pywps-job-control.py`.
 
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
-selection, call `pywps-job-control.py` directly and repeat `--layer`, for
-example `--layer xml --layer database`. Without an explicit layer, the script
-uses the service's `[job_control] layers` setting. `--stale-after-minutes`
-overrides the configured threshold.
+diagnosis, call `pywps-job-control.py` directly and repeat `--layer`, for
+example `--layer xml --layer database`. Without explicit layers, monitoring
+and recovery use all three layers in their safe order; statistics uses XML and
+database. `--stale-after-minutes` overrides the configured threshold.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
 batches bounded even when years of unfinished requests have accumulated.
-Recovery defaults to `pywps_job_control_recovery_limit`, which is 100. Monitoring
+Recovery defaults to `wps_job_control_recovery_limit`, which is 100. Monitoring
 remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery defaults for every selected layer. Polling recovery uses
-its separate default of `pywps_missing_status_recovery_limit`, which is 20.
+its separate default of `wps_missing_status_recovery_limit`, which is 20.
 The underlying `--status-counts` option enables a complete database aggregate
 for explicit low-level invocations.
 
@@ -468,9 +463,9 @@ Failed PyWPS status documents are copied into a separate, bounded archive
 before routine output cleanup can remove them:
 
 ```yaml
-pywps_job_incident_archive_enabled: true
-pywps_job_incident_archive_dir: /var/lib/pywps/job-incidents
-pywps_job_incident_keep_days: 30
+wps_job_incident_archive_enabled: true
+wps_job_incident_archive_dir: /var/lib/pywps/job-incidents
+wps_job_incident_keep_days: 30
 ```
 
 Each service has its own subdirectory. Files use UTC timestamps and searchable
@@ -499,21 +494,26 @@ When cron is enabled, a separate read-only statistics job runs hourly at four
 minutes past the hour by default:
 
 ```yaml
-pywps_job_statistics_enabled: true
-pywps_job_statistics_schedule:
+wps_job_statistics_enabled: true
+wps_job_statistics_schedule:
   minute: "4"
   hour: "*"
 ```
 
-It records complete XML and database layer summaries plus a full status
+It records one `current_status` line per run in
+`/var/log/pywps/SERVICE_NAME-stats.log`. The line contains the complete database
 aggregate using the OGC API Processes vocabulary: accepted, running,
-successful, failed, and dismissed. PyWPS `started` and `paused` records are
-combined as `running`; missing or unrecognized values are reported as
-`unmapped`. These counts cover the complete request table. Routine individual
-findings are excluded from `/var/log/pywps/SERVICE_NAME-stats.log`,
-and only errors are written to the cron console. The statistics log uses the
-same daily maximum frequency and configured minimum-size threshold as the
-other service logs. Run the same report manually with:
+successful, failed, dismissed, and unmapped. PyWPS `started` and `paused`
+records are combined as `running`. It also reports the unique stalled-job
+count, the separate XML and database stalled counts, the number of XML status
+documents, and layer errors. A request stalled in both XML and the database is
+counted only once in `stalled`. The line also includes the number of non-final
+database requests beyond the long-running warning threshold. Routine
+individual findings are excluded, and only actual errors add extra log records
+or reach the cron console. The
+statistics log uses the same daily maximum frequency and configured
+minimum-size threshold as the other service logs. Run the same report manually
+with:
 
 ```sh
 sudo /var/lib/pywps/statistics SERVICE_NAME
@@ -528,14 +528,14 @@ a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
 instead of polling forever.
 
 ```yaml
-pywps_job_control_recovery_enabled: true
-pywps_missing_status_recovery_enabled: true
-pywps_missing_status_poll_window_minutes: 60
-pywps_missing_status_min_poll_count: 3
-pywps_missing_status_min_poll_duration_minutes: 15
-pywps_missing_status_recovery_limit: 20
-pywps_missing_status_access_log: /var/log/nginx/access.log
-pywps_missing_status_database_guard: true
+wps_job_control_recovery_enabled: true
+wps_missing_status_recovery_enabled: true
+wps_missing_status_poll_window_minutes: 60
+wps_missing_status_min_poll_count: 3
+wps_missing_status_min_poll_duration_minutes: 15
+wps_missing_status_recovery_limit: 20
+wps_missing_status_access_log: /var/log/nginx/access.log
+wps_missing_status_database_guard: true
 ```
 
 The default recovery schedule runs every five minutes at minute 1 and considers
@@ -569,9 +569,9 @@ output directory, is mode `0644`, contains a UTC creation time and useful
 failure message, and is recorded as a warning in the existing per-service
 stalled-job log. Each run recovers at most 20 documents by default.
 
-The `monitor` shortcut checks XML, database, and polling without changing
-state. Recover polling candidates only when intended with
-`sudo /var/lib/pywps/recover-polling SERVICE_NAME`.
+The `monitor` shortcut checks XML, database, and polling without changing live
+request state. The unified `recover` command handles qualifying polling
+candidates only when both recovery switches are enabled.
 
 ### Use Conda to build identical environments
 
@@ -635,7 +635,7 @@ recovery reconciles a request which remains non-final. Both limits can be
 overridden independently, but the Slurm timeout must remain shorter:
 
 ```yaml
-pywps_job_control_stale_after_minutes: 120
+wps_job_control_stale_after_minutes: 120
 slurm_job_timeout_minutes: 90
 ```
 
@@ -644,13 +644,14 @@ limit even when PyWPS does not pass `--time` during submission and cannot
 request a higher limit. This native enforcement does not require Slurm
 accounting or `slurmdbd`.
 
-An independent, optional read-only monitor makes one `squeue` request for
-`PENDING` and `RUNNING` jobs owned by the configured PyWPS Unix account. Because
-every PyWPS service uses the same account on the dedicated VM, Ansible creates
-one cron entry rather than one per service.
+An independent read-only monitor makes one `squeue` request for `PENDING` and
+`RUNNING` jobs owned by the configured PyWPS Unix account. It is enabled by
+default whenever Slurm and cron are enabled, and can still be disabled
+explicitly. Because every PyWPS service uses the same account on the dedicated
+VM, Ansible creates one cron entry rather than one per service.
 
 ```yaml
-slurm_job_monitor_enabled: true
+slurm_job_monitor_enabled: true  # enabled by default when Slurm is enabled
 slurm_job_monitor_schedule:
   minute: "*/5"
   hour: "*"

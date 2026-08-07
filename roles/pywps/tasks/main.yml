@@ -4,4 +4,4 @@
 
 - name: Include web service tasks
   include_tasks: webservice.yml
-  when: pywps_webservice_enabled
+  when: wps_webservice_enabled

@@ -495,7 +495,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
             "statistics_enabled = true\n"
-            "layers = xml, database\n"
+            "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "recovery_limit = 100\n"
             "incident_archive_enabled = true\n"
@@ -510,7 +510,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
             encoding="utf-8",
         )
         settings = MODULE.parse_args(["--config", str(config), "monitor"])
-        self.assertEqual(settings.layers, ["xml", "database"])
+        self.assertEqual(settings.layers, ["xml", "database", "polling"])
+        self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
@@ -547,6 +548,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
         self.assertIsNone(overridden.limit)
+
+        recovery = MODULE.parse_args(["--config", str(config), "recover"])
+        self.assertEqual(recovery.layers, ["xml", "database", "polling"])
 
         selected_layers = MODULE.parse_args([
             "--config",
@@ -697,6 +701,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         cases = (
             (MODULE.LayerSummary("xml", checked=2), "info"),
             (MODULE.LayerSummary("xml", checked=2, stalled=1), "warning"),
+            (MODULE.LayerSummary("database", checked=2, long_running=1), "warning"),
             (MODULE.LayerSummary("xml", checked=2, errors=1), "error"),
         )
         for summary, expected_method in cases:
@@ -709,11 +714,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     runners={"xml": lambda *_args, result=summary: result},
                 )
                 getattr(logger, expected_method).assert_called_once_with(
-                    "summary layer=%s checked=%d stalled=%d recovered=%d "
-                    "errors=%d mode=%s limit=%s",
+                    "summary layer=%s checked=%d stalled=%d long_running=%d "
+                    "recovered=%d errors=%d mode=%s limit=%s",
                     summary.name,
                     summary.checked,
                     summary.stalled,
+                    summary.long_running,
                     summary.recovered,
                     summary.errors,
                     "monitor",
@@ -768,12 +774,16 @@ class RecoverStalledJobsTests(unittest.TestCase):
         status_summary = MODULE.logging.LogRecord(
             "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
         )
+        current_status = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
+        )
         self.assertTrue(handler.filter(summary))
         self.assertTrue(handler.filter(status_summary))
+        self.assertTrue(handler.filter(current_status))
         self.assertFalse(handler.filter(finding))
         self.assertTrue(handler.filter(warning))
 
-    def test_statistics_log_keeps_only_summaries_status_counts_and_warnings(self):
+    def test_statistics_log_keeps_only_current_status_and_warnings(self):
         log_file = self.root / "statistics.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
             MODULE.configure_logging(log_file, statistics_only=True)
@@ -799,10 +809,76 @@ class RecoverStalledJobsTests(unittest.TestCase):
         status_summary = MODULE.logging.LogRecord(
             "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
         )
-        self.assertTrue(file_handler.filter(summary))
-        self.assertTrue(file_handler.filter(status_summary))
+        current_status = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
+        )
+        warning = MODULE.logging.LogRecord(
+            "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
+        )
+        self.assertFalse(file_handler.filter(summary))
+        self.assertFalse(file_handler.filter(status_summary))
+        self.assertTrue(file_handler.filter(current_status))
         self.assertFalse(file_handler.filter(finding))
+        self.assertTrue(file_handler.filter(warning))
         file_handler.close()
+
+    def test_statistics_logs_one_current_status_line_with_unique_stalled_jobs(self):
+        settings = self.settings("statistics", ["xml", "database"])
+        logger = mock.Mock()
+        counts = {
+            "total": 58,
+            "accepted": 3,
+            "running": 12,
+            "successful": 11,
+            "failed": 13,
+            "dismissed": 0,
+            "unmapped": 19,
+        }
+        xml = MODULE.LayerSummary(
+            "xml",
+            checked=40,
+            stalled=2,
+            stalled_jobs={JOB_UUID, OTHER_JOB_UUID},
+        )
+        database = MODULE.LayerSummary(
+            "database",
+            checked=2,
+            stalled=2,
+            stalled_jobs={OTHER_JOB_UUID, THIRD_JOB_UUID},
+            status_counts=counts,
+            long_running=2,
+            long_running_jobs={JOB_UUID, OTHER_JOB_UUID},
+        )
+
+        summaries = MODULE.execute_layers(
+            settings,
+            self.now,
+            logger,
+            runners={
+                "xml": lambda *_args: xml,
+                "database": lambda *_args: database,
+            },
+        )
+        MODULE.log_current_status(summaries, logger)
+
+        logger.info.assert_called_once_with(
+            "current_status total=%s accepted=%s running=%s successful=%s "
+            "failed=%s dismissed=%s unmapped=%s long_running=%d stalled=%d "
+            "xml_stalled=%d database_stalled=%d xml_documents=%d errors=%d",
+            58,
+            3,
+            12,
+            11,
+            13,
+            0,
+            19,
+            2,
+            3,
+            2,
+            2,
+            40,
+            0,
+        )
 
     def test_database_status_summary_uses_ogc_api_processes_vocabulary(self):
         statuses = argparse.Namespace(
@@ -847,6 +923,26 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         record.time_end = None
         self.assertEqual(MODULE.database_last_update(record), start.replace(tzinfo=UTC))
+        self.assertEqual(MODULE.database_start_time(record), start.replace(tzinfo=UTC))
+        record.time_start = None
+        self.assertIsNone(MODULE.database_start_time(record))
+
+    def test_database_long_running_uses_request_start_not_last_update(self):
+        record = argparse.Namespace(
+            time_start=self.now - timedelta(minutes=11),
+            time_end=self.now - timedelta(minutes=1),
+        )
+        self.assertTrue(
+            MODULE.is_database_job_long_running(
+                record, self.now, timedelta(minutes=10)
+            )
+        )
+        record.time_start = self.now - timedelta(minutes=9)
+        self.assertFalse(
+            MODULE.is_database_job_long_running(
+                record, self.now, timedelta(minutes=10)
+            )
+        )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
     def test_database_guard_vetoes_recent_and_old_nonfinal_requests(self):
