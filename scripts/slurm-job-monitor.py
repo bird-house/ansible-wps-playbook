@@ -136,9 +136,11 @@ def capacity_issues(capacity: Sequence[SlurmCapacity]) -> list[str]:
         return ["reason=no-capacity-records"]
     issues: list[str] = []
     for record in capacity:
-        normalized_state = record.node_state.lower().rstrip(NODE_STATE_FLAGS)
+        raw_state = record.node_state.lower()
+        normalized_state = raw_state.rstrip(NODE_STATE_FLAGS)
+        state_flags = raw_state[len(normalized_state) :]
         partition_is_usable = record.partition_state.lower() == "up"
-        node_is_responding = not record.node_state.endswith("*")
+        node_is_responding = "*" not in state_flags
         node_is_usable = normalized_state in USABLE_NODE_STATES
         if partition_is_usable and node_is_responding and node_is_usable:
             continue

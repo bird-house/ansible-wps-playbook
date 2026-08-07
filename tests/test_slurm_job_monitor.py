@@ -111,12 +111,14 @@ class SlurmJobMonitorTests(unittest.TestCase):
             MODULE.SlurmCapacity("node1", "down", "idle", "maintenance"),
             MODULE.SlurmCapacity("node2", "up", "down*", "not responding"),
             MODULE.SlurmCapacity("node3", "up", "drained", "operator request"),
+            MODULE.SlurmCapacity("node4", "up", "allocated*+", "not responding"),
         ]
         issues = MODULE.capacity_issues(unhealthy)
-        self.assertEqual(len(issues), 3)
+        self.assertEqual(len(issues), 4)
         self.assertIn("partition_state=down", issues[0])
         self.assertIn("node_state=down*", issues[1])
         self.assertIn("node_state=drained", issues[2])
+        self.assertIn("node_state=allocated*+", issues[3])
 
     def test_missing_capacity_is_a_red_alert_condition(self):
         self.assertEqual(

@@ -292,7 +292,7 @@
   ansible.builtin.cron:
     name: "record hourly PyWPS job statistics for {{ item.name }}"
     minute: "{{ pywps_job_statistics_schedule.minute | default('4') }}"
-    hour: "{{ pywps_job_statistics_schedule.hour | default('0') }}"
+    hour: "{{ pywps_job_statistics_schedule.hour | default('*') }}"
     day: "{{ pywps_job_statistics_schedule.day | default('*') }}"
     month: "{{ pywps_job_statistics_schedule.month | default('*') }}"
     weekday: "{{ pywps_job_statistics_schedule.weekday | default('*') }}"
