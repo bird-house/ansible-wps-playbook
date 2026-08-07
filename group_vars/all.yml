@@ -75,8 +75,8 @@ slurm_munge_key: /etc/munge/munge.key
 slurm_configure_munge: false
 # Slurm stops the process before PyWPS treats its request as stale.
 slurm_job_timeout_minutes: 90
-# Optionally report host-wide Slurm queue pressure and long-running jobs.
-slurm_job_monitor_enabled: false
+# Report host-wide Slurm queue pressure and long-running jobs by default.
+slurm_job_monitor_enabled: true
 slurm_job_monitor_schedule:
   minute: "*/5"
   hour: "*"
@@ -214,10 +214,6 @@ pywps_job_incident_archive_enabled: true
 pywps_job_incident_archive_dir: "{{ service_user_home }}/job-incidents"
 pywps_job_incident_keep_days: 30
 pywps_job_incident_keep_minutes: "{{ (pywps_job_incident_keep_days | int) * 1440 }}"
-# Layers used when a command does not specify --layer.
-pywps_job_control_layers:
-  - xml
-  - database
 # Create failure XML for repeated Nginx 404 status polling.
 pywps_missing_status_recovery_enabled: false
 pywps_missing_status_poll_window_minutes: 60

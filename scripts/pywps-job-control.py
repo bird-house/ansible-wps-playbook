@@ -33,6 +33,11 @@ XML_JOB_STATUSES = {
     "ProcessFailed": "failed",
 }
 SUPPORTED_LAYERS = ("xml", "database", "polling")
+DEFAULT_LAYERS = {
+    "monitor": SUPPORTED_LAYERS,
+    "recover": SUPPORTED_LAYERS,
+    "statistics": ("xml", "database"),
+}
 UTC = timezone.utc
 JOB_CONTROL_SECTION = "job_control"
 ACCESS_LOG_RE = re.compile(
@@ -925,11 +930,6 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         config.add_section(JOB_CONTROL_SECTION)
     control_config = config[JOB_CONTROL_SECTION]
 
-    configured_layers = [
-        layer.strip()
-        for layer in control_config.get("layers", "xml,database").split(",")
-        if layer.strip()
-    ]
     parser = argparse.ArgumentParser(
         description=__doc__,
         parents=[pre_parser],
@@ -1043,10 +1043,10 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "incident_archive_enabled", fallback=False
     )
     incident_archive_dir = optional_path(control_config.get("incident_archive_dir"))
-    layers = args.layer or configured_layers
+    layers = args.layer or DEFAULT_LAYERS[args.mode]
     invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
     if invalid:
-        parser.error(f"unsupported configured layers: {', '.join(invalid)}")
+        parser.error(f"unsupported layers: {', '.join(invalid)}")
     if not layers:
         parser.error("at least one layer must be configured")
     if args.stale_after_minutes <= 0:

@@ -40,26 +40,15 @@ main() {
     case $command_name in
         monitor)
             mode=monitor
-            script_options=(
-                --layer xml --layer database --layer polling
-                --show-summaries
-            )
+            script_options=(--show-summaries)
             ;;
-        recover-xml)
+        recover)
             mode=recover
-            script_options=(--layer xml)
-            ;;
-        recover-polling)
-            mode=recover
-            script_options=(--layer polling)
-            ;;
-        recover-xml-db)
-            mode=recover
-            script_options=(--layer xml --layer database)
+            script_options=(--show-summaries)
             ;;
         statistics)
             mode=statistics
-            script_options=(--layer xml --layer database --show-summaries)
+            script_options=(--show-summaries)
             ;;
         *)
             fail "Unsupported command name: $command_name"

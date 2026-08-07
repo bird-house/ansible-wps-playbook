@@ -333,9 +333,9 @@ remains available and can still be run manually:
 
 ### Monitor and recover stalled jobs
 
-The playbook installs the job-control script once. Scheduled monitoring is
-read-only. Scheduled recovery remains disabled until its explicit switches are
-enabled:
+The playbook installs the job-control script once. Scheduled monitoring does
+not change live request state. Scheduled recovery remains disabled until its
+explicit switches are enabled:
 
 ```yaml
 cron_enabled: true
@@ -351,9 +351,6 @@ pywps_job_control_stale_after_minutes: 120
 pywps_job_control_recovery_limit: 100
 pywps_job_incident_archive_enabled: true
 pywps_job_incident_keep_days: 30
-pywps_job_control_layers:
-  - xml
-  - database
 ```
 
 The monitor runs every five minutes. It does not change live request state,
@@ -415,42 +412,35 @@ terminal. It does not calculate the complete database status aggregate. The
 five-minute scheduled monitor performs the same all-layer check and remains quiet
 unless it finds stalled jobs or errors.
 
-Recover only stalled XML documents with:
+Recover stalled jobs with the single ordered operator command:
 
 ```sh
-sudo /var/lib/pywps/recover-xml SERVICE_NAME
+sudo /var/lib/pywps/recover SERVICE_NAME
 ```
 
-Recover the XML and database layers together with:
-
-```sh
-sudo /var/lib/pywps/recover-xml-db SERVICE_NAME
-```
-
-Recovery atomically changes stalled XML documents to `ProcessFailed`. In the
-database it marks the existing request failed and removes a matching stored
-queue entry; it does not change the database schema. The generated
+Recovery always runs XML, database, and polling in that order under one
+per-service lock. It atomically changes stalled XML documents to
+`ProcessFailed`. In the database it marks the existing request failed and
+removes a matching stored queue entry; it does not change the database schema.
+Polling recovery is skipped unless its separate switch is enabled. The generated
 `[job_control]` section lives in the service's existing PyWPS configuration,
 and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
 sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-minutes 720
-sudo /var/lib/pywps/recover-xml SERVICE_NAME --stale-after-minutes 720
-sudo /var/lib/pywps/recover-xml-db SERVICE_NAME --limit 500
+sudo /var/lib/pywps/recover SERVICE_NAME --stale-after-minutes 720
+sudo /var/lib/pywps/recover SERVICE_NAME --limit 500
 ```
 
-The concise command names are intentionally scoped by their installation in
-`/var/lib/pywps`: `monitor` checks all layers, `recover-xml` changes only XML,
-`recover-polling` handles missing status documents found through polling, and
-`recover-xml-db` selects XML and database. The deployed implementation is
-`pywps-job-control.py`.
+The concise commands installed in `/var/lib/pywps` are `monitor`, `recover`,
+and `statistics`. The deployed implementation is `pywps-job-control.py`.
 
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
-selection, call `pywps-job-control.py` directly and repeat `--layer`, for
-example `--layer xml --layer database`. Without an explicit layer, the script
-uses the service's `[job_control] layers` setting. `--stale-after-minutes`
-overrides the configured threshold.
+diagnosis, call `pywps-job-control.py` directly and repeat `--layer`, for
+example `--layer xml --layer database`. Without explicit layers, monitoring
+and recovery use all three layers in their safe order; statistics uses XML and
+database. `--stale-after-minutes` overrides the configured threshold.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
 batches bounded even when years of unfinished requests have accumulated.
@@ -569,9 +559,9 @@ output directory, is mode `0644`, contains a UTC creation time and useful
 failure message, and is recorded as a warning in the existing per-service
 stalled-job log. Each run recovers at most 20 documents by default.
 
-The `monitor` shortcut checks XML, database, and polling without changing
-state. Recover polling candidates only when intended with
-`sudo /var/lib/pywps/recover-polling SERVICE_NAME`.
+The `monitor` shortcut checks XML, database, and polling without changing live
+request state. The unified `recover` command handles qualifying polling
+candidates only when both recovery switches are enabled.
 
 ### Use Conda to build identical environments
 
@@ -644,13 +634,14 @@ limit even when PyWPS does not pass `--time` during submission and cannot
 request a higher limit. This native enforcement does not require Slurm
 accounting or `slurmdbd`.
 
-An independent, optional read-only monitor makes one `squeue` request for
-`PENDING` and `RUNNING` jobs owned by the configured PyWPS Unix account. Because
-every PyWPS service uses the same account on the dedicated VM, Ansible creates
-one cron entry rather than one per service.
+An independent read-only monitor makes one `squeue` request for `PENDING` and
+`RUNNING` jobs owned by the configured PyWPS Unix account. It is enabled by
+default whenever Slurm and cron are enabled, and can still be disabled
+explicitly. Because every PyWPS service uses the same account on the dedicated
+VM, Ansible creates one cron entry rather than one per service.
 
 ```yaml
-slurm_job_monitor_enabled: true
+slurm_job_monitor_enabled: true  # enabled by default when Slurm is enabled
 slurm_job_monitor_schedule:
   minute: "*/5"
   hour: "*"

@@ -19,6 +19,8 @@ Changes:
   recovery on a five-minute cadence, and retain hourly job statistics
 - preserve failed and recovery-generated PyWPS status documents in a
   searchable, per-service 30-day incident archive with UTC filenames
+- enable the read-only Slurm monitor by default and simplify PyWPS job control
+  to the `monitor`, ordered `recover`, and `statistics` operator commands
 
 ## 0.9.0 (2026-07-31)
 

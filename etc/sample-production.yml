@@ -39,10 +39,6 @@ pywps_job_control_recovery_limit: 100
 pywps_job_incident_archive_enabled: true
 pywps_job_incident_archive_dir: /var/lib/pywps/job-incidents
 pywps_job_incident_keep_days: 30
-# Layers used when a command does not specify --layer.
-pywps_job_control_layers:
-  - xml
-  - database
 # Create failure XML for repeated Nginx 404 status polling.
 pywps_missing_status_recovery_enabled: false
 pywps_missing_status_poll_window_minutes: 60
@@ -73,8 +69,8 @@ ssl_certs_privkey_path: /etc/ssl/wps.example.org/wps.example.org.key
 slurm_enabled: false
 # Stop the Slurm process before PyWPS treats its request as stale.
 slurm_job_timeout_minutes: 90
-# Optionally report queue pressure and jobs approaching the hard timeout.
-slurm_job_monitor_enabled: false
+# Report queue pressure and jobs approaching the hard timeout when Slurm is enabled.
+slurm_job_monitor_enabled: true
 slurm_job_monitor_long_running_minutes: 10
 slurm_job_monitor_pending_warning: 20
 slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json

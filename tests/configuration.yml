@@ -58,7 +58,6 @@
             < wps_outputs_keep_minutes | float
           - pywps_job_control_monitor_enabled
           - not pywps_job_control_recovery_enabled
-          - pywps_job_control_layers == ['xml', 'database']
           - not pywps_missing_status_recovery_enabled
           - pywps_missing_status_poll_window_minutes == 60
           - pywps_missing_status_min_poll_count == 3
@@ -80,7 +79,7 @@
           - >-
             slurm_job_timeout_minutes | int
             < pywps_job_control_stale_after_minutes | float
-          - not slurm_job_monitor_enabled
+          - slurm_job_monitor_enabled
           - slurm_job_monitor_schedule.minute == '*/5'
           - slurm_job_monitor_user == 'wps'
           - slurm_job_monitor_long_running_minutes | int == 10
@@ -274,18 +273,13 @@
           - "'local app_dir=\"/usr/local/src/$app\"' in test_smoke_script"
           - "'exec \"$pytest\" -v -k smoke \"$smoke_tests\"' in test_smoke_script"
           - "'monitor)' in test_job_control_helper"
-          - "'recover-xml)' in test_job_control_helper"
-          - "'recover-polling)' in test_job_control_helper"
-          - "'recover-xml-db)' in test_job_control_helper"
+          - "'recover)' in test_job_control_helper"
           - "'mode=recover' in test_job_control_helper"
           - "'statistics)' in test_job_control_helper"
           - "'mode=statistics' in test_job_control_helper"
-          - "'--layer xml --layer database --layer polling' in test_job_control_helper"
+          - "'script_options=(--layer' not in test_job_control_helper"
           - "'--status-counts' not in test_job_control_helper"
-          - "'script_options=(--layer xml)' in test_job_control_helper"
-          - "'script_options=(--layer polling)' in test_job_control_helper"
-          - "'script_options=(--layer xml --layer database)' in test_job_control_helper"
-          - "'script_options=(--layer xml --layer database --show-summaries)' in test_job_control_helper"
+          - test_job_control_helper.count('script_options=(--show-summaries)') == 3
           - >-
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
@@ -335,7 +329,7 @@
           - "'recovery_enabled = false' in test_pywps_config"
           - "'missing_status_recovery_enabled = false' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
-          - "'layers = xml,database' in test_pywps_config"
+          - "'layers =' not in test_pywps_config"
           - "'stale_after_minutes = 120' in test_pywps_config"
           - "'recovery_limit = 100' in test_pywps_config"
           - "'incident_archive_enabled = true' in test_pywps_config"

@@ -70,8 +70,6 @@
       - pywps_job_incident_keep_days | int > 0
       - pywps_job_incident_keep_minutes | int > 0
       - pywps_job_incident_archive_dir | length > 0
-      - pywps_job_control_layers | length > 0
-      - pywps_job_control_layers | difference(['xml', 'database', 'polling']) | length == 0
       - pywps_missing_status_poll_window_minutes | float > 0
       - pywps_missing_status_min_poll_count | int > 0
       - pywps_missing_status_min_poll_duration_minutes | float >= 0
@@ -82,15 +80,14 @@
       - >-
         not (cron_enabled | bool)
         or not (pywps_job_control_monitor_enabled | bool)
-        or 'xml' not in pywps_job_control_layers
         or (pywps_job_control_stale_after_minutes | float) < (wps_outputs_keep_minutes | float)
     fail_msg: >-
       The job-control schedule must be a cron-field mapping, age must be
       positive and shorter than output retention for scheduled XML checks,
-      recovery limit must be positive, and layers must contain xml, database,
-      or polling. Incident retention must be positive. Missing-status recovery
-      also requires a positive polling window, poll count and recovery limit,
-      and a minimum poll duration shorter than its polling window.
+      and recovery and incident-retention limits must be positive.
+      Missing-status recovery also requires a positive polling window, poll
+      count and recovery limit, and a minimum poll duration shorter than its
+      polling window.
 
 - name: Install PyWPS job-control script
   ansible.builtin.copy:
@@ -205,11 +202,6 @@
       {{ (cron_disabled | bool) or not (slurm_job_monitor_enabled | bool) }}
     state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
 
-- name: Remove obsolete stalled-job script alias
-  ansible.builtin.file:
-    path: "{{ cron_script_dir }}/recover-stalled-jobs.py"
-    state: absent
-
 - name: Install PyWPS job operator commands
   ansible.builtin.template:
     src: ./templates/job-control-helper.sh.j2
@@ -219,9 +211,7 @@
     mode: "0755"
   loop:
     - monitor
-    - recover-xml
-    - recover-polling
-    - recover-xml-db
+    - recover
     - statistics
 
 - name: Remove obsolete recovery commands
@@ -229,8 +219,11 @@
     path: "{{ cron_script_dir }}/{{ item }}"
     state: absent
   loop:
-    - recover
     - recover-all
+    - recover-polling
+    - recover-stalled-jobs.py
+    - recover-xml
+    - recover-xml-db
 
 - name: Remove obsolete lowercase PyWPS monitoring cron entries
   ansible.builtin.cron:
@@ -268,7 +261,6 @@
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
       {{ cron_script_dir }}/pywps-job-control.py
       --config /etc/pywps/{{ item.name }}.cfg monitor
-      --layer xml --layer database --layer polling
     cron_file: ansible_pywps
     disabled: >-
       {{ cron_disabled }}
@@ -288,7 +280,6 @@
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
       {{ cron_script_dir }}/pywps-job-control.py
       --config /etc/pywps/{{ item.name }}.cfg recover
-      --layer xml --layer database --layer polling
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool)

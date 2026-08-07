@@ -495,7 +495,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
             "statistics_enabled = true\n"
-            "layers = xml, database\n"
             "stale_after_minutes = 360\n"
             "recovery_limit = 100\n"
             "incident_archive_enabled = true\n"
@@ -510,7 +509,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             encoding="utf-8",
         )
         settings = MODULE.parse_args(["--config", str(config), "monitor"])
-        self.assertEqual(settings.layers, ["xml", "database"])
+        self.assertEqual(settings.layers, ["xml", "database", "polling"])
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
@@ -547,6 +546,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
         self.assertIsNone(overridden.limit)
+
+        recovery = MODULE.parse_args(["--config", str(config), "recover"])
+        self.assertEqual(recovery.layers, ["xml", "database", "polling"])
 
         selected_layers = MODULE.parse_args([
             "--config",
