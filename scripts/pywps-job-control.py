@@ -13,7 +13,7 @@ import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable
@@ -84,6 +84,8 @@ class LayerSummary:
     stalled: int = 0
     recovered: int = 0
     errors: int = 0
+    stalled_jobs: set[str] = field(default_factory=set)
+    status_counts: dict[str, int] | None = None
 
 
 class SummaryConsoleFilter(logging.Filter):
@@ -91,7 +93,16 @@ class SummaryConsoleFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return record.levelno >= logging.WARNING or record.getMessage().startswith(
-            ("summary ", "status_summary ")
+            ("summary ", "status_summary ", "current_status ")
+        )
+
+
+class StatisticsFilter(logging.Filter):
+    """Keep one routine current-status line while retaining real errors."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= logging.WARNING or record.getMessage().startswith(
+            "current_status "
         )
 
 
@@ -403,6 +414,7 @@ def run_xml_layer(
                 )
                 continue
             summary.stalled += 1
+            summary.stalled_jobs.add(document.job_uuid)
             logger.info(
                 "layer=xml job=%s status=%s finding=stalled updated=%s",
                 document.job_uuid,
@@ -685,6 +697,7 @@ def run_polling_layer(
                 )
                 continue
             summary.stalled += 1
+            summary.stalled_jobs.add(candidate.job_uuid)
             logger.info(
                 "layer=polling job=%s decision=missing-status polls=%d "
                 "first_seen=%s last_seen=%s",
@@ -805,17 +818,19 @@ def run_database_layer(
                 .all(),
                 WPS_STATUS,
             )
-            logger.info(
-                "status_summary total=%d accepted=%d running=%d "
-                "successful=%d failed=%d dismissed=%d unmapped=%d",
-                status_counts["total"],
-                status_counts["accepted"],
-                status_counts["running"],
-                status_counts["successful"],
-                status_counts["failed"],
-                status_counts["dismissed"],
-                status_counts["unmapped"],
-            )
+            summary.status_counts = status_counts
+            if settings.mode != "statistics":
+                logger.info(
+                    "status_summary total=%d accepted=%d running=%d "
+                    "successful=%d failed=%d dismissed=%d unmapped=%d",
+                    status_counts["total"],
+                    status_counts["accepted"],
+                    status_counts["running"],
+                    status_counts["successful"],
+                    status_counts["failed"],
+                    status_counts["dismissed"],
+                    status_counts["unmapped"],
+                )
         query = session.query(dblog.ProcessInstance).filter(
             or_(
                 dblog.ProcessInstance.status.is_(None),
@@ -848,6 +863,7 @@ def run_database_layer(
                     )
                     continue
                 summary.stalled += 1
+                summary.stalled_jobs.add(str(record.uuid))
                 logger.info(
                     "layer=database job=%s status=%s finding=stalled updated=%s",
                     record.uuid,
@@ -1126,7 +1142,7 @@ def configure_logging(
         file_handler.addFilter(service_filter)
         file_handler.setLevel(logging.INFO)
         if statistics_only:
-            file_handler.addFilter(SummaryConsoleFilter())
+            file_handler.addFilter(StatisticsFilter())
         handlers.append(file_handler)
     logging.basicConfig(
         level=logging.INFO,
@@ -1186,6 +1202,8 @@ def execute_layers(
             logger.exception("layer=%s decision=error reason=%s", layer, error)
             summary = LayerSummary(layer, errors=1)
         summaries.append(summary)
+        if settings.mode == "statistics":
+            continue
         if summary.errors:
             log_summary = logger.error
         elif summary.stalled:
@@ -1204,6 +1222,36 @@ def execute_layers(
             settings.limit if settings.limit is not None else "none",
         )
     return summaries
+
+
+def log_current_status(
+    summaries: list[LayerSummary],
+    logger: logging.Logger,
+) -> None:
+    by_name = {summary.name: summary for summary in summaries}
+    xml = by_name.get("xml", LayerSummary("xml"))
+    database = by_name.get("database", LayerSummary("database"))
+    counts = database.status_counts or {}
+    stalled_jobs = set().union(
+        *(summary.stalled_jobs for summary in summaries)
+    )
+    logger.info(
+        "current_status total=%s accepted=%s running=%s successful=%s "
+        "failed=%s dismissed=%s unmapped=%s stalled=%d xml_stalled=%d "
+        "database_stalled=%d xml_documents=%d errors=%d",
+        counts.get("total", "unknown"),
+        counts.get("accepted", "unknown"),
+        counts.get("running", "unknown"),
+        counts.get("successful", "unknown"),
+        counts.get("failed", "unknown"),
+        counts.get("dismissed", "unknown"),
+        counts.get("unmapped", "unknown"),
+        len(stalled_jobs),
+        xml.stalled,
+        database.stalled,
+        xml.checked,
+        sum(summary.errors for summary in summaries),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1232,6 +1280,8 @@ def main(argv: list[str] | None = None) -> int:
             lock.write(f"{os.getpid()}\n")
             lock.flush()
             summaries = execute_layers(settings, datetime.now(UTC), logger)
+            if settings.mode == "statistics":
+                log_current_status(summaries, logger)
             return 1 if any(summary.errors for summary in summaries) else 0
     except (OSError, ValueError) as error:
         logging.basicConfig(

@@ -770,12 +770,16 @@ class RecoverStalledJobsTests(unittest.TestCase):
         status_summary = MODULE.logging.LogRecord(
             "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
         )
+        current_status = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
+        )
         self.assertTrue(handler.filter(summary))
         self.assertTrue(handler.filter(status_summary))
+        self.assertTrue(handler.filter(current_status))
         self.assertFalse(handler.filter(finding))
         self.assertTrue(handler.filter(warning))
 
-    def test_statistics_log_keeps_only_summaries_status_counts_and_warnings(self):
+    def test_statistics_log_keeps_only_current_status_and_warnings(self):
         log_file = self.root / "statistics.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
             MODULE.configure_logging(log_file, statistics_only=True)
@@ -801,10 +805,73 @@ class RecoverStalledJobsTests(unittest.TestCase):
         status_summary = MODULE.logging.LogRecord(
             "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
         )
-        self.assertTrue(file_handler.filter(summary))
-        self.assertTrue(file_handler.filter(status_summary))
+        current_status = MODULE.logging.LogRecord(
+            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
+        )
+        warning = MODULE.logging.LogRecord(
+            "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
+        )
+        self.assertFalse(file_handler.filter(summary))
+        self.assertFalse(file_handler.filter(status_summary))
+        self.assertTrue(file_handler.filter(current_status))
         self.assertFalse(file_handler.filter(finding))
+        self.assertTrue(file_handler.filter(warning))
         file_handler.close()
+
+    def test_statistics_logs_one_current_status_line_with_unique_stalled_jobs(self):
+        settings = self.settings("statistics", ["xml", "database"])
+        logger = mock.Mock()
+        counts = {
+            "total": 58,
+            "accepted": 3,
+            "running": 12,
+            "successful": 11,
+            "failed": 13,
+            "dismissed": 0,
+            "unmapped": 19,
+        }
+        xml = MODULE.LayerSummary(
+            "xml",
+            checked=40,
+            stalled=2,
+            stalled_jobs={JOB_UUID, OTHER_JOB_UUID},
+        )
+        database = MODULE.LayerSummary(
+            "database",
+            checked=2,
+            stalled=2,
+            stalled_jobs={OTHER_JOB_UUID, THIRD_JOB_UUID},
+            status_counts=counts,
+        )
+
+        summaries = MODULE.execute_layers(
+            settings,
+            self.now,
+            logger,
+            runners={
+                "xml": lambda *_args: xml,
+                "database": lambda *_args: database,
+            },
+        )
+        MODULE.log_current_status(summaries, logger)
+
+        logger.info.assert_called_once_with(
+            "current_status total=%s accepted=%s running=%s successful=%s "
+            "failed=%s dismissed=%s unmapped=%s stalled=%d xml_stalled=%d "
+            "database_stalled=%d xml_documents=%d errors=%d",
+            58,
+            3,
+            12,
+            11,
+            13,
+            0,
+            19,
+            3,
+            2,
+            2,
+            40,
+            0,
+        )
 
     def test_database_status_summary_uses_ogc_api_processes_vocabulary(self):
         statuses = argparse.Namespace(

@@ -495,15 +495,18 @@ wps_job_statistics_schedule:
   hour: "*"
 ```
 
-It records complete XML and database layer summaries plus a full status
+It records one `current_status` line per run in
+`/var/log/pywps/SERVICE_NAME-stats.log`. The line contains the complete database
 aggregate using the OGC API Processes vocabulary: accepted, running,
-successful, failed, and dismissed. PyWPS `started` and `paused` records are
-combined as `running`; missing or unrecognized values are reported as
-`unmapped`. These counts cover the complete request table. Routine individual
-findings are excluded from `/var/log/pywps/SERVICE_NAME-stats.log`,
-and only errors are written to the cron console. The statistics log uses the
-same daily maximum frequency and configured minimum-size threshold as the
-other service logs. Run the same report manually with:
+successful, failed, dismissed, and unmapped. PyWPS `started` and `paused`
+records are combined as `running`. It also reports the unique stalled-job
+count, the separate XML and database stalled counts, the number of XML status
+documents, and layer errors. A request stalled in both XML and the database is
+counted only once in `stalled`. Routine individual findings are excluded, and
+only actual errors add extra log records or reach the cron console. The
+statistics log uses the same daily maximum frequency and configured
+minimum-size threshold as the other service logs. Run the same report manually
+with:
 
 ```sh
 sudo /var/lib/pywps/statistics SERVICE_NAME

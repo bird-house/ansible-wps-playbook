@@ -22,6 +22,8 @@ Changes:
 - enable the read-only Slurm monitor by default and simplify PyWPS job control
   to the `monitor`, ordered `recover`, and `statistics` operator commands
 - standardize public PyWPS role variables on the established `wps_` prefix
+- reduce hourly job statistics to one current-status line including unique and
+  per-layer stalled-job counts
 
 ## 0.9.0 (2026-07-31)
 
