@@ -447,8 +447,8 @@ cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery default. The underlying `--status-counts` option enables a
 complete database aggregate for explicit low-level invocations.
 
-Slurm runtime control is host-wide rather than a per-service storage layer and
-is described under [Use the Slurm scheduler](#use-the-slurm-scheduler).
+Slurm timeout enforcement and host-wide queue monitoring are described under
+[Use the Slurm scheduler](#use-the-slurm-scheduler).
 
 ### Record daily PyWPS job statistics
 
@@ -584,50 +584,55 @@ Changing either version or the scheduler policy should be tested with a real
 job submission before production rollout. The existing PyWPS smoke tests
 provide this validation when the service runs in scheduler mode.
 
-#### Cancel overdue Slurm jobs
+#### Limit and monitor Slurm jobs
 
-The optional host-wide control runs `squeue` for `RUNNING` jobs owned by the
-configured PyWPS Unix account. It compares Slurm's elapsed runtime with a fixed
-limit; it does not attempt to infer progress from PyWPS status documents or the
-database. Because every PyWPS service uses the same account on the dedicated
-VM, Ansible creates one cron entry rather than one per service.
-
-Start in read-only mode:
+Slurm enforces a default and maximum runtime on the `fast` partition. The
+timeout follows `pywps_job_control_stale_after_hours` by default, so Slurm ends
+the process before the existing XML and database recovery reconciles a PyWPS
+request which remains non-final. Override it independently when Slurm jobs need
+a different hard limit:
 
 ```yaml
-slurm_job_control_enabled: true
-slurm_job_control_recovery_enabled: false
-slurm_job_control_schedule:
+pywps_job_control_stale_after_hours: 6
+slurm_job_timeout_hours: 12
+```
+
+The playbook converts the Slurm timeout to minutes and applies it as both
+`DefaultTime` and `MaxTime`. Jobs therefore receive the limit even when PyWPS
+does not pass `--time` during submission, and cannot request a higher limit.
+This native enforcement does not require Slurm accounting or `slurmdbd`.
+
+An independent, optional read-only monitor makes one `squeue` request for
+`PENDING` and `RUNNING` jobs owned by the configured PyWPS Unix account. Because
+every PyWPS service uses the same account on the dedicated VM, Ansible creates
+one cron entry rather than one per service.
+
+```yaml
+slurm_job_monitor_enabled: true
+slurm_job_monitor_schedule:
   minute: "15"
   hour: "*"
-slurm_job_control_user: wps
-slurm_job_control_timeout_hours: 6
-slurm_job_control_limit: 100
+slurm_job_monitor_user: wps
+slurm_job_monitor_long_running_hours: 4.8
+slurm_job_monitor_pending_warning: 20
 ```
 
-The default schedule checks at 15 minutes past every hour. Findings and
-summaries are appended to `/var/log/pywps/slurm-job-control.log`, which uses the
-existing PyWPS log rotation. Inspect the current queue manually without making
-changes:
+The long-running warning defaults to 80 percent of `slurm_job_timeout_hours`.
+The default queue threshold warns when 20 or more jobs are pending. Every run
+records running, pending, total, and long-running counts in
+`/var/log/pywps/slurm-job-monitor.log`, which uses the existing PyWPS log
+rotation. Individual long-running jobs and a full pending queue produce
+warnings suitable for cron mail.
+
+Inspect the current queue manually without making changes:
 
 ```sh
-sudo /usr/local/sbin/slurm-job-control monitor \
-  --user wps --timeout-hours 6 --limit 100
+sudo /usr/local/sbin/slurm-job-monitor \
+  --user wps --long-running-hours 4.8 --pending-warning 20
 ```
 
-After confirming that the runtime limit is appropriate for every workload on
-the account, set `slurm_job_control_recovery_enabled: true`. The same scheduled
-command then invokes `scancel` once for each overdue job, up to the configured
-limit. Only jobs reported as `RUNNING` by `squeue` are considered; queued jobs
-are not cancelled. An operator can perform the same recovery manually with:
-
-```sh
-sudo /usr/local/sbin/slurm-job-control recover \
-  --user wps --timeout-hours 6 --limit 100
-```
-
-This limit is a maximum runtime, not an inactivity detector. A legitimate job
-that runs longer than the configured number of hours will also be cancelled.
+The monitor never changes or cancels jobs. Its long-running threshold indicates
+elapsed runtime, not lack of progress.
 
 ### Configure the database
 

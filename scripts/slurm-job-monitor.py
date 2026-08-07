@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monitor or cancel Slurm jobs that exceed a runtime limit."""
+"""Report Slurm queue pressure and long-running jobs."""
 
 from __future__ import annotations
 
@@ -17,15 +17,18 @@ from typing import Callable, Sequence
 class SlurmJob:
     job_id: str
     state: str
-    elapsed_seconds: int
+    elapsed_seconds: int | None
 
 
 @dataclass
 class Summary:
-    checked: int = 0
-    overdue: int = 0
-    cancelled: int = 0
-    errors: int = 0
+    running: int = 0
+    pending: int = 0
+    long_running: int = 0
+
+    @property
+    def total(self) -> int:
+        return self.running + self.pending
 
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
@@ -51,7 +54,7 @@ def parse_elapsed(value: str) -> int:
     return days * 86400 + hours * 3600 + minutes * 60 + seconds
 
 
-def list_running_jobs(user: str, runner: CommandRunner = subprocess.run) -> list[SlurmJob]:
+def list_jobs(user: str, runner: CommandRunner = subprocess.run) -> list[SlurmJob]:
     result = runner(
         [
             "squeue",
@@ -59,7 +62,7 @@ def list_running_jobs(user: str, runner: CommandRunner = subprocess.run) -> list
             "--user",
             user,
             "--states",
-            "RUNNING",
+            "PENDING,RUNNING",
             "--format",
             "%i|%T|%M",
         ],
@@ -76,59 +79,48 @@ def list_running_jobs(user: str, runner: CommandRunner = subprocess.run) -> list
         if len(fields) != 3 or not all(fields):
             raise ValueError(f"invalid squeue output on line {line_number}: {line}")
         job_id, state, elapsed = fields
-        if state != "RUNNING":
+        if state not in {"PENDING", "RUNNING"}:
             raise ValueError(f"unexpected squeue state for job {job_id}: {state}")
-        jobs.append(SlurmJob(job_id, state, parse_elapsed(elapsed)))
+        jobs.append(
+            SlurmJob(
+                job_id,
+                state,
+                parse_elapsed(elapsed) if state == "RUNNING" else None,
+            )
+        )
     return jobs
 
 
-def cancel_job(job_id: str, runner: CommandRunner = subprocess.run) -> None:
-    runner(
-        ["scancel", job_id],
-        check=True,
-        capture_output=True,
-        text=True,
-        env={**os.environ, "LC_ALL": "C"},
-    )
-
-
-def control_jobs(
-    mode: str,
+def inspect_jobs(
     user: str,
-    timeout_seconds: float,
-    limit: int | None,
+    long_running_seconds: float,
+    pending_warning: int,
     logger: logging.Logger,
     runner: CommandRunner = subprocess.run,
 ) -> Summary:
     summary = Summary()
-    for job in list_running_jobs(user, runner):
-        summary.checked += 1
-        if job.elapsed_seconds < timeout_seconds:
+    for job in list_jobs(user, runner):
+        if job.state == "PENDING":
+            summary.pending += 1
             continue
-        summary.overdue += 1
+        summary.running += 1
+        if job.elapsed_seconds is None or job.elapsed_seconds < long_running_seconds:
+            continue
+        summary.long_running += 1
         logger.warning(
-            "job=%s state=%s finding=runtime-exceeded elapsed_seconds=%d "
-            "timeout_seconds=%g",
+            "job=%s state=RUNNING finding=long-running elapsed_seconds=%d "
+            "warning_seconds=%g",
             job.job_id,
-            job.state,
             job.elapsed_seconds,
-            timeout_seconds,
+            long_running_seconds,
         )
-        if mode == "recover":
-            try:
-                cancel_job(job.job_id, runner)
-                summary.cancelled += 1
-                logger.warning("job=%s action=cancelled", job.job_id)
-            except subprocess.CalledProcessError as error:
-                summary.errors += 1
-                reason = (error.stderr or error.stdout or str(error)).strip()
-                logger.error(
-                    "job=%s action=cancel result=error reason=%s",
-                    job.job_id,
-                    reason,
-                )
-        if limit is not None and summary.overdue >= limit:
-            break
+
+    if summary.pending >= pending_warning:
+        logger.warning(
+            "finding=pending-queue-full pending=%d warning_threshold=%d",
+            summary.pending,
+            pending_warning,
+        )
     return summary
 
 
@@ -146,39 +138,35 @@ def configure_logging(log_file: Path | None) -> logging.Logger:
         format="%(asctime)s %(levelname)s %(message)s",
         handlers=handlers,
     )
-    return logging.getLogger("slurm-job-control")
+    return logging.getLogger("slurm-job-monitor")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "mode",
-        choices=("monitor", "recover"),
-        help="report overdue jobs or cancel them",
-    )
     parser.add_argument("--user", required=True, help="inspect jobs owned by this user")
     parser.add_argument(
-        "--timeout-hours",
+        "--long-running-hours",
         required=True,
         type=float,
-        help="consider running jobs overdue at this age",
+        help="warn when a running job reaches this age",
     )
     parser.add_argument(
-        "--limit",
+        "--pending-warning",
+        required=True,
         type=int,
-        help="inspect at most this many overdue jobs",
+        help="warn when at least this many jobs are pending",
     )
     parser.add_argument(
         "--lock-file",
         type=Path,
-        default=Path("/run/lock/slurm-job-control.lock"),
+        default=Path("/run/lock/slurm-job-monitor.lock"),
     )
     parser.add_argument("--log-file", type=Path)
     args = parser.parse_args(argv)
-    if args.timeout_hours <= 0:
-        parser.error("--timeout-hours must be greater than zero")
-    if args.limit is not None and args.limit <= 0:
-        parser.error("--limit must be greater than zero")
+    if args.long_running_hours <= 0:
+        parser.error("--long-running-hours must be greater than zero")
+    if args.pending_warning <= 0:
+        parser.error("--pending-warning must be greater than zero")
     return args
 
 
@@ -195,27 +183,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 0
             lock.write(f"{os.getpid()}\n")
             lock.flush()
-            summary = control_jobs(
-                args.mode,
+            summary = inspect_jobs(
                 args.user,
-                args.timeout_hours * 3600,
-                args.limit,
+                args.long_running_hours * 3600,
+                args.pending_warning,
                 logger,
             )
-        log_summary = logger.error if summary.errors else logger.warning if summary.overdue else logger.info
+        queue_warning = summary.pending >= args.pending_warning
+        log_summary = logger.warning if summary.long_running or queue_warning else logger.info
         log_summary(
-            "summary checked=%d overdue=%d cancelled=%d errors=%d mode=%s user=%s",
-            summary.checked,
-            summary.overdue,
-            summary.cancelled,
-            summary.errors,
-            args.mode,
+            "summary running=%d pending=%d total=%d long_running=%d user=%s",
+            summary.running,
+            summary.pending,
+            summary.total,
+            summary.long_running,
             args.user,
         )
-        return 1 if summary.errors else 0
+        return 0
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        logging.getLogger("slurm-job-control").error("result=error reason=%s", error)
+        logging.getLogger("slurm-job-monitor").error("result=error reason=%s", error)
         return 1
 
 

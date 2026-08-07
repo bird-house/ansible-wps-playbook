@@ -94,53 +94,69 @@
     group: root
     mode: "0755"
 
-- name: Validate Slurm job-control settings
+- name: Validate Slurm timeout and monitoring settings
   ansible.builtin.assert:
     that:
-      - slurm_job_control_schedule | type_debug == 'dict'
-      - slurm_job_control_user | length > 0
-      - slurm_job_control_timeout_hours | float > 0
-      - slurm_job_control_limit | int > 0
+      - slurm_job_timeout_hours | float > 0
+      - slurm_job_monitor_schedule | type_debug == 'dict'
+      - slurm_job_monitor_user | length > 0
+      - slurm_job_monitor_long_running_hours | float > 0
+      - >-
+        slurm_job_monitor_long_running_hours | float
+        < slurm_job_timeout_hours | float
+      - slurm_job_monitor_pending_warning | int > 0
     fail_msg: >-
-      Slurm job control requires a cron-field mapping, a user, a positive
-      runtime limit, and a positive recovery limit.
+      Slurm requires a positive runtime limit. Its optional monitor requires a
+      cron-field mapping, a user, a positive pending-job warning threshold,
+      and a positive long-running threshold below the hard runtime limit.
   when: slurm_enabled | bool
 
-- name: Install Slurm job-control script
+- name: Install Slurm job-monitor script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/slurm-job-control.py"
-    dest: "{{ slurm_job_control_script }}"
+    src: "{{ playbook_dir }}/scripts/slurm-job-monitor.py"
+    dest: "{{ slurm_job_monitor_script }}"
     owner: root
     group: root
     mode: "0755"
   when: slurm_enabled | bool
 
-- name: Remove Slurm job-control script when Slurm is disabled
+- name: Remove obsolete Slurm job-control script
   ansible.builtin.file:
-    path: "{{ slurm_job_control_script }}"
+    path: /usr/local/sbin/slurm-job-control
+    state: absent
+
+- name: Remove Slurm job-monitor script when Slurm is disabled
+  ansible.builtin.file:
+    path: "{{ slurm_job_monitor_script }}"
     state: absent
   when: not (slurm_enabled | bool)
 
-- name: Schedule host-wide Slurm job control
+- name: Remove obsolete Slurm job-control cron entry
   ansible.builtin.cron:
     name: control overdue Slurm jobs
-    minute: "{{ slurm_job_control_schedule.minute | default('15') }}"
-    hour: "{{ slurm_job_control_schedule.hour | default('*') }}"
-    day: "{{ slurm_job_control_schedule.day | default('*') }}"
-    month: "{{ slurm_job_control_schedule.month | default('*') }}"
-    weekday: "{{ slurm_job_control_schedule.weekday | default('*') }}"
+    user: root
+    cron_file: ansible_slurm
+    state: absent
+
+- name: Schedule host-wide Slurm job monitoring
+  ansible.builtin.cron:
+    name: monitor Slurm jobs
+    minute: "{{ slurm_job_monitor_schedule.minute | default('15') }}"
+    hour: "{{ slurm_job_monitor_schedule.hour | default('*') }}"
+    day: "{{ slurm_job_monitor_schedule.day | default('*') }}"
+    month: "{{ slurm_job_monitor_schedule.month | default('*') }}"
+    weekday: "{{ slurm_job_monitor_schedule.weekday | default('*') }}"
     user: root
     job: >-
-      {{ slurm_job_control_script }}
-      {{ 'recover' if slurm_job_control_recovery_enabled | bool else 'monitor' }}
-      --user {{ slurm_job_control_user | quote }}
-      --timeout-hours {{ slurm_job_control_timeout_hours }}
-      --limit {{ slurm_job_control_limit }}
-      --lock-file {{ slurm_job_control_lock_file | quote }}
-      --log-file {{ slurm_job_control_log_file | quote }}
+      {{ slurm_job_monitor_script }}
+      --user {{ slurm_job_monitor_user | quote }}
+      --long-running-hours {{ slurm_job_monitor_long_running_hours }}
+      --pending-warning {{ slurm_job_monitor_pending_warning }}
+      --lock-file {{ slurm_job_monitor_lock_file | quote }}
+      --log-file {{ slurm_job_monitor_log_file | quote }}
     cron_file: ansible_slurm
     disabled: >-
-      {{ (cron_disabled | bool) or not (slurm_job_control_enabled | bool) }}
+      {{ (cron_disabled | bool) or not (slurm_job_monitor_enabled | bool) }}
     state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
 
 - name: Remove obsolete stalled-job script alias

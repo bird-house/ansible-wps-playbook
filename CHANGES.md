@@ -12,8 +12,8 @@ Changes:
 - add optional collectd monitoring for Red Hat family 9 hosts, with
   configurable load, disk, memory, and interface metrics, retained CSV data,
   and systemd-managed daily and optional hourly summaries
-- add optional host-wide Slurm runtime monitoring and bounded `scancel`
-  recovery for overdue running PyWPS jobs
+- enforce a configurable native Slurm partition timeout and add optional
+  read-only monitoring for queue pressure and long-running PyWPS jobs
 
 ## 0.9.0 (2026-07-31)
 

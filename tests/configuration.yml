@@ -67,17 +67,20 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
-          - not slurm_job_control_enabled
-          - not slurm_job_control_recovery_enabled
-          - slurm_job_control_schedule.minute == '15'
-          - slurm_job_control_user == 'wps'
-          - slurm_job_control_timeout_hours == 6
-          - slurm_job_control_limit == 100
-          - slurm_job_control_script == '/usr/local/sbin/slurm-job-control'
-          - slurm_job_control_lock_file == '/run/lock/slurm-job-control.lock'
+          - slurm_job_timeout_hours | int == 6
+          - slurm_partitions[0].DefaultTime | int == 360
+          - slurm_partitions[0].MaxTime | int == 360
+          - not slurm_job_monitor_enabled
+          - slurm_job_monitor_schedule.minute == '15'
+          - slurm_job_monitor_user == 'wps'
+          - slurm_job_monitor_long_running_hours | float > 4.79
+          - slurm_job_monitor_long_running_hours | float < 4.81
+          - slurm_job_monitor_pending_warning == 20
+          - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
+          - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
           - >-
-            slurm_job_control_log_file
-            == '/var/log/pywps/slurm-job-control.log'
+            slurm_job_monitor_log_file
+            == '/var/log/pywps/slurm-job-monitor.log'
           - not collectd_enabled
           - collectd_load_enabled
           - not collectd_disk_enabled
@@ -188,9 +191,14 @@
         test_slurm_run_script: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/run.sh.j2') }}
+        test_slurm_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/galaxyproject.slurm/templates/slurm.conf.j2') }}
       vars:
         item: "{{ test_primary_service }}"
         slurm_enabled: true
+        __slurm_config_merged: "{{ slurm_config }}"
 
     - name: Render alternate configuration
       ansible.builtin.set_fact:
@@ -239,6 +247,9 @@
           - >-
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
+          - >-
+            'PartitionName=fast Default=YES DefaultTime=360 MaxTime=360 Nodes=localhost'
+            in test_slurm_config
           - "'set -euo pipefail' in test_restart_script"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"
