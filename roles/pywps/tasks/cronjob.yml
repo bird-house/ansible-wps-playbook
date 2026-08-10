@@ -1,5 +1,5 @@
 ---
-- name: Add MAILTO to cron file
+- name: Add MAILTO to PyWPS cron file
   community.general.cronvar:
     name: MAILTO
     value: "{{ cron_mailto }}"
@@ -184,6 +184,13 @@
     user: root
     cron_file: ansible_slurm
     state: absent
+
+- name: Add MAILTO to Slurm cron file
+  community.general.cronvar:
+    name: MAILTO
+    value: "{{ cron_mailto }}"
+    cron_file: ansible_slurm
+    state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
 
 - name: Schedule host-wide Slurm job monitoring
   ansible.builtin.cron:
