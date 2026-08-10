@@ -407,10 +407,11 @@ one day only when it exceeds `10M`; both the size and retained archive count
 are configurable with `wps_logrotate_min_size` and
 `wps_logrotate_rotations`.
 
-Individual stalled findings are written to the log file. Scheduled runs emit
-a single warning summary for each layer containing stalled jobs, rather than
-sending every matching UUID through cron mail. Run a manual read-only check
-for a service with the installed helper:
+Individual stalled findings and warning summaries are written to the log file.
+Scheduled runs keep warnings off the console so cron does not mail them. Only
+critical failures, such as an unreadable monitoring source or a failed recovery
+operation, reach cron mail. Run a manual read-only check for a service with the
+installed helper:
 
 ```sh
 sudo /var/lib/pywps/monitor SERVICE_NAME
@@ -418,8 +419,8 @@ sudo /var/lib/pywps/monitor SERVICE_NAME
 
 The helper checks all three layers and prints their quick summaries to the
 terminal. It does not calculate the complete database status aggregate. The
-five-minute scheduled monitor performs the same all-layer check and remains quiet
-unless it finds stalled jobs or errors.
+five-minute scheduled monitor performs the same all-layer check and remains
+quiet on the cron console unless it encounters a critical error.
 
 Recover stalled jobs with the single ordered operator command:
 
@@ -529,8 +530,8 @@ count, the separate XML and database stalled counts, the number of XML status
 documents, and layer errors. A request stalled in both XML and the database is
 counted only once in `stalled`. The line also includes the number of non-final
 database requests beyond the long-running warning threshold. Routine
-individual findings are excluded, and only actual errors add extra log records
-or reach the cron console. The
+individual findings are excluded. Errors add extra log records, and critical
+errors also reach the cron console. The
 statistics log uses the same daily maximum frequency and configured
 minimum-size threshold as the other service logs. Run the same report manually
 with:
@@ -678,16 +679,17 @@ slurm_job_monitor_schedule:
   hour: "*"
 slurm_job_monitor_user: wps
 slurm_job_monitor_long_running_minutes: 10
-slurm_job_monitor_pending_warning: 20
+slurm_job_monitor_pending_critical: 20
 slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 ```
 
 The long-running warning defaults to 10 minutes. The default queue threshold
-warns when 20 or more jobs are pending. Every run
+becomes critical when 20 or more jobs are pending. Every run
 records running, pending, total, and long-running counts in
 `/var/log/pywps/slurm-job-monitor.log`, which uses the existing PyWPS log
-rotation. Individual long-running jobs and a full pending queue produce
-warnings suitable for cron mail.
+rotation. Individual long-running jobs remain warning-level log findings and do
+not cause cron mail. A full pending queue, unavailable scheduler capacity, or a
+monitor execution failure is critical and does cause cron mail.
 
 The monitor also maintains a root-owned, mode `0644` red-alert file for a
 future PyWPS health check. It atomically writes JSON when the pending threshold
@@ -701,7 +703,7 @@ Inspect the current queue manually without making changes:
 
 ```sh
 sudo /usr/local/sbin/slurm-job-monitor \
-  --user wps --long-running-minutes 10 --pending-warning 20
+  --user wps --long-running-minutes 10 --pending-critical 20
 ```
 
 The monitor never changes or cancels jobs. Its long-running threshold indicates

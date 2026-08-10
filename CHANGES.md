@@ -4,6 +4,8 @@
 
 Changes:
 
+- keep warning-level job-monitor findings in log files and reserve cron mail
+  for critical queue, scheduler-capacity, monitoring, and recovery failures
 - rebuild recovered status documents through the matching PyWPS scheduler dump
   so input lineage is retained, with exact pre-recovery evidence archives and
   fail-safe validation instead of lossy XML replacement

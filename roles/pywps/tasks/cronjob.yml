@@ -163,11 +163,11 @@
       - >-
         slurm_job_monitor_long_running_minutes | int
         < slurm_job_timeout_minutes | int
-      - slurm_job_monitor_pending_warning | int > 0
+      - slurm_job_monitor_pending_critical | int > 0
     fail_msg: >-
       Slurm requires a positive runtime limit below the PyWPS stale threshold.
       Its optional monitor requires a cron-field mapping, a user, a positive
-      pending-job warning threshold, and a positive long-running threshold
+      pending-job critical threshold, and a positive long-running threshold
       below the hard runtime limit.
   when: slurm_enabled | bool
 
@@ -218,7 +218,7 @@
       {{ slurm_job_monitor_script }}
       --user {{ slurm_job_monitor_user | quote }}
       --long-running-minutes {{ slurm_job_monitor_long_running_minutes }}
-      --pending-warning {{ slurm_job_monitor_pending_warning }}
+      --pending-critical {{ slurm_job_monitor_pending_critical }}
       --lock-file {{ slurm_job_monitor_lock_file | quote }}
       --log-file {{ slurm_job_monitor_log_file | quote }}
       --alert-file {{ slurm_job_monitor_alert_file | quote }}

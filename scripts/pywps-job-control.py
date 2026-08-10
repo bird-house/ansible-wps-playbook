@@ -559,7 +559,12 @@ def run_xml_layer(
             summary.errors += 1
             if settings.mode == "recover" and UUID_RE.fullmatch(path.stem):
                 summary.recovery_blocked_jobs.add(path.stem)
-            logger.exception("layer=xml file=%s result=error reason=%s", path, error)
+            logger.critical(
+                "layer=xml file=%s result=error reason=%s",
+                path,
+                error,
+                exc_info=True,
+            )
     return summary
 
 
@@ -845,10 +850,11 @@ def run_polling_layer(
                     )
         except Exception as error:
             summary.errors += 1
-            logger.exception(
+            logger.critical(
                 "layer=polling job=%s decision=error reason=%s",
                 candidate.job_uuid,
                 error,
+                exc_info=True,
             )
         if settings.limit is not None and summary.stalled >= settings.limit:
             break
@@ -1077,10 +1083,11 @@ def run_database_layer(
             except Exception as error:
                 session.rollback()
                 summary.errors += 1
-                logger.exception(
+                logger.critical(
                     "layer=database job=%s decision=error reason=%s",
                     getattr(record, "uuid", "unknown"),
                     error,
+                    exc_info=True,
                 )
     finally:
         session.close()
@@ -1361,9 +1368,10 @@ def configure_logging(
     stream_handler = logging.StreamHandler()
     service_filter = ServiceContextFilter(service_name)
     stream_handler.addFilter(service_filter)
-    stream_handler.setLevel(
-        logging.INFO if show_summaries else logging.ERROR if statistics_only else logging.WARNING
-    )
+    # Cron mails every byte written to stdout or stderr. Scheduled invocations
+    # therefore expose only critical incidents; operator helpers explicitly
+    # request summaries and retain their existing interactive output.
+    stream_handler.setLevel(logging.INFO if show_summaries else logging.CRITICAL)
     if show_summaries:
         stream_handler.addFilter(SummaryConsoleFilter())
     handlers: list[logging.Handler] = [stream_handler]
@@ -1436,7 +1444,9 @@ def execute_layers(
             )
             summary = runners[layer](layer_settings, now, logger)
         except Exception as error:
-            logger.exception("layer=%s decision=error reason=%s", layer, error)
+            logger.critical(
+                "layer=%s decision=error reason=%s", layer, error, exc_info=True
+            )
             summary = LayerSummary(layer, errors=1)
         summaries.append(summary)
         database_recovery_excluded_jobs.update(summary.recovery_blocked_jobs)
@@ -1574,7 +1584,7 @@ def main(argv: list[str] | None = None) -> int:
             level=logging.INFO,
             format="%(asctime)s %(levelname)s service=unknown %(message)s",
         )
-        logging.getLogger("pywps-job-control").error("%s", error)
+        logging.getLogger("pywps-job-control").critical("%s", error)
         return 2
 
 

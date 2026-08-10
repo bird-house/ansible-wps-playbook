@@ -74,7 +74,7 @@ slurm_job_timeout_minutes: 90
 # Report queue pressure and jobs approaching the hard timeout when Slurm is enabled.
 slurm_job_monitor_enabled: true
 slurm_job_monitor_long_running_minutes: 10
-slurm_job_monitor_pending_warning: 20
+slurm_job_monitor_pending_critical: 20
 slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 
 # Tune these values for the CPUs and workload available on the target.

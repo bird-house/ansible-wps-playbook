@@ -916,7 +916,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     "none",
                 )
 
-    def test_logging_keeps_info_in_file_and_only_warns_on_stderr(self):
+    def test_logging_keeps_warnings_in_file_and_only_critical_on_stderr(self):
         log_file = self.root / "stalled.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
             MODULE.configure_logging(log_file, service_name="alpha")
@@ -932,7 +932,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             for handler in handlers
             if isinstance(handler, MODULE.logging.FileHandler)
         )
-        self.assertEqual(stream_handler.level, MODULE.logging.WARNING)
+        self.assertEqual(stream_handler.level, MODULE.logging.CRITICAL)
         self.assertEqual(file_handler.level, MODULE.logging.INFO)
         self.assertEqual(
             basic_config.call_args.kwargs["format"],
@@ -989,7 +989,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             for handler in handlers
             if isinstance(handler, MODULE.logging.FileHandler)
         )
-        self.assertEqual(stream_handler.level, MODULE.logging.ERROR)
+        self.assertEqual(stream_handler.level, MODULE.logging.CRITICAL)
         summary = MODULE.logging.LogRecord(
             "test", MODULE.logging.INFO, __file__, 1, "summary layer=xml", (), None
         )
