@@ -4,6 +4,8 @@
 
 Changes:
 
+- stage Slurm, XML/database, and missing-status polling limits at 90, 120, and
+  150 minutes, and avoid also reporting stalled database rows as long-running
 - apply the configured cron mail recipient to the host-wide Slurm monitor
 - make the managed cron file idempotent and harden output cleanup against
   empty service globs and concurrent file removal

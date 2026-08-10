@@ -497,6 +497,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "statistics_enabled = true\n"
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
+            "database_stale_after_minutes = 420\n"
             "recovery_limit = 100\n"
             "incident_archive_enabled = true\n"
             f"incident_archive_dir = {self.root / 'incidents'}\n"
@@ -513,6 +514,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.layers, ["xml", "database", "polling"])
         self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
+        self.assertEqual(settings.database_stale_after_minutes, 420)
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
         self.assertEqual(settings.pywps_config, config)
@@ -544,9 +546,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "xml",
             "--stale-after-minutes",
             "720",
+            "--database-stale-after-minutes",
+            "840",
         ])
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
+        self.assertEqual(overridden.database_stale_after_minutes, 840)
         self.assertIsNone(overridden.limit)
 
         recovery = MODULE.parse_args(["--config", str(config), "recover"])
@@ -942,6 +947,24 @@ class RecoverStalledJobsTests(unittest.TestCase):
             MODULE.is_database_job_long_running(
                 record, self.now, timedelta(minutes=10)
             )
+        )
+
+    def test_database_stalled_finding_takes_precedence_over_long_running(self):
+        long_running = timedelta(minutes=10)
+        stale = timedelta(minutes=240)
+        record = argparse.Namespace(
+            time_start=self.now - timedelta(minutes=300),
+            time_end=None,
+        )
+        self.assertEqual(
+            MODULE.classify_database_job(record, self.now, long_running, stale),
+            "stalled",
+        )
+
+        record.time_end = self.now - timedelta(minutes=5)
+        self.assertEqual(
+            MODULE.classify_database_job(record, self.now, long_running, stale),
+            "long-running",
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")

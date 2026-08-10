@@ -350,6 +350,7 @@ wps_job_control_recovery_schedule:
   hour: "*"
 wps_job_control_long_running_minutes: 10
 wps_job_control_stale_after_minutes: 120
+wps_job_control_database_stale_after_minutes: 120
 wps_job_control_recovery_limit: 100
 wps_job_incident_archive_enabled: true
 wps_job_incident_keep_days: 30
@@ -361,9 +362,11 @@ is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 disabled polling recovery is skipped within that ordered run.
 The database layer reports non-final requests as long-running after 10 minutes
-by default, based on their request start time. This is an early warning only;
-the request is not recovered until it also reaches the separate 120-minute
-stale threshold without a status update.
+by default, based on their request start time. This is an early warning only.
+XML documents and database rows have separate two-hour stale thresholds. XML
+recovery writes a failed status document; database recovery only reconciles
+the database row and removes its stored request. Stalled database rows are
+reported only as stalled, rather than being counted again as long-running.
 Standard cron fields
 `minute`, `hour`, `day`, `month`, and `weekday` are configurable. When the XML
 layer and scheduled output cleanup are enabled, the stale threshold must be
@@ -436,6 +439,7 @@ Command-line options override those defaults, for example:
 ```sh
 sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-minutes 720
 sudo /var/lib/pywps/recover SERVICE_NAME --stale-after-minutes 720
+sudo /var/lib/pywps/recover SERVICE_NAME --database-stale-after-minutes 720
 sudo /var/lib/pywps/recover SERVICE_NAME --limit 500
 ```
 
@@ -446,7 +450,8 @@ The installed helpers have fixed layer scopes and reject `--layer`. For custom
 diagnosis, call `pywps-job-control.py` directly and repeat `--layer`, for
 example `--layer xml --layer database`. Without explicit layers, monitoring
 and recovery use all three layers in their safe order; statistics uses XML and
-database. `--stale-after-minutes` overrides the configured threshold.
+database. `--stale-after-minutes` overrides the XML threshold, while
+`--database-stale-after-minutes` overrides database cleanup.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
 batches bounded even when years of unfinished requests have accumulated.
@@ -531,19 +536,20 @@ instead of polling forever.
 ```yaml
 wps_job_control_recovery_enabled: true
 wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: 60
+wps_missing_status_poll_window_minutes: 180
 wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 15
+wps_missing_status_min_poll_duration_minutes: 150
 wps_missing_status_recovery_limit: 20
 wps_missing_status_access_log: /var/log/nginx/access.log
 wps_missing_status_database_guard: true
 ```
 
-The default recovery schedule runs every five minutes at minute 1 and considers
-only requests from the preceding hour. Polling is the last recovery layer, so
+The default recovery schedule runs every five minutes at minute 1 and
+considers only requests from the preceding three hours. Polling is the last
+recovery layer, so
 XML and database reconciliation has already completed in the same locked run.
 Recovery requires at least three `GET` or `HEAD` responses
-with status `404`, spanning at least 15 minutes rather than arriving in one
+with status `404`, spanning at least 150 minutes rather than arriving in one
 short burst. Only the exact output path configured for that PyWPS service and a
 syntactically valid UUID filename are accepted. Only the configured active log
 is inspected. Rotated logs are intentionally ignored: persistent polling
@@ -630,9 +636,9 @@ provide this validation when the service runs in scheduler mode.
 #### Limit and monitor Slurm jobs
 
 Slurm enforces a default and maximum runtime on the `fast` partition. Its
-90-minute default is deliberately shorter than the two-hour PyWPS stale
-threshold, so Slurm ends the process before the existing XML and database
-recovery reconciles a request which remains non-final. Both limits can be
+90-minute limit stops scheduler work before the two-hour XML and database
+stale thresholds. The CDS client's three-hour limit remains an outer safeguard
+for queue health rather than the normal scheduler cutoff. These limits can be
 overridden independently, but the Slurm timeout must remain shorter:
 
 ```yaml

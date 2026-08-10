@@ -34,6 +34,7 @@ wps_job_control_recovery_schedule:
   hour: "*"
 wps_job_control_long_running_minutes: 10
 wps_job_control_stale_after_minutes: 120
+wps_job_control_database_stale_after_minutes: 120
 # Maximum recovered jobs per layer.
 wps_job_control_recovery_limit: 100
 # Preserve failed status XML for later investigation.
@@ -42,9 +43,9 @@ wps_job_incident_archive_dir: /var/lib/pywps/job-incidents
 wps_job_incident_keep_days: 30
 # Create failure XML for repeated Nginx 404 status polling.
 wps_missing_status_recovery_enabled: false
-wps_missing_status_poll_window_minutes: 60
+wps_missing_status_poll_window_minutes: 180
 wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 15
+wps_missing_status_min_poll_duration_minutes: 150
 wps_missing_status_recovery_limit: 20
 wps_missing_status_database_guard: true
 

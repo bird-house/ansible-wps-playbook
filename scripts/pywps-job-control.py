@@ -62,9 +62,9 @@ class Settings:
     status_counts: bool = False
     output_url: str | None = None
     access_log: Path | None = None
-    poll_window_minutes: float = 60
+    poll_window_minutes: float = 180
     min_poll_count: int = 3
-    min_poll_duration_minutes: float = 15
+    min_poll_duration_minutes: float = 150
     database_guard: bool = True
     monitor_enabled: bool = True
     recovery_enabled: bool = False
@@ -76,6 +76,7 @@ class Settings:
     recovery_limit: int = 100
     missing_status_recovery_limit: int = 20
     long_running_minutes: float = 10
+    database_stale_after_minutes: float = 120
 
 
 @dataclass
@@ -764,6 +765,19 @@ def is_database_job_long_running(
     return started is not None and is_stalled(started, now, threshold)
 
 
+def classify_database_job(
+    record: object,
+    now: datetime,
+    long_running_threshold: timedelta,
+    stale_threshold: timedelta,
+) -> str | None:
+    if is_stalled(database_last_update(record), now, stale_threshold):
+        return "stalled"
+    if is_database_job_long_running(record, now, long_running_threshold):
+        return "long-running"
+    return None
+
+
 def database_job_status(value: object, wps_status: object) -> str | None:
     """Map a PyWPS database status to the OGC API Processes vocabulary."""
     if value == getattr(wps_status, "ACCEPTED", object()):
@@ -819,7 +833,7 @@ def run_database_layer(
             "the database layer must run with the service Conda environment"
         ) from error
 
-    threshold = timedelta(minutes=settings.stale_after_minutes)
+    threshold = timedelta(minutes=settings.database_stale_after_minutes)
     long_running_threshold = timedelta(minutes=settings.long_running_minutes)
     database_url = configuration.get_config_value("logging", "database")
     engine = create_engine(database_url)
@@ -888,12 +902,13 @@ def run_database_layer(
             try:
                 last_update = database_last_update(record)
                 started = database_start_time(record)
-                if (
-                    settings.mode != "recover"
-                    and is_database_job_long_running(
-                        record, now, long_running_threshold
-                    )
-                ):
+                finding = classify_database_job(
+                    record,
+                    now,
+                    long_running_threshold,
+                    threshold,
+                )
+                if settings.mode != "recover" and finding == "long-running":
                     summary.long_running += 1
                     summary.long_running_jobs.add(str(record.uuid))
                     logger.info(
@@ -904,7 +919,7 @@ def run_database_layer(
                         started.isoformat(),
                         int((now - started).total_seconds() // 60),
                     )
-                if not is_stalled(last_update, now, threshold):
+                if finding != "stalled":
                     logger.debug(
                         "layer=database job=%s status=%s finding=recent updated=%s",
                         record.uuid,
@@ -925,7 +940,8 @@ def run_database_layer(
                     record.percent_done = 100
                     record.message = (
                         "Process failed: stalled-job recovery found no database update "
-                        f"for at least {settings.stale_after_minutes:g} minutes."
+                        "for at least "
+                        f"{settings.database_stale_after_minutes:g} minutes."
                     )
                     record.time_end = now.astimezone(UTC).replace(tzinfo=None)
                     session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
@@ -1040,7 +1056,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--stale-after-minutes",
         type=float,
         default=float(control_config.get("stale_after_minutes", "120")),
-        help="consider nonfinal jobs stalled after this many minutes",
+        help="consider nonfinal XML jobs stalled after this many minutes",
+    )
+    parser.add_argument(
+        "--database-stale-after-minutes",
+        type=float,
+        default=float(control_config.get("database_stale_after_minutes", "120")),
+        help="consider nonfinal database rows stale after this many minutes",
     )
     parser.add_argument(
         "--limit",
@@ -1076,7 +1098,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--poll-window-minutes",
         type=float,
-        default=float(control_config.get("poll_window_minutes", "60")),
+        default=float(control_config.get("poll_window_minutes", "180")),
         help="inspect polling requests from this recent time window",
     )
     parser.add_argument(
@@ -1091,7 +1113,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         default=float(
             control_config.get(
                 "min_poll_duration_minutes",
-                "15",
+                "150",
             )
         ),
         help="require matching polls to span at least this much time",
@@ -1123,10 +1145,17 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("at least one layer must be configured")
     if args.stale_after_minutes <= 0:
         parser.error("--stale-after-minutes must be greater than zero")
+    if args.database_stale_after_minutes <= 0:
+        parser.error("--database-stale-after-minutes must be greater than zero")
     if args.long_running_minutes <= 0:
         parser.error("--long-running-minutes must be greater than zero")
     if args.long_running_minutes >= args.stale_after_minutes:
         parser.error("--long-running-minutes must be shorter than --stale-after-minutes")
+    if args.long_running_minutes >= args.database_stale_after_minutes:
+        parser.error(
+            "--long-running-minutes must be shorter than "
+            "--database-stale-after-minutes"
+        )
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
     if recovery_limit <= 0 or missing_status_recovery_limit <= 0:
@@ -1179,6 +1208,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         recovery_limit=recovery_limit,
         missing_status_recovery_limit=missing_status_recovery_limit,
         long_running_minutes=args.long_running_minutes,
+        database_stale_after_minutes=args.database_stale_after_minutes,
     )
 
 
