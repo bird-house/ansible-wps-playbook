@@ -4,6 +4,8 @@
 
 Changes:
 
+- use `linux-64.spec` as the default explicit Conda specification filename,
+  with a clear migration hint when repositories still use `spec-list.txt`
 - give dump-backed PyWPS recovery the service account's home and XDG
   environment after dropping privileges instead of retaining root's paths
 - interpret naive PyWPS database timestamps in the service host's local

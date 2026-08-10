@@ -18,7 +18,33 @@
     - pywps
     - conda
 
-- name: Create Conda environment from spec-list.txt file.
+- name: Check configured Conda specification.
+  ansible.builtin.stat:
+    path: "{{ src_dir }}/{{ item.name }}/{{ conda_env_spec_file }}"
+  with_items: "{{ wps_services }}"
+  when: conda_env_use_spec
+  register: pywps_conda_spec_files
+  tags:
+    - pywps
+    - conda
+
+- name: Report missing Conda specification.
+  ansible.builtin.assert:
+    that: item.stat.exists
+    fail_msg: >-
+      Conda specification {{ conda_env_spec_file }} was not found in the
+      {{ item.item.name }} repository. If the repository still contains the
+      legacy spec-list.txt file, rename it to linux-64.spec or set
+      conda_env_spec_file: spec-list.txt in the inventory for compatibility.
+  with_items: "{{ pywps_conda_spec_files.results }}"
+  when:
+    - conda_env_use_spec
+    - not (item.skipped | default(false))
+  tags:
+    - pywps
+    - conda
+
+- name: Create Conda environment from configured specification.
   command: "{{ conda_location }}/bin/conda create --file {{ conda_env_spec_file }} -p {{ conda_envs_dir }}/{{ item.name }}"
   args:
     chdir: "{{ src_dir }}/{{ item.name }}"

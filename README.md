@@ -604,7 +604,7 @@ candidates only when both recovery switches are enabled.
 
 By default, each WPS repository must contain the configured
 `conda_env_file`, which is `environment.yml`. To create environments from
-explicit Conda specifications instead, place `spec-list.txt` in each WPS
+explicit Conda specifications instead, place `linux-64.spec` in each WPS
 repository and set:
 
 ```yaml
@@ -618,6 +618,11 @@ for an example.
 > [!NOTE]
 > `conda_env_use_spec` and `conda_env_spec_file` apply to all configured WPS
 > services.
+>
+> The former default was `spec-list.txt`. If a repository still uses that
+> filename, rename the file to `linux-64.spec` or set
+> `conda_env_spec_file: spec-list.txt` in the inventory as a compatibility
+> override. A missing-spec failure reports this migration hint.
 
 Additional runtime packages are installed from `wps_conda_channel` through
 `wps_conda_packages`, using `--freeze-installed` to minimize changes to the

@@ -69,6 +69,7 @@
           - wps_missing_status_min_poll_duration_minutes == 150
           - wps_missing_status_recovery_limit == 20
           - wps_missing_status_database_guard
+          - conda_env_spec_file == 'linux-64.spec'
           - wps_conda_channel == 'conda-forge'
           - "'psycopg2=2.9.12' in wps_conda_packages"
           - "'drmaa=0.7.9' in wps_conda_packages"

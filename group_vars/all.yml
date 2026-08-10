@@ -103,7 +103,9 @@ conda_bin: "{{ conda_location }}/bin/conda"
 conda_envs_dir: "{{ conda_location }}/envs"
 conda_env_file: environment.yml
 conda_env_use_spec: false
-conda_env_spec_file: spec-list.txt
+# New explicit specs should use the platform-specific filename. Repositories
+# that still provide spec-list.txt can override this variable for compatibility.
+conda_env_spec_file: linux-64.spec
 wps_conda_channel: conda-forge
 wps_conda_packages:
   - gunicorn
