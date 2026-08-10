@@ -4,6 +4,8 @@
 
 Changes:
 
+- interpret naive PyWPS database timestamps in the service host's local
+  timezone so long-running and stale thresholds are not shifted by UTC offset
 - keep warning-level job-monitor findings in log files and reserve cron mail
   for critical queue, scheduler-capacity, monitoring, and recovery failures
 - rebuild recovered status documents through the matching PyWPS scheduler dump

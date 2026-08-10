@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import types
 import unittest
 import xml.etree.ElementTree as ET
@@ -1109,13 +1110,49 @@ class RecoverStalledJobsTests(unittest.TestCase):
         record = argparse.Namespace(time_start=start, time_end=update)
         self.assertEqual(
             MODULE.database_last_update(record),
-            update.replace(tzinfo=UTC),
+            update.astimezone(UTC),
         )
         record.time_end = None
-        self.assertEqual(MODULE.database_last_update(record), start.replace(tzinfo=UTC))
-        self.assertEqual(MODULE.database_start_time(record), start.replace(tzinfo=UTC))
+        self.assertEqual(MODULE.database_last_update(record), start.astimezone(UTC))
+        self.assertEqual(MODULE.database_start_time(record), start.astimezone(UTC))
         record.time_start = None
         self.assertIsNone(MODULE.database_start_time(record))
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_database_naive_timestamps_use_host_local_wall_clock(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Berlin"
+        time.tzset()
+        try:
+            record = argparse.Namespace(
+                time_start=datetime(2026, 8, 10, 16, 55, 29),
+                time_end=datetime(2026, 8, 10, 16, 55, 32),
+            )
+            now = datetime(2026, 8, 10, 16, 4, 1, tzinfo=UTC)
+
+            self.assertEqual(
+                MODULE.database_start_time(record),
+                datetime(2026, 8, 10, 14, 55, 29, tzinfo=UTC),
+            )
+            self.assertTrue(
+                MODULE.is_database_job_long_running(
+                    record, now, timedelta(minutes=10)
+                )
+            )
+            self.assertEqual(
+                MODULE.database_naive_cutoff(now, timedelta(minutes=10)),
+                datetime(2026, 8, 10, 17, 54, 1),
+            )
+            self.assertEqual(
+                MODULE.database_naive_now(now),
+                datetime(2026, 8, 10, 18, 4, 1),
+            )
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
 
     def test_database_long_running_uses_request_start_not_last_update(self):
         record = argparse.Namespace(

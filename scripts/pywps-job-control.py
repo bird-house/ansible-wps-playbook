@@ -866,7 +866,10 @@ def database_last_update(record: object) -> datetime:
     if value is None:
         raise ValueError("database record has no start or update time")
     if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
+        # PyWPS stores naive timestamps using the service host's local wall
+        # clock. astimezone() applies the host timezone, including DST for the
+        # timestamp's date, before converting it to UTC.
+        return value.astimezone(UTC)
     return value.astimezone(UTC)
 
 
@@ -875,8 +878,18 @@ def database_start_time(record: object) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
     return value.astimezone(UTC)
+
+
+def database_naive_cutoff(now: datetime, threshold: timedelta) -> datetime:
+    """Return a naive cutoff in the local wall-clock convention used by PyWPS."""
+    return (now - threshold).astimezone().replace(tzinfo=None)
+
+
+def database_naive_now(now: datetime) -> datetime:
+    """Return an aware instant as the naive local wall clock stored by PyWPS."""
+    return now.astimezone().replace(tzinfo=None)
 
 
 def is_database_job_long_running(
@@ -1004,10 +1017,8 @@ def run_database_layer(
                     sorted(settings.database_recovery_excluded_jobs)
                 )
             )
-        cutoff = (now - threshold).astimezone(UTC).replace(tzinfo=None)
-        long_running_cutoff = (now - long_running_threshold).astimezone(UTC).replace(
-            tzinfo=None
-        )
+        cutoff = database_naive_cutoff(now, threshold)
+        long_running_cutoff = database_naive_cutoff(now, long_running_threshold)
         last_update = func.coalesce(
             dblog.ProcessInstance.time_end,
             dblog.ProcessInstance.time_start,
@@ -1072,7 +1083,7 @@ def run_database_layer(
                         "for at least "
                         f"{settings.database_stale_after_minutes:g} minutes."
                     )
-                    record.time_end = now.astimezone(UTC).replace(tzinfo=None)
+                    record.time_end = database_naive_now(now)
                     session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
                     session.commit()
                     summary.recovered += 1

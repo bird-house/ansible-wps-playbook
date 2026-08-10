@@ -394,8 +394,10 @@ The XML and database layers run independently. The XML layer examines both
 the last update. Only `ProcessSucceeded` and `ProcessFailed` are final; every
 other state older than the threshold is stalled. The database layer uses the
 last database status time, falling back to the request start time. Timestamps
-with `Z`, and database timestamps without an offset, are interpreted as UTC;
-the deployment host should therefore keep its clock and timezone consistent.
+with `Z` are interpreted as UTC. PyWPS database timestamps without an offset
+are interpreted in the service host's local timezone, matching the wall-clock
+values PyWPS stores; the deployment host should therefore keep its clock and
+timezone consistent.
 
 Monitoring never changes live request state. Review
 `/var/log/pywps/SERVICE_NAME-job-monitor.log` before enabling scheduled
