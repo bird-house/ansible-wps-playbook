@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import configparser
 import fcntl
-import io
+import json
 import logging
 import os
+import pwd
 import re
+import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -39,6 +41,7 @@ DEFAULT_LAYERS = {
     "statistics": ("xml", "database"),
 }
 UTC = timezone.utc
+XML_TIMESTAMP_TOLERANCE = timedelta(minutes=5)
 JOB_CONTROL_SECTION = "job_control"
 ACCESS_LOG_RE = re.compile(
     r'^(?P<client>\S+) \S+ \S+ \[(?P<timestamp>[^]]+)\] '
@@ -62,9 +65,9 @@ class Settings:
     status_counts: bool = False
     output_url: str | None = None
     access_log: Path | None = None
-    poll_window_minutes: float = 60
+    poll_window_minutes: float = 180
     min_poll_count: int = 3
-    min_poll_duration_minutes: float = 15
+    min_poll_duration_minutes: float = 150
     database_guard: bool = True
     monitor_enabled: bool = True
     recovery_enabled: bool = False
@@ -76,6 +79,12 @@ class Settings:
     recovery_limit: int = 100
     missing_status_recovery_limit: int = 20
     long_running_minutes: float = 10
+    database_stale_after_minutes: float = 120
+    work_dir: Path | None = None
+    recovery_user: str = "wps"
+    recovery_group: str = "wps"
+    python_executable: Path | None = None
+    database_recovery_excluded_jobs: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -89,6 +98,7 @@ class LayerSummary:
     status_counts: dict[str, int] | None = None
     long_running: int = 0
     long_running_jobs: set[str] = field(default_factory=set)
+    recovery_blocked_jobs: set[str] = field(default_factory=set)
 
 
 class SummaryConsoleFilter(logging.Filter):
@@ -129,7 +139,6 @@ class XmlStatus:
     creation_time: datetime
     modification_time: datetime
     source_identity: tuple[int, int, int, int]
-    namespaces: list[tuple[str, str]]
     process_identifier: str
     contents: bytes
 
@@ -148,14 +157,19 @@ class MissingStatusPolls:
     count: int = 0
 
 
+@dataclass
+class JobDump:
+    path: Path
+    contents: bytes
+    source_identity: tuple[int, int, int, int]
+    job_uuid: str
+    workdir: Path
+    lineage: bool
+    input_count: int
+
+
 def local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
-
-
-def namespace(tag: str) -> str:
-    if tag.startswith("{"):
-        return tag[1:].split("}", 1)[0]
-    return ""
 
 
 def qualified(name: str, uri: str) -> str:
@@ -170,6 +184,23 @@ def parse_timestamp(value: str) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def normalize_xml_creation_time(
+    creation_time: datetime,
+    modification_time: datetime,
+) -> datetime:
+    """Correct PyWPS local wall-clock values that are incorrectly labelled UTC."""
+    local_interpretation = creation_time.replace(tzinfo=None).astimezone(UTC)
+    labelled_matches_file = (
+        abs(creation_time - modification_time) <= XML_TIMESTAMP_TOLERANCE
+    )
+    local_matches_file = (
+        abs(local_interpretation - modification_time) <= XML_TIMESTAMP_TOLERANCE
+    )
+    if not labelled_matches_file and local_matches_file:
+        return local_interpretation
+    return creation_time
 
 
 def stat_identity(stat: os.stat_result) -> tuple[int, int, int, int]:
@@ -188,10 +219,6 @@ def read_xml_status(path: Path) -> tuple[XmlStatus, ET.ElementTree]:
     ):
         raise RuntimeError("status file changed while it was read")
 
-    namespaces: list[tuple[str, str]] = []
-    for _, item in ET.iterparse(io.BytesIO(contents), events=("start-ns",)):
-        if item not in namespaces:
-            namespaces.append(item)
     tree = ET.ElementTree(ET.fromstring(contents))
     root = tree.getroot()
     status = next((element for element in root.iter() if local_name(element.tag) == "Status"), None)
@@ -200,8 +227,12 @@ def read_xml_status(path: Path) -> tuple[XmlStatus, ET.ElementTree]:
     creation_value = status.attrib.get("creationTime")
     if not creation_value:
         raise ValueError("missing Status creationTime")
+    modification_time = datetime.fromtimestamp(path_stat.st_mtime, UTC)
     try:
-        creation_time = parse_timestamp(creation_value)
+        creation_time = normalize_xml_creation_time(
+            parse_timestamp(creation_value),
+            modification_time,
+        )
     except ValueError as error:
         raise ValueError(f"invalid Status creationTime: {creation_value}") from error
 
@@ -227,9 +258,8 @@ def read_xml_status(path: Path) -> tuple[XmlStatus, ET.ElementTree]:
             job_uuid=path.stem,
             state=local_name(states[0].tag),
             creation_time=creation_time,
-            modification_time=datetime.fromtimestamp(path_stat.st_mtime, UTC),
+            modification_time=modification_time,
             source_identity=stat_identity(path_stat),
-            namespaces=namespaces,
             process_identifier=identifier,
             contents=contents,
         ),
@@ -321,68 +351,195 @@ def is_stalled(last_update: datetime, now: datetime, threshold: timedelta) -> bo
     return now - last_update >= threshold
 
 
-def write_failed_xml(
-    document: XmlStatus,
-    tree: ET.ElementTree,
-    message: str,
-    now: datetime,
-) -> None:
-    for prefix, uri in document.namespaces:
-        if not re.fullmatch(r"ns\d+", prefix):
-            ET.register_namespace(prefix, uri)
-
-    root = tree.getroot()
-    status = next(element for element in root.iter() if local_name(element.tag) == "Status")
-    states = [child for child in list(status) if local_name(child.tag).startswith("Process")]
-    if len(states) != 1 or local_name(states[0].tag) in FINAL_XML_STATES:
-        raise RuntimeError("status is no longer non-final")
-
-    wps_uri = namespace(status.tag) or namespace(states[0].tag)
-    ows_uri = next(
-        (uri for prefix, uri in document.namespaces if prefix == "ows"),
-        "http://www.opengis.net/ows/1.1",
-    )
-    status.set("creationTime", now.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"))
-    for child in list(status):
-        status.remove(child)
-    failed = ET.SubElement(status, qualified("ProcessFailed", wps_uri))
-    # Match the WPS 1.0.0 status documents emitted by PyWPS. OWSLib accepts
-    # this mixed wps:ExceptionReport/ows:Exception structure, so recovery must
-    # not try to normalize it to a different namespace layout.
-    report = ET.SubElement(failed, qualified("ExceptionReport", wps_uri))
-    exception = ET.SubElement(
-        report,
-        qualified("Exception", ows_uri),
-        {"exceptionCode": "NoApplicableCode", "locator": "None"},
-    )
-    exception_text = ET.SubElement(exception, qualified("ExceptionText", ows_uri))
-    exception_text.text = message
-
-    source_stat = document.path.stat()
-    if stat_identity(source_stat) != document.source_identity:
-        raise RuntimeError("status file changed before recovery")
-    fd, temporary_name = tempfile.mkstemp(
-        prefix=f".{document.path.name}.",
-        suffix=".tmp",
-        dir=document.path.parent,
-    )
+def read_job_dump(path: Path, expected_uuid: str) -> JobDump:
+    if path.is_symlink():
+        raise ValueError(f"job dump must not be a symlink: {path}")
+    with path.open("rb") as stream:
+        before = os.fstat(stream.fileno())
+        contents = stream.read()
+        after = os.fstat(stream.fileno())
+    path_stat = path.stat()
+    if (
+        stat_identity(before) != stat_identity(after)
+        or stat_identity(after) != stat_identity(path_stat)
+    ):
+        raise RuntimeError(f"job dump changed while it was read: {path}")
     try:
-        with os.fdopen(fd, "wb") as stream:
-            tree.write(stream, encoding="utf-8", xml_declaration=True)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.chmod(temporary_name, source_stat.st_mode & 0o777)
-        if os.geteuid() == 0:
-            os.chown(temporary_name, source_stat.st_uid, source_stat.st_gid)
-        if stat_identity(document.path.stat()) != document.source_identity:
-            raise RuntimeError("status file changed before atomic replacement")
-        os.replace(temporary_name, document.path)
-    except BaseException:
+        payload = json.loads(contents)
+        process = payload["process"]
+        request = json.loads(payload["wps_request"])
+        job_uuid = str(process["uuid"])
+        workdir = Path(process["workdir"]).resolve()
+        inputs = request.get("inputs", {})
+        if not isinstance(inputs, dict):
+            raise TypeError("WPS request inputs must be a mapping")
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid PyWPS job dump: {path}") from error
+    if job_uuid != expected_uuid:
+        raise ValueError(f"job dump UUID does not match {expected_uuid}: {path}")
+    if workdir != path.parent.resolve():
+        raise ValueError(f"job dump workdir does not match its directory: {path}")
+    lineage = request.get("lineage")
+    return JobDump(
+        path=path,
+        contents=contents,
+        source_identity=stat_identity(path_stat),
+        job_uuid=job_uuid,
+        workdir=workdir,
+        lineage=lineage is True or str(lineage).lower() == "true",
+        input_count=sum(len(value) if isinstance(value, list) else 1 for value in inputs.values()),
+    )
+
+
+def find_job_dump(settings: Settings, job_uuid: str) -> JobDump:
+    if settings.work_dir is None:
+        raise ValueError("XML recovery requires the configured PyWPS workdir")
+    matches: list[JobDump] = []
+    for path in settings.work_dir.glob("pywps_process_*/job_*.dump"):
         try:
-            os.unlink(temporary_name)
-        except FileNotFoundError:
-            pass
-        raise
+            if path.is_symlink():
+                continue
+            with path.open("rb") as stream:
+                payload = json.load(stream)
+            if str(payload.get("process", {}).get("uuid")) != job_uuid:
+                continue
+            matches.append(read_job_dump(path, job_uuid))
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+    if not matches:
+        raise FileNotFoundError(f"no PyWPS job dump found for {job_uuid}")
+    if len(matches) != 1:
+        raise RuntimeError(f"multiple PyWPS job dumps found for {job_uuid}")
+    return matches[0]
+
+
+def archive_recovery_sources(
+    document: XmlStatus,
+    dump: JobDump,
+    settings: Settings,
+) -> tuple[Path, Path]:
+    if not settings.incident_archive_enabled or settings.incident_archive_dir is None:
+        raise ValueError("dump-backed XML recovery requires incident archiving")
+    if stat_identity(document.path.stat()) != document.source_identity:
+        raise RuntimeError("status file changed before recovery archiving")
+    if stat_identity(dump.path.stat()) != dump.source_identity:
+        raise RuntimeError("job dump changed before recovery archiving")
+    archive_dir = settings.incident_archive_dir
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = document.creation_time.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    stem = "__".join(
+        (
+            timestamp,
+            "source",
+            safe_filename_component(settings.service_name),
+            safe_filename_component(document.process_identifier),
+            document.job_uuid,
+        )
+    )
+
+    def archive_bytes(destination: Path, contents: bytes) -> Path:
+        fd, temporary_name = tempfile.mkstemp(
+            prefix=f".{document.job_uuid}.", suffix=".tmp", dir=archive_dir
+        )
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(contents)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(temporary_name, 0o640)
+            try:
+                os.link(temporary_name, destination)
+            except FileExistsError:
+                if destination.read_bytes() != contents:
+                    raise RuntimeError(f"recovery archive collision: {destination}")
+        finally:
+            try:
+                os.unlink(temporary_name)
+            except FileNotFoundError:
+                pass
+        return destination
+
+    return (
+        archive_bytes(archive_dir / f"{stem}.xml", document.contents),
+        archive_bytes(archive_dir / f"{stem}.dump", dump.contents),
+    )
+
+
+def update_from_job_dump(
+    dump: JobDump,
+    document: XmlStatus,
+    settings: Settings,
+    message: str,
+) -> None:
+    if settings.pywps_config is None:
+        raise ValueError("dump-backed XML recovery requires pywps_config")
+    if settings.python_executable is None:
+        raise ValueError("dump-backed XML recovery requires the Conda Python path")
+    command = [
+        str(settings.python_executable),
+        str(Path(__file__).resolve()),
+        "--recover-job-dump",
+        str(settings.pywps_config),
+        str(dump.path),
+        document.job_uuid,
+        str(document.path),
+        message,
+    ]
+    run_options: dict[str, object] = {
+        "capture_output": True,
+        "text": True,
+        "timeout": 120,
+        "check": False,
+    }
+    if os.geteuid() == 0:
+        account = pwd.getpwnam(settings.recovery_user)
+        home = Path(account.pw_dir)
+        child_environment = os.environ.copy()
+        child_environment.update(
+            {
+                "HOME": str(home),
+                "USER": settings.recovery_user,
+                "LOGNAME": settings.recovery_user,
+                "PYTHONUSERBASE": str(home / ".local"),
+                "PYTHONNOUSERSITE": "1",
+                "XDG_CACHE_HOME": str(home / ".cache"),
+                "XDG_CONFIG_HOME": str(home / ".config"),
+                "XDG_DATA_HOME": str(home / ".local" / "share"),
+                "XDG_STATE_HOME": str(home / ".local" / "state"),
+            }
+        )
+        child_environment.pop("XDG_RUNTIME_DIR", None)
+        run_options.update(
+            user=settings.recovery_user,
+            group=settings.recovery_group,
+            extra_groups=[],
+            env=child_environment,
+        )
+    completed = subprocess.run(command, **run_options)
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip() or "unknown error"
+        raise RuntimeError(f"PyWPS dump recovery failed: {detail}")
+    recovered, tree = read_xml_status(document.path)
+    if recovered.state != "ProcessFailed":
+        raise RuntimeError("PyWPS dump recovery did not create ProcessFailed XML")
+    if dump.lineage and dump.input_count and not any(
+        local_name(element.tag) == "DataInputs" for element in tree.getroot().iter()
+    ):
+        raise RuntimeError("PyWPS dump recovery omitted requested input lineage")
+
+
+def recover_stalled_xml(
+    document: XmlStatus,
+    settings: Settings,
+    message: str,
+) -> None:
+    dump = find_job_dump(settings, document.job_uuid)
+    archive_recovery_sources(document, dump, settings)
+    if stat_identity(document.path.stat()) != document.source_identity:
+        raise RuntimeError("status file changed before dump-backed recovery")
+    if stat_identity(dump.path.stat()) != dump.source_identity:
+        raise RuntimeError("job dump changed before dump-backed recovery")
+    update_from_job_dump(dump, document, settings, message)
 
 
 def run_xml_layer(
@@ -429,7 +586,7 @@ def run_xml_layer(
                     "Process failed: stalled-job recovery found no status update "
                     f"for at least {settings.stale_after_minutes:g} minutes."
                 )
-                write_failed_xml(document, tree, message, now)
+                recover_stalled_xml(document, settings, message)
                 recovered_document, recovered_tree = read_xml_status(path)
                 archive_failed_xml(recovered_document, recovered_tree, settings, logger)
                 summary.recovered += 1
@@ -441,7 +598,14 @@ def run_xml_layer(
                 break
         except Exception as error:
             summary.errors += 1
-            logger.exception("layer=xml file=%s result=error reason=%s", path, error)
+            if settings.mode == "recover" and UUID_RE.fullmatch(path.stem):
+                summary.recovery_blocked_jobs.add(path.stem)
+            logger.critical(
+                "layer=xml file=%s result=error reason=%s",
+                path,
+                error,
+                exc_info=True,
+            )
     return summary
 
 
@@ -727,10 +891,11 @@ def run_polling_layer(
                     )
         except Exception as error:
             summary.errors += 1
-            logger.exception(
+            logger.critical(
                 "layer=polling job=%s decision=error reason=%s",
                 candidate.job_uuid,
                 error,
+                exc_info=True,
             )
         if settings.limit is not None and summary.stalled >= settings.limit:
             break
@@ -742,7 +907,10 @@ def database_last_update(record: object) -> datetime:
     if value is None:
         raise ValueError("database record has no start or update time")
     if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
+        # PyWPS stores naive timestamps using the service host's local wall
+        # clock. astimezone() applies the host timezone, including DST for the
+        # timestamp's date, before converting it to UTC.
+        return value.astimezone(UTC)
     return value.astimezone(UTC)
 
 
@@ -751,8 +919,18 @@ def database_start_time(record: object) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
     return value.astimezone(UTC)
+
+
+def database_naive_cutoff(now: datetime, threshold: timedelta) -> datetime:
+    """Return a naive cutoff in the local wall-clock convention used by PyWPS."""
+    return (now - threshold).astimezone().replace(tzinfo=None)
+
+
+def database_naive_now(now: datetime) -> datetime:
+    """Return an aware instant as the naive local wall clock stored by PyWPS."""
+    return now.astimezone().replace(tzinfo=None)
 
 
 def is_database_job_long_running(
@@ -762,6 +940,19 @@ def is_database_job_long_running(
 ) -> bool:
     started = database_start_time(record)
     return started is not None and is_stalled(started, now, threshold)
+
+
+def classify_database_job(
+    record: object,
+    now: datetime,
+    long_running_threshold: timedelta,
+    stale_threshold: timedelta,
+) -> str | None:
+    if is_stalled(database_last_update(record), now, stale_threshold):
+        return "stalled"
+    if is_database_job_long_running(record, now, long_running_threshold):
+        return "long-running"
+    return None
 
 
 def database_job_status(value: object, wps_status: object) -> str | None:
@@ -819,7 +1010,7 @@ def run_database_layer(
             "the database layer must run with the service Conda environment"
         ) from error
 
-    threshold = timedelta(minutes=settings.stale_after_minutes)
+    threshold = timedelta(minutes=settings.database_stale_after_minutes)
     long_running_threshold = timedelta(minutes=settings.long_running_minutes)
     database_url = configuration.get_config_value("logging", "database")
     engine = create_engine(database_url)
@@ -861,10 +1052,14 @@ def run_database_layer(
                 ),
             )
         )
-        cutoff = (now - threshold).astimezone(UTC).replace(tzinfo=None)
-        long_running_cutoff = (now - long_running_threshold).astimezone(UTC).replace(
-            tzinfo=None
-        )
+        if settings.mode == "recover" and settings.database_recovery_excluded_jobs:
+            query = query.filter(
+                ~dblog.ProcessInstance.uuid.in_(
+                    sorted(settings.database_recovery_excluded_jobs)
+                )
+            )
+        cutoff = database_naive_cutoff(now, threshold)
+        long_running_cutoff = database_naive_cutoff(now, long_running_threshold)
         last_update = func.coalesce(
             dblog.ProcessInstance.time_end,
             dblog.ProcessInstance.time_start,
@@ -888,12 +1083,13 @@ def run_database_layer(
             try:
                 last_update = database_last_update(record)
                 started = database_start_time(record)
-                if (
-                    settings.mode != "recover"
-                    and is_database_job_long_running(
-                        record, now, long_running_threshold
-                    )
-                ):
+                finding = classify_database_job(
+                    record,
+                    now,
+                    long_running_threshold,
+                    threshold,
+                )
+                if settings.mode != "recover" and finding == "long-running":
                     summary.long_running += 1
                     summary.long_running_jobs.add(str(record.uuid))
                     logger.info(
@@ -904,7 +1100,7 @@ def run_database_layer(
                         started.isoformat(),
                         int((now - started).total_seconds() // 60),
                     )
-                if not is_stalled(last_update, now, threshold):
+                if finding != "stalled":
                     logger.debug(
                         "layer=database job=%s status=%s finding=recent updated=%s",
                         record.uuid,
@@ -925,9 +1121,10 @@ def run_database_layer(
                     record.percent_done = 100
                     record.message = (
                         "Process failed: stalled-job recovery found no database update "
-                        f"for at least {settings.stale_after_minutes:g} minutes."
+                        "for at least "
+                        f"{settings.database_stale_after_minutes:g} minutes."
                     )
-                    record.time_end = now.astimezone(UTC).replace(tzinfo=None)
+                    record.time_end = database_naive_now(now)
                     session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
                     session.commit()
                     summary.recovered += 1
@@ -938,10 +1135,11 @@ def run_database_layer(
             except Exception as error:
                 session.rollback()
                 summary.errors += 1
-                logger.exception(
+                logger.critical(
                     "layer=database job=%s decision=error reason=%s",
                     getattr(record, "uuid", "unknown"),
                     error,
+                    exc_info=True,
                 )
     finally:
         session.close()
@@ -981,6 +1179,19 @@ def job_monitor_log_file(config: configparser.ConfigParser) -> Path | None:
 
 def job_statistics_log_file(config: configparser.ConfigParser) -> Path | None:
     return related_log_file(config, "stats")
+
+
+def validate_python_runtime(expected: Path | None) -> None:
+    if expected is None:
+        return
+    try:
+        matches = os.path.samefile(expected, sys.executable)
+    except OSError as error:
+        raise ValueError(f"configured Conda Python is unavailable: {expected}") from error
+    if not matches:
+        raise ValueError(
+            f"job control must run with {expected}, not {sys.executable}"
+        )
 
 
 def parse_args(argv: list[str] | None = None) -> Settings:
@@ -1040,7 +1251,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--stale-after-minutes",
         type=float,
         default=float(control_config.get("stale_after_minutes", "120")),
-        help="consider nonfinal jobs stalled after this many minutes",
+        help="consider nonfinal XML jobs stalled after this many minutes",
+    )
+    parser.add_argument(
+        "--database-stale-after-minutes",
+        type=float,
+        default=float(control_config.get("database_stale_after_minutes", "120")),
+        help="consider nonfinal database rows stale after this many minutes",
     )
     parser.add_argument(
         "--limit",
@@ -1076,7 +1293,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--poll-window-minutes",
         type=float,
-        default=float(control_config.get("poll_window_minutes", "60")),
+        default=float(control_config.get("poll_window_minutes", "180")),
         help="inspect polling requests from this recent time window",
     )
     parser.add_argument(
@@ -1091,7 +1308,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         default=float(
             control_config.get(
                 "min_poll_duration_minutes",
-                "15",
+                "150",
             )
         ),
         help="require matching polls to span at least this much time",
@@ -1123,10 +1340,17 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("at least one layer must be configured")
     if args.stale_after_minutes <= 0:
         parser.error("--stale-after-minutes must be greater than zero")
+    if args.database_stale_after_minutes <= 0:
+        parser.error("--database-stale-after-minutes must be greater than zero")
     if args.long_running_minutes <= 0:
         parser.error("--long-running-minutes must be greater than zero")
     if args.long_running_minutes >= args.stale_after_minutes:
         parser.error("--long-running-minutes must be shorter than --stale-after-minutes")
+    if args.long_running_minutes >= args.database_stale_after_minutes:
+        parser.error(
+            "--long-running-minutes must be shorter than "
+            "--database-stale-after-minutes"
+        )
     if limit is not None and limit <= 0:
         parser.error("--limit must be greater than zero")
     if recovery_limit <= 0 or missing_status_recovery_limit <= 0:
@@ -1179,6 +1403,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         recovery_limit=recovery_limit,
         missing_status_recovery_limit=missing_status_recovery_limit,
         long_running_minutes=args.long_running_minutes,
+        database_stale_after_minutes=args.database_stale_after_minutes,
+        work_dir=optional_path(config.get("server", "workdir", fallback=None)),
+        recovery_user=control_config.get("recovery_user", "wps"),
+        recovery_group=control_config.get("recovery_group", "wps"),
+        python_executable=optional_path(control_config.get("python_executable")),
     )
 
 
@@ -1191,9 +1420,10 @@ def configure_logging(
     stream_handler = logging.StreamHandler()
     service_filter = ServiceContextFilter(service_name)
     stream_handler.addFilter(service_filter)
-    stream_handler.setLevel(
-        logging.INFO if show_summaries else logging.ERROR if statistics_only else logging.WARNING
-    )
+    # Cron mails every byte written to stdout or stderr. Scheduled invocations
+    # therefore expose only critical incidents; operator helpers explicitly
+    # request summaries and retain their existing interactive output.
+    stream_handler.setLevel(logging.INFO if show_summaries else logging.CRITICAL)
     if show_summaries:
         stream_handler.addFilter(SummaryConsoleFilter())
     handlers: list[logging.Handler] = [stream_handler]
@@ -1239,6 +1469,7 @@ def execute_layers(
         "polling": run_polling_layer,
     }
     summaries: list[LayerSummary] = []
+    database_recovery_excluded_jobs: set[str] = set()
     layers = settings.layers
     if settings.mode == "recover":
         order = {"xml": 0, "database": 1, "polling": 2}
@@ -1258,11 +1489,19 @@ def execute_layers(
                     if layer == "polling"
                     else settings.recovery_limit
                 )
-            summary = runners[layer](replace(settings, limit=layer_limit), now, logger)
+            layer_settings = replace(
+                settings,
+                limit=layer_limit,
+                database_recovery_excluded_jobs=set(database_recovery_excluded_jobs),
+            )
+            summary = runners[layer](layer_settings, now, logger)
         except Exception as error:
-            logger.exception("layer=%s decision=error reason=%s", layer, error)
+            logger.critical(
+                "layer=%s decision=error reason=%s", layer, error, exc_info=True
+            )
             summary = LayerSummary(layer, errors=1)
         summaries.append(summary)
+        database_recovery_excluded_jobs.update(summary.recovery_blocked_jobs)
         if settings.mode == "statistics":
             continue
         if summary.errors:
@@ -1320,9 +1559,52 @@ def log_current_status(
     )
 
 
+def recover_job_dump_cli(arguments: list[str]) -> int:
+    if len(arguments) != 5:
+        raise ValueError("invalid internal dump-recovery invocation")
+    config_path, dump_name, expected_uuid, status_name, message = arguments
+    if UUID_RE.fullmatch(expected_uuid) is None:
+        raise ValueError("invalid dump-recovery UUID")
+    unresolved_dump_path = Path(dump_name)
+    if unresolved_dump_path.is_symlink():
+        raise ValueError("invalid dump-recovery job file")
+    dump_path = unresolved_dump_path.resolve()
+    status_path = Path(status_name).resolve()
+    if not dump_path.is_file():
+        raise ValueError("invalid dump-recovery job file")
+    config = read_config(Path(config_path))
+    validate_python_runtime(
+        optional_path(config.get(JOB_CONTROL_SECTION, "python_executable", fallback=None))
+    )
+    os.environ["PYWPS_CFG"] = config_path
+    from pywps import configuration
+    from pywps.processing.job import Job
+    from pywps.response.status import WPS_STATUS
+
+    configuration.load_configuration([config_path])
+    job = Job.load(str(dump_path))
+    if str(job.uuid) != expected_uuid:
+        raise ValueError("loaded PyWPS job UUID does not match")
+    if Path(job.workdir).resolve() != dump_path.parent:
+        raise ValueError("loaded PyWPS workdir does not match dump location")
+    rendered_status = Path(job.wps_response.process.status_location).resolve()
+    if rendered_status != status_path:
+        raise ValueError("loaded PyWPS status destination does not match")
+    job.wps_response._update_status(WPS_STATUS.FAILED, message, 100, clean=False)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments[:1] == ["--recover-job-dump"]:
+        try:
+            return recover_job_dump_cli(arguments[1:])
+        except Exception as error:
+            print(error, file=sys.stderr)
+            return 2
     try:
-        settings = parse_args(argv)
+        settings = parse_args(arguments)
+        validate_python_runtime(settings.python_executable)
         logger = configure_logging(
             settings.log_file,
             settings.show_summaries,
@@ -1354,7 +1636,7 @@ def main(argv: list[str] | None = None) -> int:
             level=logging.INFO,
             format="%(asctime)s %(levelname)s service=unknown %(message)s",
         )
-        logging.getLogger("pywps-job-control").error("%s", error)
+        logging.getLogger("pywps-job-control").critical("%s", error)
         return 2
 
 

@@ -1,5 +1,5 @@
 ---
-- name: Add MAILTO to cron file
+- name: Add MAILTO to PyWPS cron file
   community.general.cronvar:
     name: MAILTO
     value: "{{ cron_mailto }}"
@@ -67,13 +67,20 @@
       - wps_job_statistics_schedule | type_debug == 'dict'
       - wps_job_control_long_running_minutes | float > 0
       - wps_job_control_stale_after_minutes | float > 0
+      - wps_job_control_database_stale_after_minutes | float > 0
       - >-
         (wps_job_control_long_running_minutes | float)
         < (wps_job_control_stale_after_minutes | float)
+      - >-
+        (wps_job_control_long_running_minutes | float)
+        < (wps_job_control_database_stale_after_minutes | float)
       - wps_job_control_recovery_limit | int > 0
       - wps_job_incident_keep_days | int > 0
       - wps_job_incident_keep_minutes | int > 0
       - wps_job_incident_archive_dir | length > 0
+      - >-
+        not (wps_job_control_recovery_enabled | bool)
+        or (wps_job_incident_archive_enabled | bool)
       - wps_missing_status_poll_window_minutes | float > 0
       - wps_missing_status_min_poll_count | int > 0
       - wps_missing_status_min_poll_duration_minutes | float >= 0
@@ -90,6 +97,8 @@
       positive and shorter than output retention for scheduled XML checks.
       The long-running warning must be positive and shorter than the stale
       threshold, and recovery and incident-retention limits must be positive.
+      Recovery requires incident archiving so the source XML and scheduler
+      dump can be preserved before PyWPS updates them.
       Missing-status recovery also requires a positive polling window, poll
       count and recovery limit, and a minimum poll duration shorter than its
       polling window.
@@ -129,7 +138,8 @@
     user: "{{ cron_user }}"
     job: >-
       find {{ wps_job_incident_archive_dir }} -mindepth 2 -maxdepth 2
-      -ignore_readdir_race -type f -name "*.xml"
+      -ignore_readdir_race -type f
+      \( -name "*.xml" -o -name "*.dump" \)
       -mmin +{{ wps_job_incident_keep_minutes }} -delete
     cron_file: ansible_pywps
     disabled: >-
@@ -144,17 +154,20 @@
       - >-
         slurm_job_timeout_minutes | int
         < wps_job_control_stale_after_minutes | float
+      - >-
+        slurm_job_timeout_minutes | int
+        < wps_job_control_database_stale_after_minutes | float
       - slurm_job_monitor_schedule | type_debug == 'dict'
       - slurm_job_monitor_user | length > 0
       - slurm_job_monitor_long_running_minutes | int > 0
       - >-
         slurm_job_monitor_long_running_minutes | int
         < slurm_job_timeout_minutes | int
-      - slurm_job_monitor_pending_warning | int > 0
+      - slurm_job_monitor_pending_critical | int > 0
     fail_msg: >-
       Slurm requires a positive runtime limit below the PyWPS stale threshold.
       Its optional monitor requires a cron-field mapping, a user, a positive
-      pending-job warning threshold, and a positive long-running threshold
+      pending-job critical threshold, and a positive long-running threshold
       below the hard runtime limit.
   when: slurm_enabled | bool
 
@@ -185,6 +198,13 @@
     cron_file: ansible_slurm
     state: absent
 
+- name: Add MAILTO to Slurm cron file
+  community.general.cronvar:
+    name: MAILTO
+    value: "{{ cron_mailto }}"
+    cron_file: ansible_slurm
+    state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
+
 - name: Schedule host-wide Slurm job monitoring
   ansible.builtin.cron:
     name: monitor Slurm jobs
@@ -198,7 +218,7 @@
       {{ slurm_job_monitor_script }}
       --user {{ slurm_job_monitor_user | quote }}
       --long-running-minutes {{ slurm_job_monitor_long_running_minutes }}
-      --pending-warning {{ slurm_job_monitor_pending_warning }}
+      --pending-critical {{ slurm_job_monitor_pending_critical }}
       --lock-file {{ slurm_job_monitor_lock_file | quote }}
       --log-file {{ slurm_job_monitor_log_file | quote }}
       --alert-file {{ slurm_job_monitor_alert_file | quote }}

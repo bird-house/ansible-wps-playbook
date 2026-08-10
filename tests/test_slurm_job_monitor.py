@@ -126,7 +126,7 @@ class SlurmJobMonitorTests(unittest.TestCase):
             ["reason=no-capacity-records"],
         )
 
-    def test_pending_queue_warning_uses_configured_threshold(self):
+    def test_pending_queue_critical_uses_configured_threshold(self):
         runner = mock.Mock(
             return_value=subprocess.CompletedProcess(
                 [], 0, stdout="100|PENDING|0:00\n101|PENDING|0:00\n"
@@ -137,8 +137,8 @@ class SlurmJobMonitorTests(unittest.TestCase):
         summary = MODULE.inspect_jobs("wps", 14400, 2, logger, runner)
 
         self.assertEqual((summary.running, summary.pending), (0, 2))
-        logger.warning.assert_called_once_with(
-            "finding=pending-queue-full pending=%d warning_threshold=%d",
+        logger.critical.assert_called_once_with(
+            "finding=pending-queue-full pending=%d critical_threshold=%d",
             2,
             2,
         )
@@ -162,7 +162,7 @@ class SlurmJobMonitorTests(unittest.TestCase):
             MODULE.configure_logging(Path(directory) / "slurm.log")
 
         handlers = basic_config.call_args.kwargs["handlers"]
-        self.assertEqual(handlers[0].level, MODULE.logging.WARNING)
+        self.assertEqual(handlers[0].level, MODULE.logging.CRITICAL)
         self.assertEqual(handlers[1].level, MODULE.logging.INFO)
         handlers[1].close()
 

@@ -159,7 +159,7 @@ def capacity_issues(capacity: Sequence[SlurmCapacity]) -> list[str]:
 def inspect_jobs(
     user: str,
     long_running_seconds: float,
-    pending_warning: int,
+    pending_critical: int,
     logger: logging.Logger,
     runner: CommandRunner = subprocess.run,
 ) -> Summary:
@@ -180,11 +180,11 @@ def inspect_jobs(
             long_running_seconds,
         )
 
-    if summary.pending >= pending_warning:
-        logger.warning(
-            "finding=pending-queue-full pending=%d warning_threshold=%d",
+    if summary.pending >= pending_critical:
+        logger.critical(
+            "finding=pending-queue-full pending=%d critical_threshold=%d",
             summary.pending,
-            pending_warning,
+            pending_critical,
         )
     return summary
 
@@ -234,7 +234,9 @@ def clear_alert(path: Path) -> None:
 
 def configure_logging(log_file: Path | None) -> logging.Logger:
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.WARNING)
+    # Cron mails every byte written to stdout or stderr. Keep routine findings
+    # in the file log and reserve console output for actionable incidents.
+    stream_handler.setLevel(logging.CRITICAL)
     handlers: list[logging.Handler] = [stream_handler]
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -259,10 +261,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="warn when a running job reaches this age",
     )
     parser.add_argument(
-        "--pending-warning",
+        "--pending-critical",
+        dest="pending_critical",
         required=True,
         type=int,
-        help="warn when at least this many jobs are pending",
+        help="report a critical incident when at least this many jobs are pending",
     )
     parser.add_argument(
         "--lock-file",
@@ -278,8 +281,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.long_running_minutes <= 0:
         parser.error("--long-running-minutes must be greater than zero")
-    if args.pending_warning <= 0:
-        parser.error("--pending-warning must be greater than zero")
+    if args.pending_critical <= 0:
+        parser.error("--pending-critical must be greater than zero")
     return args
 
 
@@ -300,31 +303,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary = inspect_jobs(
                 args.user,
                 args.long_running_minutes * 60,
-                args.pending_warning,
+                args.pending_critical,
                 logger,
             )
             issues = capacity_issues(list_capacity())
             for issue in issues:
-                logger.warning("finding=slurm-capacity-unavailable %s", issue)
-        queue_warning = summary.pending >= args.pending_warning
+                logger.critical("finding=slurm-capacity-unavailable %s", issue)
+        queue_critical = summary.pending >= args.pending_critical
         if issues:
             write_alert(
                 args.alert_file,
                 "slurm-capacity-unavailable",
                 detail="; ".join(issues),
             )
-        elif queue_warning:
+        elif queue_critical:
             write_alert(
                 args.alert_file,
                 "pending-queue-full",
                 pending=summary.pending,
-                threshold=args.pending_warning,
+                threshold=args.pending_critical,
             )
         else:
             clear_alert(args.alert_file)
         log_summary = (
             logger.warning
-            if summary.long_running or queue_warning or issues
+            if summary.long_running or queue_critical or issues
             else logger.info
         )
         log_summary(
@@ -340,12 +343,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        logging.getLogger("slurm-job-monitor").error("result=error reason=%s", error)
+        logging.getLogger("slurm-job-monitor").critical(
+            "result=error reason=%s", error
+        )
         if args is not None:
             try:
                 write_alert(args.alert_file, "slurm-monitor-error", detail=str(error))
             except OSError as alert_error:
-                logging.getLogger("slurm-job-monitor").error(
+                logging.getLogger("slurm-job-monitor").critical(
                     "alert=red result=error reason=%s", alert_error
                 )
         return 1

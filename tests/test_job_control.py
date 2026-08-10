@@ -3,9 +3,12 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import io
+import json
 import os
 import sys
 import tempfile
+import time
+import types
 import unittest
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
@@ -71,6 +74,29 @@ class RecoverStalledJobsTests(unittest.TestCase):
         timestamp = modification_time.timestamp()
         os.utime(self.status, (timestamp, timestamp))
 
+    def write_job_dump(self, lineage=True):
+        workdir = self.root / "tmp" / "pywps_process_example"
+        workdir.mkdir(parents=True, exist_ok=True)
+        dump = workdir / "job_example.dump"
+        dump.write_text(
+            json.dumps(
+                {
+                    "process": {
+                        "uuid": JOB_UUID,
+                        "workdir": str(workdir),
+                    },
+                    "wps_request": json.dumps(
+                        {
+                            "lineage": "true" if lineage else "false",
+                            "inputs": {"dataset": [{"data": "example"}]},
+                        }
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        return dump
+
     def settings(self, mode: str = "monitor", layers=None):
         return MODULE.Settings(
             mode=mode,
@@ -80,7 +106,24 @@ class RecoverStalledJobsTests(unittest.TestCase):
             pywps_config=None,
             lock_file=self.root / "lock",
             log_file=None,
+            work_dir=self.root / "tmp",
         )
+
+    def fake_dump_recovery(self, document, _settings, message):
+        tree = ET.parse(document.path)
+        status = tree.getroot().find(f".//{{{WPS}}}Status")
+        status.attrib["creationTime"] = self.now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        for child in list(status):
+            status.remove(child)
+        failed = ET.SubElement(status, f"{{{WPS}}}ProcessFailed")
+        report = ET.SubElement(failed, f"{{{WPS}}}ExceptionReport")
+        exception = ET.SubElement(
+            report,
+            f"{{{OWS}}}Exception",
+            {"exceptionCode": "NoApplicableCode", "locator": "None"},
+        )
+        ET.SubElement(exception, f"{{{OWS}}}ExceptionText").text = message
+        tree.write(document.path, encoding="utf-8", xml_declaration=True)
 
     def access_log_line(
         self,
@@ -133,6 +176,52 @@ class RecoverStalledJobsTests(unittest.TestCase):
             self.now,
         )
 
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_xml_local_wall_clock_mislabeled_as_utc_uses_matching_mtime(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Berlin"
+        time.tzset()
+        try:
+            actual_update = datetime(2026, 8, 10, 14, 55, 32, tzinfo=UTC)
+            self.write_status(
+                creation_time=datetime(2026, 8, 10, 16, 55, 32, tzinfo=UTC),
+                modification_time=actual_update,
+            )
+
+            document, _ = MODULE.read_xml_status(self.status)
+
+            self.assertEqual(document.creation_time, actual_update)
+            self.assertEqual(document.last_update, actual_update)
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_xml_valid_utc_creation_time_is_not_shifted(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Berlin"
+        time.tzset()
+        try:
+            actual_update = datetime(2026, 8, 10, 14, 55, 32, tzinfo=UTC)
+            self.write_status(
+                creation_time=actual_update,
+                modification_time=actual_update,
+            )
+
+            document, _ = MODULE.read_xml_status(self.status)
+
+            self.assertEqual(document.creation_time, actual_update)
+            self.assertEqual(document.last_update, actual_update)
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
+
     def test_monitor_reports_nonfinal_status_without_changing_it(self):
         self.write_status("ProcessAccepted")
         before = self.status.read_bytes()
@@ -161,7 +250,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
     def test_recovery_changes_any_old_nonfinal_status_to_failed(self):
         self.write_status("ProcessAccepted")
         logger = mock.Mock()
-        summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
+        with mock.patch.object(
+            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
+        ):
+            summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
         self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
         logger.warning.assert_called_once_with(
             "layer=xml job=%s status=failed action=recovered",
@@ -191,7 +283,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         from owslib.wps import WPSExecution
 
         self.write_status("ProcessStarted")
-        summary = MODULE.run_xml_layer(self.settings("recover"), self.now, mock.Mock())
+        with mock.patch.object(
+            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
+        ):
+            summary = MODULE.run_xml_layer(
+                self.settings("recover"), self.now, mock.Mock()
+            )
         self.assertEqual((summary.recovered, summary.errors), (1, 0))
 
         document, _ = MODULE.read_xml_status(self.status)
@@ -233,8 +330,14 @@ class RecoverStalledJobsTests(unittest.TestCase):
         settings.incident_archive_dir = self.root / "incidents"
         original = self.status.read_bytes()
 
-        MODULE.run_xml_layer(settings, self.now, mock.Mock())
-        MODULE.run_xml_layer(settings, self.now, mock.Mock())
+        with mock.patch.object(
+            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
+        ):
+            MODULE.run_xml_layer(settings, self.now, mock.Mock())
+        with mock.patch.object(
+            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
+        ):
+            MODULE.run_xml_layer(settings, self.now, mock.Mock())
 
         archived = list(settings.incident_archive_dir.glob("*.xml"))
         self.assertEqual(len(archived), 1)
@@ -252,7 +355,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
         settings.incident_archive_enabled = True
         settings.incident_archive_dir = self.root / "incidents"
 
-        MODULE.run_xml_layer(settings, self.now, mock.Mock())
+        with mock.patch.object(
+            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
+        ):
+            MODULE.run_xml_layer(settings, self.now, mock.Mock())
 
         archived = list(settings.incident_archive_dir.glob("*.xml"))
         self.assertEqual(len(archived), 1)
@@ -276,12 +382,128 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(summary.errors, 1)
         self.assertEqual(self.status.read_bytes(), before)
 
-    def test_changed_status_is_not_replaced(self):
+    def test_dump_backed_recovery_archives_exact_xml_and_job_dump(self):
         self.write_status()
-        document, tree = MODULE.read_xml_status(self.status)
-        self.status.write_text(status_xml("ProcessStarted", self.now), encoding="utf-8")
-        with self.assertRaisesRegex(RuntimeError, "changed before recovery"):
-            MODULE.write_failed_xml(document, tree, "stalled", self.now)
+        dump_path = self.write_job_dump()
+        document, _ = MODULE.read_xml_status(self.status)
+        settings = self.settings("recover")
+        settings.service_name = "alpha"
+        settings.incident_archive_enabled = True
+        settings.incident_archive_dir = self.root / "incidents"
+        dump = MODULE.find_job_dump(settings, JOB_UUID)
+
+        xml_archive, dump_archive = MODULE.archive_recovery_sources(
+            document, dump, settings
+        )
+
+        self.assertEqual(xml_archive.read_bytes(), document.contents)
+        self.assertEqual(dump_archive.read_bytes(), dump_path.read_bytes())
+        self.assertEqual(xml_archive.stat().st_mode & 0o777, 0o640)
+        self.assertEqual(dump_archive.stat().st_mode & 0o777, 0o640)
+
+    def test_dump_recovery_fails_without_changing_xml_when_dump_is_missing(self):
+        self.write_status()
+        before = self.status.read_bytes()
+        summary = MODULE.run_xml_layer(
+            self.settings("recover"), self.now, mock.Mock()
+        )
+        self.assertEqual((summary.recovered, summary.errors), (0, 1))
+        self.assertEqual(summary.recovery_blocked_jobs, {JOB_UUID})
+        self.assertEqual(self.status.read_bytes(), before)
+
+    def test_pywps_dump_update_runs_as_service_user_and_requires_lineage(self):
+        self.write_status()
+        dump = MODULE.read_job_dump(self.write_job_dump(), JOB_UUID)
+        document, _ = MODULE.read_xml_status(self.status)
+        settings = self.settings("recover")
+        settings.pywps_config = self.root / "pywps.cfg"
+        settings.recovery_user = "wps-user"
+        settings.recovery_group = "wps-group"
+        settings.python_executable = Path(sys.executable)
+
+        def render_failed(*_args, **_kwargs):
+            self.fake_dump_recovery(document, settings, "stalled")
+            tree = ET.parse(self.status)
+            ET.SubElement(tree.getroot(), f"{{{WPS}}}DataInputs")
+            tree.write(self.status, encoding="utf-8", xml_declaration=True)
+            return argparse.Namespace(returncode=0, stdout="", stderr="")
+
+        with mock.patch.object(MODULE.subprocess, "run", side_effect=render_failed) as run:
+            with mock.patch.object(MODULE.os, "geteuid", return_value=0), mock.patch.object(
+                MODULE.pwd,
+                "getpwnam",
+                return_value=argparse.Namespace(pw_dir="/var/lib/pywps"),
+            ):
+                MODULE.update_from_job_dump(
+                    dump, document, settings, "stalled"
+                )
+        self.assertEqual(run.call_args.kwargs["user"], "wps-user")
+        self.assertEqual(run.call_args.kwargs["group"], "wps-group")
+        self.assertEqual(run.call_args.kwargs["extra_groups"], [])
+        self.assertEqual(run.call_args.args[0][0], sys.executable)
+        child_environment = run.call_args.kwargs["env"]
+        self.assertEqual(child_environment["HOME"], "/var/lib/pywps")
+        self.assertEqual(child_environment["USER"], "wps-user")
+        self.assertEqual(child_environment["LOGNAME"], "wps-user")
+        self.assertEqual(
+            child_environment["PYTHONUSERBASE"], "/var/lib/pywps/.local"
+        )
+        self.assertEqual(child_environment["PYTHONNOUSERSITE"], "1")
+        self.assertEqual(
+            child_environment["XDG_CACHE_HOME"], "/var/lib/pywps/.cache"
+        )
+        self.assertEqual(
+            child_environment["XDG_CONFIG_HOME"], "/var/lib/pywps/.config"
+        )
+        self.assertEqual(
+            child_environment["XDG_DATA_HOME"], "/var/lib/pywps/.local/share"
+        )
+        self.assertEqual(
+            child_environment["XDG_STATE_HOME"], "/var/lib/pywps/.local/state"
+        )
+        self.assertNotIn("XDG_RUNTIME_DIR", child_environment)
+
+    def test_internal_dump_recovery_uses_pywps_for_database_and_xml(self):
+        dump = self.write_job_dump()
+        self.write_status()
+        config = self.root / "pywps.cfg"
+        config.write_text(
+            "[server]\n"
+            "[job_control]\n"
+            f"python_executable = {sys.executable}\n",
+            encoding="utf-8",
+        )
+        update = mock.Mock()
+        fake_job = argparse.Namespace(
+            uuid=JOB_UUID,
+            workdir=str(dump.parent),
+            wps_response=argparse.Namespace(
+                process=argparse.Namespace(status_location=str(self.status)),
+                _update_status=update,
+            ),
+        )
+        configuration = types.ModuleType("pywps.configuration")
+        configuration.load_configuration = mock.Mock()
+        job_module = types.ModuleType("pywps.processing.job")
+        job_module.Job = argparse.Namespace(load=mock.Mock(return_value=fake_job))
+        status_module = types.ModuleType("pywps.response.status")
+        status_module.WPS_STATUS = argparse.Namespace(FAILED=4)
+        pywps_module = types.ModuleType("pywps")
+        pywps_module.configuration = configuration
+
+        modules = {
+            "pywps": pywps_module,
+            "pywps.processing": types.ModuleType("pywps.processing"),
+            "pywps.processing.job": job_module,
+            "pywps.response": types.ModuleType("pywps.response"),
+            "pywps.response.status": status_module,
+        }
+        with mock.patch.dict(sys.modules, modules):
+            result = MODULE.recover_job_dump_cli(
+                [str(config), str(dump), JOB_UUID, str(self.status), "stalled"]
+            )
+        self.assertEqual(result, 0)
+        update.assert_called_once_with(4, "stalled", 100, clean=False)
 
     def test_access_log_recovery_creates_failure_after_repeated_recent_404s(self):
         settings = self.polling_settings()
@@ -487,6 +709,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         config.write_text(
             "[server]\n"
             f"outputpath = {self.outputs}\n"
+            f"workdir = {self.root / 'tmp'}\n"
             "outputurl = https://example.test/outputs/alpha\n"
             "[logging]\n"
             f"file = {self.root / 'logs' / 'alpha.log'}\n"
@@ -497,6 +720,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "statistics_enabled = true\n"
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
+            "database_stale_after_minutes = 420\n"
+            "recovery_user = alpha-user\n"
+            "recovery_group = alpha-group\n"
+            f"python_executable = {sys.executable}\n"
             "recovery_limit = 100\n"
             "incident_archive_enabled = true\n"
             f"incident_archive_dir = {self.root / 'incidents'}\n"
@@ -513,6 +740,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.layers, ["xml", "database", "polling"])
         self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
+        self.assertEqual(settings.database_stale_after_minutes, 420)
+        self.assertEqual(settings.work_dir, self.root / "tmp")
+        self.assertEqual(settings.recovery_user, "alpha-user")
+        self.assertEqual(settings.recovery_group, "alpha-group")
+        self.assertEqual(settings.python_executable, Path(sys.executable))
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
         self.assertEqual(settings.pywps_config, config)
@@ -544,9 +776,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "xml",
             "--stale-after-minutes",
             "720",
+            "--database-stale-after-minutes",
+            "840",
         ])
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
+        self.assertEqual(overridden.database_stale_after_minutes, 840)
         self.assertIsNone(overridden.limit)
 
         recovery = MODULE.parse_args(["--config", str(config), "recover"])
@@ -590,6 +825,12 @@ class RecoverStalledJobsTests(unittest.TestCase):
         ])
         self.assertEqual(overridden_monitor.stale_after_minutes, 210)
         self.assertEqual(overridden_monitor.limit, 500)
+
+    def test_runtime_rejects_python_outside_configured_conda_environment(self):
+        MODULE.validate_python_runtime(Path(sys.executable))
+        with mock.patch.object(MODULE.os.path, "samefile", return_value=False):
+            with self.assertRaisesRegex(ValueError, "job control must run with"):
+                MODULE.validate_python_runtime(Path("/conda/env/bin/python"))
 
     def test_configuration_requires_job_control_section(self):
         config = self.root / "old-section.cfg"
@@ -697,6 +938,27 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
         self.assertEqual(calls, [("xml", 100), ("database", 100), ("polling", 20)])
 
+    def test_failed_xml_recovery_excludes_same_job_from_database_recovery(self):
+        settings = self.settings("recover", ["xml", "database"])
+        received_exclusions = []
+
+        def xml_runner(*_args):
+            return MODULE.LayerSummary(
+                "xml", errors=1, recovery_blocked_jobs={JOB_UUID}
+            )
+
+        def database_runner(received, *_args):
+            received_exclusions.append(received.database_recovery_excluded_jobs)
+            return MODULE.LayerSummary("database")
+
+        MODULE.execute_layers(
+            settings,
+            self.now,
+            mock.Mock(),
+            runners={"xml": xml_runner, "database": database_runner},
+        )
+        self.assertEqual(received_exclusions, [{JOB_UUID}])
+
     def test_summary_severity_reflects_layer_result(self):
         cases = (
             (MODULE.LayerSummary("xml", checked=2), "info"),
@@ -726,7 +988,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     "none",
                 )
 
-    def test_logging_keeps_info_in_file_and_only_warns_on_stderr(self):
+    def test_logging_keeps_warnings_in_file_and_only_critical_on_stderr(self):
         log_file = self.root / "stalled.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
             MODULE.configure_logging(log_file, service_name="alpha")
@@ -742,7 +1004,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             for handler in handlers
             if isinstance(handler, MODULE.logging.FileHandler)
         )
-        self.assertEqual(stream_handler.level, MODULE.logging.WARNING)
+        self.assertEqual(stream_handler.level, MODULE.logging.CRITICAL)
         self.assertEqual(file_handler.level, MODULE.logging.INFO)
         self.assertEqual(
             basic_config.call_args.kwargs["format"],
@@ -799,7 +1061,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             for handler in handlers
             if isinstance(handler, MODULE.logging.FileHandler)
         )
-        self.assertEqual(stream_handler.level, MODULE.logging.ERROR)
+        self.assertEqual(stream_handler.level, MODULE.logging.CRITICAL)
         summary = MODULE.logging.LogRecord(
             "test", MODULE.logging.INFO, __file__, 1, "summary layer=xml", (), None
         )
@@ -919,13 +1181,49 @@ class RecoverStalledJobsTests(unittest.TestCase):
         record = argparse.Namespace(time_start=start, time_end=update)
         self.assertEqual(
             MODULE.database_last_update(record),
-            update.replace(tzinfo=UTC),
+            update.astimezone(UTC),
         )
         record.time_end = None
-        self.assertEqual(MODULE.database_last_update(record), start.replace(tzinfo=UTC))
-        self.assertEqual(MODULE.database_start_time(record), start.replace(tzinfo=UTC))
+        self.assertEqual(MODULE.database_last_update(record), start.astimezone(UTC))
+        self.assertEqual(MODULE.database_start_time(record), start.astimezone(UTC))
         record.time_start = None
         self.assertIsNone(MODULE.database_start_time(record))
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_database_naive_timestamps_use_host_local_wall_clock(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Berlin"
+        time.tzset()
+        try:
+            record = argparse.Namespace(
+                time_start=datetime(2026, 8, 10, 16, 55, 29),
+                time_end=datetime(2026, 8, 10, 16, 55, 32),
+            )
+            now = datetime(2026, 8, 10, 16, 4, 1, tzinfo=UTC)
+
+            self.assertEqual(
+                MODULE.database_start_time(record),
+                datetime(2026, 8, 10, 14, 55, 29, tzinfo=UTC),
+            )
+            self.assertTrue(
+                MODULE.is_database_job_long_running(
+                    record, now, timedelta(minutes=10)
+                )
+            )
+            self.assertEqual(
+                MODULE.database_naive_cutoff(now, timedelta(minutes=10)),
+                datetime(2026, 8, 10, 17, 54, 1),
+            )
+            self.assertEqual(
+                MODULE.database_naive_now(now),
+                datetime(2026, 8, 10, 18, 4, 1),
+            )
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
 
     def test_database_long_running_uses_request_start_not_last_update(self):
         record = argparse.Namespace(
@@ -942,6 +1240,24 @@ class RecoverStalledJobsTests(unittest.TestCase):
             MODULE.is_database_job_long_running(
                 record, self.now, timedelta(minutes=10)
             )
+        )
+
+    def test_database_stalled_finding_takes_precedence_over_long_running(self):
+        long_running = timedelta(minutes=10)
+        stale = timedelta(minutes=240)
+        record = argparse.Namespace(
+            time_start=self.now - timedelta(minutes=300),
+            time_end=None,
+        )
+        self.assertEqual(
+            MODULE.classify_database_job(record, self.now, long_running, stale),
+            "stalled",
+        )
+
+        record.time_end = self.now - timedelta(minutes=5)
+        self.assertEqual(
+            MODULE.classify_database_job(record, self.now, long_running, stale),
+            "long-running",
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")

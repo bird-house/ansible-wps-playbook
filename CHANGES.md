@@ -4,14 +4,30 @@
 
 Changes:
 
+- give dump-backed PyWPS recovery the service account's home and XDG
+  environment after dropping privileges instead of retaining root's paths
+- interpret naive PyWPS database timestamps in the service host's local
+  timezone so long-running and stale thresholds are not shifted by UTC offset
+- correct PyWPS XML creation times that label the local wall clock as UTC when
+  the corrected instant agrees with the status file modification time
+- keep warning-level job-monitor findings in log files and reserve cron mail
+  for critical queue, scheduler-capacity, monitoring, and recovery failures
+- rebuild recovered status documents through the matching PyWPS scheduler dump
+  so input lineage is retained, with exact pre-recovery evidence archives and
+  fail-safe validation instead of lossy XML replacement
+- require job control and its recovery child to use each service's deployed
+  Conda Python rather than the host interpreter
+- stage Slurm, XML/database, and missing-status polling limits at 90, 120, and
+  150 minutes, and avoid also reporting stalled database rows as long-running
+- apply the configured cron mail recipient to the host-wide Slurm monitor
 - make the managed cron file idempotent and harden output cleanup against
   empty service globs and concurrent file removal
 - rename the PyWPS job-management configuration from `[stalled_jobs]` to
   `[job_control]`, including its Ansible variables, lock file, source names,
   tests, and documentation
-- add optional collectd monitoring for Red Hat family 9 hosts, with
+- enable collectd monitoring for Red Hat family 9 hosts by default, with
   configurable load, disk, memory, and interface metrics, retained CSV data,
-  and systemd-managed daily and optional hourly summaries
+  and systemd-managed daily and hourly summaries
 - enforce a configurable native Slurm partition timeout and add optional
   read-only `squeue`/`sinfo` monitoring for queue pressure, long-running jobs,
   scheduler capacity, and a health-check red-alert file
