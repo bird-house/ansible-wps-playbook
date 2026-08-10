@@ -58,9 +58,10 @@ db_user: pywps
 db_password: REPLACE_WITH_DATABASE_PASSWORD
 
 # Reproducible application environments. Each application repository must
-# contain this explicit Conda specification.
+# contain this explicit Conda specification. For repositories that still use
+# spec-list.txt, override conda_env_spec_file with that legacy filename.
 conda_env_use_spec: true
-conda_env_spec_file: spec-list.txt
+conda_env_spec_file: linux-64.spec
 
 # TLS certificate and key must already exist on the target host.
 wps_enable_https: true

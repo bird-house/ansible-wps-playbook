@@ -5,7 +5,7 @@ demo_data_dir: /vagrant/.local/data
 epel_repo_disable: false
 # conda
 conda_env_use_spec: true
-conda_env_spec_file: spec-list.txt
+conda_env_spec_file: linux-64.spec
 # conda_env_file: env.yml
 # db
 db_install_postgresql: true
