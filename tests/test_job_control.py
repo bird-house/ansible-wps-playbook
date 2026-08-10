@@ -1248,6 +1248,42 @@ class RecoverStalledJobsTests(unittest.TestCase):
             )
         )
 
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_database_uuid_recovers_writer_timezone_when_monitor_uses_utc(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "UTC"
+        time.tzset()
+        try:
+            record = argparse.Namespace(
+                uuid="843b6f0e-94f4-11f1-aca4-fa163e934c9b",
+                time_start=datetime(2026, 8, 10, 21, 48, 53, 662211),
+                time_end=datetime(2026, 8, 10, 21, 49, 0, 523933),
+            )
+            now = datetime(2026, 8, 10, 20, 15, tzinfo=UTC)
+
+            self.assertEqual(
+                MODULE.database_wall_clock_offset(record), timedelta(hours=2)
+            )
+            self.assertEqual(
+                MODULE.database_start_time(record),
+                datetime(2026, 8, 10, 19, 48, 53, 662211, tzinfo=UTC),
+            )
+            self.assertTrue(
+                MODULE.is_database_job_long_running(
+                    record, now, timedelta(minutes=10)
+                )
+            )
+            self.assertGreaterEqual(
+                MODULE.database_candidate_cutoff(now, timedelta(minutes=10)),
+                record.time_start,
+            )
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
+
     def test_database_stalled_finding_takes_precedence_over_long_running(self):
         long_running = timedelta(minutes=10)
         stale = timedelta(minutes=240)
