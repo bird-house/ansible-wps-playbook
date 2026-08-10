@@ -397,10 +397,11 @@ and corrects it; valid UTC timestamps remain unchanged. Only
 `ProcessSucceeded` and `ProcessFailed` are final; every
 other state older than the threshold is stalled. The database layer uses the
 last database status time, falling back to the request start time. Timestamps
-with `Z` are interpreted as UTC. PyWPS database timestamps without an offset
-are interpreted in the service host's local timezone, matching the wall-clock
-values PyWPS stores; the deployment host should therefore keep its clock and
-timezone consistent.
+with `Z` are interpreted as UTC. Naive PyWPS database timestamps are matched
+to the UTC creation time encoded by each version-1 job UUID. This preserves
+the writer's timezone even when the monitor runs in a different timezone.
+Older or non-version-1 rows fall back to the monitor host's local timezone;
+the deployment host should therefore still keep its clock consistent.
 
 Monitoring never changes live request state. Review
 `/var/log/pywps/SERVICE_NAME-job-monitor.log` before enabling scheduled

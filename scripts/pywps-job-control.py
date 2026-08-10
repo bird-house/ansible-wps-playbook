@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable
 from urllib.parse import unquote, urlsplit
+from uuid import UUID
 
 
 UUID_RE = re.compile(
@@ -42,6 +43,8 @@ DEFAULT_LAYERS = {
 }
 UTC = timezone.utc
 XML_TIMESTAMP_TOLERANCE = timedelta(minutes=5)
+MAX_DATABASE_UTC_OFFSET = timedelta(hours=14)
+UUID_EPOCH_100NS = 0x01B21DD213814000
 JOB_CONTROL_SECTION = "job_control"
 ACCESS_LOG_RE = re.compile(
     r'^(?P<client>\S+) \S+ \S+ \[(?P<timestamp>[^]]+)\] '
@@ -905,30 +908,68 @@ def run_polling_layer(
     return summary
 
 
+def uuid1_timestamp(value: object) -> datetime | None:
+    """Return the UTC creation time encoded by a version-1 UUID."""
+    try:
+        identifier = UUID(str(value))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if identifier.version != 1:
+        return None
+    seconds = (identifier.time - UUID_EPOCH_100NS) / 10_000_000
+    return datetime.fromtimestamp(seconds, UTC)
+
+
+def database_wall_clock_offset(record: object) -> timedelta | None:
+    """Infer the offset used for naive PyWPS timestamps from its v1 UUID."""
+    value = getattr(record, "time_start", None)
+    identifier_time = uuid1_timestamp(getattr(record, "uuid", None))
+    if value is None or value.tzinfo is not None or identifier_time is None:
+        return None
+    difference = value.replace(tzinfo=UTC) - identifier_time
+    offset = timedelta(minutes=round(difference.total_seconds() / 60))
+    if abs(offset) > MAX_DATABASE_UTC_OFFSET:
+        return None
+    if abs(difference - offset) > XML_TIMESTAMP_TOLERANCE:
+        return None
+    return offset
+
+
+def database_timestamp(record: object, value: datetime) -> datetime:
+    if value.tzinfo is not None:
+        return value.astimezone(UTC)
+    offset = database_wall_clock_offset(record)
+    if offset is not None:
+        return value.replace(tzinfo=UTC) - offset
+    # Older/non-v1 rows cannot identify their writer's timezone. Preserve the
+    # established fallback to the monitor host's local timezone.
+    return value.astimezone(UTC)
+
+
 def database_last_update(record: object) -> datetime:
     value = getattr(record, "time_end", None) or getattr(record, "time_start", None)
     if value is None:
         raise ValueError("database record has no start or update time")
-    if value.tzinfo is None:
-        # PyWPS stores naive timestamps using the service host's local wall
-        # clock. astimezone() applies the host timezone, including DST for the
-        # timestamp's date, before converting it to UTC.
-        return value.astimezone(UTC)
-    return value.astimezone(UTC)
+    return database_timestamp(record, value)
 
 
 def database_start_time(record: object) -> datetime | None:
     value = getattr(record, "time_start", None)
     if value is None:
         return None
-    if value.tzinfo is None:
-        return value.astimezone(UTC)
-    return value.astimezone(UTC)
+    return database_timestamp(record, value)
 
 
 def database_naive_cutoff(now: datetime, threshold: timedelta) -> datetime:
     """Return a naive cutoff in the local wall-clock convention used by PyWPS."""
     return (now - threshold).astimezone().replace(tzinfo=None)
+
+
+def database_candidate_cutoff(now: datetime, threshold: timedelta) -> datetime:
+    """Return a cutoff covering naive wall clocks in every valid UTC offset."""
+    return (now - threshold + MAX_DATABASE_UTC_OFFSET).astimezone(UTC).replace(
+        tzinfo=None
+    )
 
 
 def database_naive_now(now: datetime) -> datetime:
@@ -1061,8 +1102,12 @@ def run_database_layer(
                     sorted(settings.database_recovery_excluded_jobs)
                 )
             )
-        cutoff = database_naive_cutoff(now, threshold)
-        long_running_cutoff = database_naive_cutoff(now, long_running_threshold)
+        # The writer and monitor may use different local timezones. Select a
+        # safe superset in SQL, then classify each row against UTC in Python.
+        cutoff = database_candidate_cutoff(now, threshold)
+        long_running_cutoff = database_candidate_cutoff(
+            now, long_running_threshold
+        )
         last_update = func.coalesce(
             dblog.ProcessInstance.time_end,
             dblog.ProcessInstance.time_start,
@@ -1078,7 +1123,7 @@ def run_database_layer(
                 )
             )
         query = query.order_by(last_update, dblog.ProcessInstance.uuid)
-        if settings.limit is not None:
+        if settings.mode != "recover" and settings.limit is not None:
             query = query.limit(settings.limit)
         records = query.all()
         for record in records:
@@ -1135,6 +1180,8 @@ def run_database_layer(
                         "layer=database job=%s status=failed action=recovered",
                         record.uuid,
                     )
+                    if settings.limit is not None and summary.stalled >= settings.limit:
+                        break
             except Exception as error:
                 session.rollback()
                 summary.errors += 1

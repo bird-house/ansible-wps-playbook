@@ -10,8 +10,8 @@ Changes:
   inherit cron's inaccessible `/root` working directory
 - give dump-backed PyWPS recovery the service account's home and XDG
   environment after dropping privileges instead of retaining root's paths
-- interpret naive PyWPS database timestamps in the service host's local
-  timezone so long-running and stale thresholds are not shifted by UTC offset
+- recognize naive PyWPS database timestamps across differing writer and
+  monitor timezones by correlating them with version-1 job UUID timestamps
 - correct PyWPS XML creation times that label the local wall clock as UTC when
   the corrected instant agrees with the status file modification time
 - keep warning-level job-monitor findings in log files and reserve cron mail
