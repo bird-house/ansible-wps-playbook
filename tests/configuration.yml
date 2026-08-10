@@ -347,6 +347,9 @@
           - >-
             'python_executable = /usr/local/anaconda/envs/alpha/bin/python'
             in test_pywps_config
+          - >-
+            'recovery_working_dir = /usr/local/src/alpha'
+            in test_pywps_config
           - "'recovery_limit = 100' in test_pywps_config"
           - "'incident_archive_enabled = true' in test_pywps_config"
           - >-
