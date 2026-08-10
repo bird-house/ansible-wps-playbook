@@ -420,6 +420,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         settings.recovery_user = "wps-user"
         settings.recovery_group = "wps-group"
         settings.python_executable = Path(sys.executable)
+        settings.recovery_working_dir = self.root
 
         def render_failed(*_args, **_kwargs):
             self.fake_dump_recovery(document, settings, "stalled")
@@ -440,6 +441,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["user"], "wps-user")
         self.assertEqual(run.call_args.kwargs["group"], "wps-group")
         self.assertEqual(run.call_args.kwargs["extra_groups"], [])
+        self.assertEqual(run.call_args.kwargs["cwd"], self.root)
         self.assertEqual(run.call_args.args[0][0], sys.executable)
         child_environment = run.call_args.kwargs["env"]
         self.assertEqual(child_environment["HOME"], "/var/lib/pywps")
@@ -724,6 +726,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "recovery_user = alpha-user\n"
             "recovery_group = alpha-group\n"
             f"python_executable = {sys.executable}\n"
+            f"recovery_working_dir = {self.root / 'src' / 'alpha'}\n"
             "recovery_limit = 100\n"
             "incident_archive_enabled = true\n"
             f"incident_archive_dir = {self.root / 'incidents'}\n"
@@ -745,6 +748,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.recovery_user, "alpha-user")
         self.assertEqual(settings.recovery_group, "alpha-group")
         self.assertEqual(settings.python_executable, Path(sys.executable))
+        self.assertEqual(
+            settings.recovery_working_dir, self.root / "src" / "alpha"
+        )
         self.assertIsNone(settings.limit)
         self.assertEqual(settings.output_dir, self.outputs)
         self.assertEqual(settings.pywps_config, config)

@@ -441,7 +441,8 @@ definitions when lineage was enabled. Before recovery, the exact source XML
 and job dump are copied to the incident archive with mode `0640`. Both follow
 the configured incident-retention cleanup. The PyWPS update runs as the service
 user rather than root, uses that account's home and XDG paths instead of root's
-user directories, and disables temporary-directory cleanup.
+user directories, runs from the service source directory just like Gunicorn,
+and disables temporary-directory cleanup.
 
 Recovery fails without changing XML or database state when the dump is absent,
 duplicated, changed, or does not match the UUID, work directory, or status

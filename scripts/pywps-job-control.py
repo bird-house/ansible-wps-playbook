@@ -84,6 +84,7 @@ class Settings:
     recovery_user: str = "wps"
     recovery_group: str = "wps"
     python_executable: Path | None = None
+    recovery_working_dir: Path | None = None
     database_recovery_excluded_jobs: set[str] = field(default_factory=set)
 
 
@@ -491,6 +492,8 @@ def update_from_job_dump(
         "timeout": 120,
         "check": False,
     }
+    if settings.recovery_working_dir is not None:
+        run_options["cwd"] = settings.recovery_working_dir
     if os.geteuid() == 0:
         account = pwd.getpwnam(settings.recovery_user)
         home = Path(account.pw_dir)
@@ -1408,6 +1411,9 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         recovery_user=control_config.get("recovery_user", "wps"),
         recovery_group=control_config.get("recovery_group", "wps"),
         python_executable=optional_path(control_config.get("python_executable")),
+        recovery_working_dir=optional_path(
+            control_config.get("recovery_working_dir")
+        ),
     )
 
 
