@@ -428,9 +428,21 @@ sudo /var/lib/pywps/recover SERVICE_NAME
 ```
 
 Recovery always runs XML, database, and polling in that order under one
-per-service lock. It atomically changes stalled XML documents to
-`ProcessFailed`. In the database it marks the existing request failed and
-removes a matching stored queue entry; it does not change the database schema.
+per-service lock. XML recovery loads the matching `job_*.dump` from the PyWPS
+work directory and asks PyWPS itself to update both the database and status
+document to `ProcessFailed`. This preserves request inputs and output
+definitions when lineage was enabled. Before recovery, the exact source XML
+and job dump are copied to the incident archive with mode `0640`. Both follow
+the configured incident-retention cleanup. The PyWPS
+update runs as the service user rather than root and disables temporary-directory
+cleanup.
+
+Recovery fails without changing XML or database state when the dump is absent,
+duplicated, changed, or does not match the UUID, work directory, or status
+destination. That UUID is excluded from database recovery for the remainder of
+the run. There is deliberately no lossy XML-only fallback. In the database
+layer, other stale rows are marked failed and matching stored queue entries are
+removed; this does not change the database schema.
 Polling recovery is skipped unless its separate switch is enabled. The generated
 `[job_control]` section lives in the service's existing PyWPS configuration,
 and each cron entry uses that service's Conda environment and configuration.
@@ -447,8 +459,10 @@ The concise commands installed in `/var/lib/pywps` are `monitor`, `recover`,
 and `statistics`. The deployed implementation is `pywps-job-control.py`.
 
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
-diagnosis, call `pywps-job-control.py` directly and repeat `--layer`, for
-example `--layer xml --layer database`. Without explicit layers, monitoring
+diagnosis, invoke `pywps-job-control.py` with that service's deployed Conda
+Python and repeat `--layer`, for example `--layer xml --layer database`.
+The script validates its interpreter against the path rendered in the service
+configuration and rejects the host Python. Without explicit layers, monitoring
 and recovery use all three layers in their safe order; statistics uses XML and
 database. `--stale-after-minutes` overrides the XML threshold, while
 `--database-stale-after-minutes` overrides database cleanup.

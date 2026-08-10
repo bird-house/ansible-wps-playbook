@@ -341,6 +341,11 @@
           - "'long_running_minutes = 10' in test_pywps_config"
           - "'stale_after_minutes = 120' in test_pywps_config"
           - "'database_stale_after_minutes = 120' in test_pywps_config"
+          - "'recovery_user = wps' in test_pywps_config"
+          - "'recovery_group = wps' in test_pywps_config"
+          - >-
+            'python_executable = /usr/local/anaconda/envs/alpha/bin/python'
+            in test_pywps_config
           - "'recovery_limit = 100' in test_pywps_config"
           - "'incident_archive_enabled = true' in test_pywps_config"
           - >-

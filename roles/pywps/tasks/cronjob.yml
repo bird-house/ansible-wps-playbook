@@ -78,6 +78,9 @@
       - wps_job_incident_keep_days | int > 0
       - wps_job_incident_keep_minutes | int > 0
       - wps_job_incident_archive_dir | length > 0
+      - >-
+        not (wps_job_control_recovery_enabled | bool)
+        or (wps_job_incident_archive_enabled | bool)
       - wps_missing_status_poll_window_minutes | float > 0
       - wps_missing_status_min_poll_count | int > 0
       - wps_missing_status_min_poll_duration_minutes | float >= 0
@@ -94,6 +97,8 @@
       positive and shorter than output retention for scheduled XML checks.
       The long-running warning must be positive and shorter than the stale
       threshold, and recovery and incident-retention limits must be positive.
+      Recovery requires incident archiving so the source XML and scheduler
+      dump can be preserved before PyWPS updates them.
       Missing-status recovery also requires a positive polling window, poll
       count and recovery limit, and a minimum poll duration shorter than its
       polling window.
@@ -133,7 +138,8 @@
     user: "{{ cron_user }}"
     job: >-
       find {{ wps_job_incident_archive_dir }} -mindepth 2 -maxdepth 2
-      -ignore_readdir_race -type f -name "*.xml"
+      -ignore_readdir_race -type f
+      \( -name "*.xml" -o -name "*.dump" \)
       -mmin +{{ wps_job_incident_keep_minutes }} -delete
     cron_file: ansible_pywps
     disabled: >-

@@ -4,6 +4,11 @@
 
 Changes:
 
+- rebuild recovered status documents through the matching PyWPS scheduler dump
+  so input lineage is retained, with exact pre-recovery evidence archives and
+  fail-safe validation instead of lossy XML replacement
+- require job control and its recovery child to use each service's deployed
+  Conda Python rather than the host interpreter
 - stage Slurm, XML/database, and missing-status polling limits at 90, 120, and
   150 minutes, and avoid also reporting stalled database rows as long-running
 - apply the configured cron mail recipient to the host-wide Slurm monitor
