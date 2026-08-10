@@ -13,7 +13,7 @@ service_user_home: /var/lib/pywps
 cron_script_dir: "{{ service_user_home }}"
 
 # collectd host monitoring (Red Hat family version 9 only)
-collectd_enabled: false
+collectd_enabled: true
 collectd_hostname: localhost
 collectd_interval: 60
 collectd_csv_dir: /var/lib/collectd/csv
@@ -33,7 +33,7 @@ collectd_summary_script: /usr/local/sbin/collectd-daily-summary
 collectd_summary_schedule: "*-*-* 00:10:00"
 collectd_summary_output_dir: /var/log
 collectd_summary_output: "{{ collectd_summary_output_dir }}/collectd-daily-summary.log"
-collectd_hourly_summary_enabled: false
+collectd_hourly_summary_enabled: true
 collectd_hourly_summary_schedule: "*-*-* *:05:00"
 collectd_hourly_summary_output: >-
   {{ collectd_summary_output_dir }}/collectd-hourly-summary.log

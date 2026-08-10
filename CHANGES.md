@@ -10,9 +10,9 @@ Changes:
 - rename the PyWPS job-management configuration from `[stalled_jobs]` to
   `[job_control]`, including its Ansible variables, lock file, source names,
   tests, and documentation
-- add optional collectd monitoring for Red Hat family 9 hosts, with
+- enable collectd monitoring for Red Hat family 9 hosts by default, with
   configurable load, disk, memory, and interface metrics, retained CSV data,
-  and systemd-managed daily and optional hourly summaries
+  and systemd-managed daily and hourly summaries
 - enforce a configurable native Slurm partition timeout and add optional
   read-only `squeue`/`sinfo` monitoring for queue pressure, long-running jobs,
   scheduler capacity, and a health-check red-alert file

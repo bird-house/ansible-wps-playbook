@@ -96,7 +96,7 @@
           - >-
             slurm_job_monitor_alert_file
             == '/run/pywps/slurm-red-alert.json'
-          - not collectd_enabled
+          - collectd_enabled
           - collectd_load_enabled
           - not collectd_disk_enabled
           - collectd_disk_mount == '/mnt/ext_pywps_outputs'
@@ -111,7 +111,7 @@
           - collectd_summary_enabled
           - collectd_summary_schedule == '*-*-* 00:10:00'
           - collectd_summary_output == '/var/log/collectd-daily-summary.log'
-          - not collectd_hourly_summary_enabled
+          - collectd_hourly_summary_enabled
           - collectd_hourly_summary_schedule == '*-*-* *:05:00'
           - >-
             collectd_hourly_summary_output
