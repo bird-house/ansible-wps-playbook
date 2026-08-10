@@ -176,6 +176,52 @@ class RecoverStalledJobsTests(unittest.TestCase):
             self.now,
         )
 
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_xml_local_wall_clock_mislabeled_as_utc_uses_matching_mtime(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Berlin"
+        time.tzset()
+        try:
+            actual_update = datetime(2026, 8, 10, 14, 55, 32, tzinfo=UTC)
+            self.write_status(
+                creation_time=datetime(2026, 8, 10, 16, 55, 32, tzinfo=UTC),
+                modification_time=actual_update,
+            )
+
+            document, _ = MODULE.read_xml_status(self.status)
+
+            self.assertEqual(document.creation_time, actual_update)
+            self.assertEqual(document.last_update, actual_update)
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_xml_valid_utc_creation_time_is_not_shifted(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Berlin"
+        time.tzset()
+        try:
+            actual_update = datetime(2026, 8, 10, 14, 55, 32, tzinfo=UTC)
+            self.write_status(
+                creation_time=actual_update,
+                modification_time=actual_update,
+            )
+
+            document, _ = MODULE.read_xml_status(self.status)
+
+            self.assertEqual(document.creation_time, actual_update)
+            self.assertEqual(document.last_update, actual_update)
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
+
     def test_monitor_reports_nonfinal_status_without_changing_it(self):
         self.write_status("ProcessAccepted")
         before = self.status.read_bytes()

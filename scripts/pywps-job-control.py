@@ -40,6 +40,7 @@ DEFAULT_LAYERS = {
     "statistics": ("xml", "database"),
 }
 UTC = timezone.utc
+XML_TIMESTAMP_TOLERANCE = timedelta(minutes=5)
 JOB_CONTROL_SECTION = "job_control"
 ACCESS_LOG_RE = re.compile(
     r'^(?P<client>\S+) \S+ \S+ \[(?P<timestamp>[^]]+)\] '
@@ -184,6 +185,23 @@ def parse_timestamp(value: str) -> datetime:
     return parsed.astimezone(UTC)
 
 
+def normalize_xml_creation_time(
+    creation_time: datetime,
+    modification_time: datetime,
+) -> datetime:
+    """Correct PyWPS local wall-clock values that are incorrectly labelled UTC."""
+    local_interpretation = creation_time.replace(tzinfo=None).astimezone(UTC)
+    labelled_matches_file = (
+        abs(creation_time - modification_time) <= XML_TIMESTAMP_TOLERANCE
+    )
+    local_matches_file = (
+        abs(local_interpretation - modification_time) <= XML_TIMESTAMP_TOLERANCE
+    )
+    if not labelled_matches_file and local_matches_file:
+        return local_interpretation
+    return creation_time
+
+
 def stat_identity(stat: os.stat_result) -> tuple[int, int, int, int]:
     return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
 
@@ -208,8 +226,12 @@ def read_xml_status(path: Path) -> tuple[XmlStatus, ET.ElementTree]:
     creation_value = status.attrib.get("creationTime")
     if not creation_value:
         raise ValueError("missing Status creationTime")
+    modification_time = datetime.fromtimestamp(path_stat.st_mtime, UTC)
     try:
-        creation_time = parse_timestamp(creation_value)
+        creation_time = normalize_xml_creation_time(
+            parse_timestamp(creation_value),
+            modification_time,
+        )
     except ValueError as error:
         raise ValueError(f"invalid Status creationTime: {creation_value}") from error
 
@@ -235,7 +257,7 @@ def read_xml_status(path: Path) -> tuple[XmlStatus, ET.ElementTree]:
             job_uuid=path.stem,
             state=local_name(states[0].tag),
             creation_time=creation_time,
-            modification_time=datetime.fromtimestamp(path_stat.st_mtime, UTC),
+            modification_time=modification_time,
             source_identity=stat_identity(path_stat),
             process_identifier=identifier,
             contents=contents,

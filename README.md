@@ -391,7 +391,10 @@ operations exit successfully without inspecting or changing jobs.
 
 The XML and database layers run independently. The XML layer examines both
 `Status@creationTime` and the file modification time, using the newer value as
-the last update. Only `ProcessSucceeded` and `ProcessFailed` are final; every
+the last update. When PyWPS labels its local wall-clock value as UTC, the monitor
+recognizes the host UTC offset by its agreement with the file modification time
+and corrects it; valid UTC timestamps remain unchanged. Only
+`ProcessSucceeded` and `ProcessFailed` are final; every
 other state older than the threshold is stalled. The database layer uses the
 last database status time, falling back to the request start time. Timestamps
 with `Z` are interpreted as UTC. PyWPS database timestamps without an offset
