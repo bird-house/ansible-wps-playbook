@@ -9,6 +9,7 @@ import fcntl
 import json
 import logging
 import os
+import pwd
 import re
 import subprocess
 import sys
@@ -491,10 +492,28 @@ def update_from_job_dump(
         "check": False,
     }
     if os.geteuid() == 0:
+        account = pwd.getpwnam(settings.recovery_user)
+        home = Path(account.pw_dir)
+        child_environment = os.environ.copy()
+        child_environment.update(
+            {
+                "HOME": str(home),
+                "USER": settings.recovery_user,
+                "LOGNAME": settings.recovery_user,
+                "PYTHONUSERBASE": str(home / ".local"),
+                "PYTHONNOUSERSITE": "1",
+                "XDG_CACHE_HOME": str(home / ".cache"),
+                "XDG_CONFIG_HOME": str(home / ".config"),
+                "XDG_DATA_HOME": str(home / ".local" / "share"),
+                "XDG_STATE_HOME": str(home / ".local" / "state"),
+            }
+        )
+        child_environment.pop("XDG_RUNTIME_DIR", None)
         run_options.update(
             user=settings.recovery_user,
             group=settings.recovery_group,
             extra_groups=[],
+            env=child_environment,
         )
     completed = subprocess.run(command, **run_options)
     if completed.returncode != 0:

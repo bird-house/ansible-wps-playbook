@@ -4,6 +4,8 @@
 
 Changes:
 
+- give dump-backed PyWPS recovery the service account's home and XDG
+  environment after dropping privileges instead of retaining root's paths
 - interpret naive PyWPS database timestamps in the service host's local
   timezone so long-running and stale thresholds are not shifted by UTC offset
 - correct PyWPS XML creation times that label the local wall clock as UTC when

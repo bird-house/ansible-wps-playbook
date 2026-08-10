@@ -439,9 +439,9 @@ work directory and asks PyWPS itself to update both the database and status
 document to `ProcessFailed`. This preserves request inputs and output
 definitions when lineage was enabled. Before recovery, the exact source XML
 and job dump are copied to the incident archive with mode `0640`. Both follow
-the configured incident-retention cleanup. The PyWPS
-update runs as the service user rather than root and disables temporary-directory
-cleanup.
+the configured incident-retention cleanup. The PyWPS update runs as the service
+user rather than root, uses that account's home and XDG paths instead of root's
+user directories, and disables temporary-directory cleanup.
 
 Recovery fails without changing XML or database state when the dump is absent,
 duplicated, changed, or does not match the UUID, work directory, or status

@@ -429,7 +429,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
             return argparse.Namespace(returncode=0, stdout="", stderr="")
 
         with mock.patch.object(MODULE.subprocess, "run", side_effect=render_failed) as run:
-            with mock.patch.object(MODULE.os, "geteuid", return_value=0):
+            with mock.patch.object(MODULE.os, "geteuid", return_value=0), mock.patch.object(
+                MODULE.pwd,
+                "getpwnam",
+                return_value=argparse.Namespace(pw_dir="/var/lib/pywps"),
+            ):
                 MODULE.update_from_job_dump(
                     dump, document, settings, "stalled"
                 )
@@ -437,6 +441,27 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["group"], "wps-group")
         self.assertEqual(run.call_args.kwargs["extra_groups"], [])
         self.assertEqual(run.call_args.args[0][0], sys.executable)
+        child_environment = run.call_args.kwargs["env"]
+        self.assertEqual(child_environment["HOME"], "/var/lib/pywps")
+        self.assertEqual(child_environment["USER"], "wps-user")
+        self.assertEqual(child_environment["LOGNAME"], "wps-user")
+        self.assertEqual(
+            child_environment["PYTHONUSERBASE"], "/var/lib/pywps/.local"
+        )
+        self.assertEqual(child_environment["PYTHONNOUSERSITE"], "1")
+        self.assertEqual(
+            child_environment["XDG_CACHE_HOME"], "/var/lib/pywps/.cache"
+        )
+        self.assertEqual(
+            child_environment["XDG_CONFIG_HOME"], "/var/lib/pywps/.config"
+        )
+        self.assertEqual(
+            child_environment["XDG_DATA_HOME"], "/var/lib/pywps/.local/share"
+        )
+        self.assertEqual(
+            child_environment["XDG_STATE_HOME"], "/var/lib/pywps/.local/state"
+        )
+        self.assertNotIn("XDG_RUNTIME_DIR", child_environment)
 
     def test_internal_dump_recovery_uses_pywps_for_database_and_xml(self):
         dump = self.write_job_dump()
