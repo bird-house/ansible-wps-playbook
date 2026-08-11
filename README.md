@@ -213,17 +213,20 @@ make play
 ```
 
 For the DKRZ ROOCS profile, clisops reads data in Dask chunks limited to
-`256MiB` by default. This is deliberately well below a 4 GB Slurm job limit,
-because a process can hold several chunks and intermediate arrays at once.
-Override it in `custom.yml` when a different balance between memory use and
+`256MiB` and splits written output at `2GB` by default. The read limit is
+deliberately well below a 4 GB Slurm job limit, because a process can hold
+several chunks and intermediate arrays at once. Override either setting in
+`custom.yml` when a different balance between memory use, output size, and
 throughput is needed:
 
 ```yaml
 roocs_chunk_memory_limit: 512MiB
+roocs_file_size_limit: 1GB
 ```
 
-The value must be a positive integer followed by `KiB`, `MiB`, or `GiB`. It
-limits an individual chunk, not the job's total memory allocation.
+The values must be positive integer byte sizes, for example `256MiB` or `2GB`.
+The read setting limits an individual chunk, not the job's total memory
+allocation; the write setting controls when clisops splits output files.
 
 ### Configure collectd monitoring
 

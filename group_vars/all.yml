@@ -274,6 +274,8 @@ roocs_demo_data_dir: /data
 roocs_cache_dir: "/tmp/inventory_cache"
 # Keep individual clisops/Dask read chunks small relative to job memory.
 roocs_chunk_memory_limit: 256MiB
+# Split written output before an individual file grows beyond this size.
+roocs_file_size_limit: 2GB
 
 # pywps
 wps_user: "{{ service_user }}"

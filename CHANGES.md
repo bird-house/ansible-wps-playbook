@@ -4,8 +4,9 @@
 
 Changes:
 
-- make the DKRZ clisops/Dask read chunk memory limit configurable and lower
-  its default from 2048 MiB to 256 MiB for memory-constrained Slurm jobs
+- make the DKRZ clisops/Dask read and output file limits configurable, lowering
+  the read default to 256 MiB for memory-constrained Slurm jobs while retaining
+  the 2 GB output-file default
 - ignore status documents removed by output retention after an XML directory
   scan, without hiding missing scheduler dumps or other recovery failures
 - report the recent 24-hour database status mix in job-monitor summaries,
