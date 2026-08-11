@@ -655,6 +655,27 @@ wps_services:
     drmaa_native_specification: ""
 ```
 
+By default, Slurm advertises all configured CPUs but also treats memory as a
+consumable resource. Twenty percent of physical RAM is reserved for the OS and
+host services. Jobs that do not request memory receive an equal share of the
+remaining RAM based on `slurm_cpus`, and cgroups enforce the allocation so a
+worker cannot trigger a host-wide OOM. Memory-heavy deployments can raise the
+default allocation; this keeps all CPUs available but admits fewer heavy jobs
+at once:
+
+```yaml
+slurm_cpus: 8
+slurm_system_memory_reserve_percent: 20
+slurm_default_job_memory_mb: 20000
+```
+
+Jobs may request up to `slurm_max_job_memory_mb`, which defaults to all
+allocatable memory on the node. The scheduler uses backfill by default so jobs
+that fit currently available CPU, memory, and time can run without delaying an
+earlier reservation. Changing the select or cgroup plugins restarts the Slurm
+daemons; drain a production node before applying this configuration for the
+first time.
+
 Keep `slurm_drmaa_version` matched to the Slurm version installed on the host.
 Changing either version or the scheduler policy should be tested with a real
 job submission before production rollout. The existing PyWPS smoke tests

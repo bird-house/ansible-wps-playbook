@@ -1,3 +1,21 @@
 ---
+- name: Validate Slurm memory safety settings
+  ansible.builtin.assert:
+    that:
+      - slurm_cpus | int > 0
+      - slurm_system_memory_reserve_percent | int > 0
+      - slurm_system_memory_reserve_percent | int < 100
+      - slurm_real_memory_mb | int > 0
+      - slurm_real_memory_mb | int < ansible_memtotal_mb | int
+      - slurm_default_job_memory_mb | int > 0
+      - slurm_default_job_memory_mb | int <= slurm_real_memory_mb | int
+      - slurm_max_job_memory_mb | int >= slurm_default_job_memory_mb | int
+      - slurm_max_job_memory_mb | int <= slurm_real_memory_mb | int
+    quiet: true
+    fail_msg: >-
+      Slurm requires positive CPU and job-memory allocations, allocatable
+      memory below physical RAM, and a maximum job allocation between the
+      default job allocation and allocatable memory.
+
 - name: Include Munge tasks
   include_tasks: munge.yml

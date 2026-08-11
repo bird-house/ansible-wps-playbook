@@ -4,6 +4,8 @@
 
 Changes:
 
+- schedule Slurm jobs by CPU and memory, reserve host RAM, enforce job memory
+  with cgroups, and use backfill scheduling to prevent global OOM incidents
 - use `linux-64.spec` as the default explicit Conda specification filename,
   with a clear migration hint when repositories still use `spec-list.txt`
 - run dump-backed recovery from the service source directory so imports do not
