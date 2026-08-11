@@ -52,6 +52,11 @@ ACCESS_LOG_RE = re.compile(
     r'(?P<status>\d{3})(?:\s|$)'
 )
 ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
+JOB_ERROR_TAIL_BYTES = 256 * 1024
+SLURM_OOM_RE = re.compile(
+    rb"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\) "
+    rb"in StepId=\S+\."
+)
 
 
 @dataclass
@@ -417,6 +422,33 @@ def find_job_dump(settings: Settings, job_uuid: str) -> JobDump:
     return matches[0]
 
 
+def has_slurm_oom_failure(settings: Settings, job_uuid: str) -> bool:
+    """Return true only for Slurm's terminal cgroup OOM diagnostic."""
+    try:
+        dump = find_job_dump(settings, job_uuid)
+    except FileNotFoundError:
+        return False
+    error_path = dump.workdir / "job-error.txt"
+    if error_path.is_symlink():
+        raise ValueError(f"job error output must not be a symlink: {error_path}")
+    try:
+        with error_path.open("rb") as stream:
+            before = os.fstat(stream.fileno())
+            stream.seek(max(0, before.st_size - JOB_ERROR_TAIL_BYTES))
+            contents = stream.read()
+            after = os.fstat(stream.fileno())
+        path_stat = error_path.stat()
+    except FileNotFoundError:
+        return False
+    if (
+        stat_identity(before) != stat_identity(after)
+        or stat_identity(after) != stat_identity(path_stat)
+    ):
+        # The scheduler is still writing the file. Reconsider it on the next run.
+        return False
+    return SLURM_OOM_RE.search(contents) is not None
+
+
 def archive_recovery_sources(
     document: XmlStatus,
     dump: JobDump,
@@ -570,7 +602,8 @@ def run_xml_layer(
                     xml_job_status(document.state),
                 )
                 continue
-            if not is_stalled(document.last_update, now, threshold):
+            slurm_oom = has_slurm_oom_failure(settings, document.job_uuid)
+            if not slurm_oom and not is_stalled(document.last_update, now, threshold):
                 logger.debug(
                     "layer=xml job=%s status=%s finding=recent creation=%s mtime=%s",
                     document.job_uuid,
@@ -581,17 +614,30 @@ def run_xml_layer(
                 continue
             summary.stalled += 1
             summary.stalled_jobs.add(document.job_uuid)
-            logger.info(
-                "layer=xml job=%s status=%s finding=stalled updated=%s",
-                document.job_uuid,
-                xml_job_status(document.state),
-                document.last_update.isoformat(),
-            )
-            if settings.mode == "recover":
-                message = (
-                    "Process failed: stalled-job recovery found no status update "
-                    f"for at least {settings.stale_after_minutes:g} minutes."
+            if slurm_oom:
+                logger.warning(
+                    "layer=xml job=%s status=%s finding=slurm-oom error=job-error.txt",
+                    document.job_uuid,
+                    xml_job_status(document.state),
                 )
+            else:
+                logger.info(
+                    "layer=xml job=%s status=%s finding=stalled updated=%s",
+                    document.job_uuid,
+                    xml_job_status(document.state),
+                    document.last_update.isoformat(),
+                )
+            if settings.mode == "recover":
+                if slurm_oom:
+                    message = (
+                        "Process failed: stalled-job recovery detected that Slurm "
+                        "terminated the worker after it exceeded its memory allocation."
+                    )
+                else:
+                    message = (
+                        "Process failed: stalled-job recovery found no status update "
+                        f"for at least {settings.stale_after_minutes:g} minutes."
+                    )
                 recover_stalled_xml(document, settings, message)
                 recovered_document, recovered_tree = read_xml_status(path)
                 archive_failed_xml(recovered_document, recovered_tree, settings, logger)

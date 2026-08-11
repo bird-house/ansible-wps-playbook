@@ -232,6 +232,66 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(self.status.read_bytes(), before)
 
+    def test_recent_slurm_oom_is_recovered_without_waiting_for_stale_threshold(self):
+        self.write_status(
+            "ProcessStarted",
+            creation_time=self.now - timedelta(minutes=2),
+            modification_time=self.now - timedelta(minutes=2),
+        )
+        dump = self.write_job_dump()
+        (dump.parent / "job-error.txt").write_text(
+            "/var/spool/slurm/d/job26626/slurm_script: line 2: 263941 Killed\n"
+            "slurmstepd: error: Detected 1 oom-kill event(s) "
+            "in StepId=26626.batch. Some processes may have been killed.\n",
+            encoding="utf-8",
+        )
+        logger = mock.Mock()
+        with mock.patch.object(
+            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
+        ):
+            summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
+
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (1, 1, 0),
+        )
+        document, tree = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessFailed")
+        self.assertIn(
+            "exceeded its memory allocation",
+            tree.find(f".//{{{OWS}}}ExceptionText").text,
+        )
+        logger.warning.assert_any_call(
+            "layer=xml job=%s status=%s finding=slurm-oom error=job-error.txt",
+            JOB_UUID,
+            "running",
+        )
+
+    def test_recent_job_error_warning_does_not_trigger_recovery(self):
+        self.write_status(
+            "ProcessStarted",
+            creation_time=self.now - timedelta(minutes=2),
+            modification_time=self.now - timedelta(minutes=2),
+        )
+        dump = self.write_job_dump()
+        (dump.parent / "job-error.txt").write_text(
+            "FutureWarning: xarray defaults will change\n",
+            encoding="utf-8",
+        )
+        recover = mock.Mock(side_effect=self.fake_dump_recovery)
+        with mock.patch.object(MODULE, "recover_stalled_xml", recover):
+            summary = MODULE.run_xml_layer(
+                self.settings("recover"), self.now, mock.Mock()
+            )
+
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (0, 0, 0),
+        )
+        recover.assert_not_called()
+        document, _ = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessStarted")
+
     def test_limit_caps_stalled_xml_jobs(self):
         self.write_status("ProcessAccepted")
         second_status = self.outputs / "223e4567-e89b-42d3-a456-426614174000.xml"

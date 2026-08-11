@@ -391,9 +391,12 @@ operations exit successfully without inspecting or changing jobs.
 
 The XML and database layers run independently. The XML layer examines both
 `Status@creationTime` and the file modification time, using the newer value as
-the last update. When PyWPS labels its local wall-clock value as UTC, the monitor
-recognizes the host UTC offset by its agreement with the file modification time
-and corrects it; valid UTC timestamps remain unchanged. Only
+the last update. A non-final job whose matching `job-error.txt` contains
+Slurm's terminal cgroup OOM diagnostic is recoverable immediately, without
+waiting for the XML stale threshold. Other stderr content, including warnings,
+does not trigger early recovery. When PyWPS labels its local wall-clock value as
+UTC, the monitor recognizes the host UTC offset by its agreement with the file
+modification time and corrects it; valid UTC timestamps remain unchanged. Only
 `ProcessSucceeded` and `ProcessFailed` are final; every
 other state older than the threshold is stalled. The database layer uses the
 last database status time, falling back to the request start time. Timestamps
@@ -444,6 +447,11 @@ the configured incident-retention cleanup. The PyWPS update runs as the service
 user rather than root, uses that account's home and XDG paths instead of root's
 user directories, runs from the service source directory just like Gunicorn,
 and disables temporary-directory cleanup.
+
+Slurm cgroup OOM failures use the same dump-backed path, but are eligible on
+the first recovery run that sees Slurm's completed `oom-kill event(s)` marker
+in `job-error.txt`. The generated failure text reports that the worker exceeded
+its memory allocation, allowing clients to stop polling promptly.
 
 Recovery fails without changing XML or database state when the dump is absent,
 duplicated, changed, or does not match the UUID, work directory, or status

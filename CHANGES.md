@@ -4,6 +4,8 @@
 
 Changes:
 
+- recover non-final PyWPS status documents immediately when their scheduler
+  error output contains Slurm's terminal cgroup OOM marker
 - schedule Slurm jobs by CPU and memory, reserve host RAM, enforce job memory
   with cgroups, and use backfill scheduling to prevent global OOM incidents
 - use `linux-64.spec` as the default explicit Conda specification filename,
