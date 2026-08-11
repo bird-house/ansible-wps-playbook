@@ -64,6 +64,7 @@ statistics_enabled = {{ wps_job_statistics_enabled | bool | lower }}
 long_running_minutes = {{ wps_job_control_long_running_minutes }}
 stale_after_minutes = {{ wps_job_control_stale_after_minutes }}
 database_stale_after_minutes = {{ wps_job_control_database_stale_after_minutes }}
+database_status_window_hours = {{ wps_job_control_database_status_window_hours }}
 recovery_user = {{ wps_user }}
 recovery_group = {{ wps_group }}
 python_executable = {{ conda_envs_dir }}/{{ item.name }}/bin/python

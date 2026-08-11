@@ -38,6 +38,8 @@ wps_job_control_recovery_schedule:
   hour: "*"
 wps_job_control_stale_after_minutes: 120
 wps_job_control_database_stale_after_minutes: 120
+# Recent database status mix shown by the five-minute monitor (3-24 hours).
+wps_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
 wps_job_control_recovery_limit: 100
 # Preserve failed status XML for later investigation.

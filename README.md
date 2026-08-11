@@ -351,6 +351,7 @@ wps_job_control_recovery_schedule:
   hour: "*"
 wps_job_control_stale_after_minutes: 120
 wps_job_control_database_stale_after_minutes: 120
+wps_job_control_database_status_window_hours: 24
 wps_job_control_recovery_limit: 100
 wps_job_incident_archive_enabled: true
 wps_job_incident_keep_days: 30
@@ -363,6 +364,16 @@ one-minute offset. It always processes XML, database, and then polling evidence;
 disabled polling recovery is skipped within that ordered run.
 The database layer reports non-final requests as long-running after one minute
 by default, based on their request start time. This is an early warning only.
+Its monitor summary also counts every database request started within the
+configured recent window, including final requests, and reports the status mix:
+
+```text
+summary layer=database total=20 running=8 accepted=2 failed=1 success=9 ...
+```
+
+`wps_job_control_database_status_window_hours` defaults to 24 and accepts
+values from 3 through 24 hours. This reporting window does not restrict stale
+detection or recovery; old non-final requests remain eligible for recovery.
 XML documents and database rows have separate two-hour stale thresholds. XML
 recovery writes a failed status document; database recovery only reconciles
 the database row and removes its stored request. Stalled database rows are

@@ -245,6 +245,8 @@ wps_job_control_recovery_schedule:
 wps_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
 wps_job_control_stale_after_minutes: 120
 wps_job_control_database_stale_after_minutes: 120
+# Report the status mix for jobs started in this recent window.
+wps_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
 wps_job_control_recovery_limit: 100
 # Preserve failed status documents separately from routine output cleanup.

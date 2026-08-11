@@ -52,6 +52,7 @@
           - wps_job_control_long_running_minutes | float == 1
           - wps_job_control_stale_after_minutes | float == 120
           - wps_job_control_database_stale_after_minutes | float == 120
+          - wps_job_control_database_status_window_hours | float == 24
           - >-
             wps_job_control_long_running_minutes | float
             < wps_job_control_stale_after_minutes | float
@@ -381,6 +382,7 @@
           - "'long_running_minutes = 1' in test_pywps_config"
           - "'stale_after_minutes = 120' in test_pywps_config"
           - "'database_stale_after_minutes = 120' in test_pywps_config"
+          - "'database_status_window_hours = 24' in test_pywps_config"
           - "'recovery_user = wps' in test_pywps_config"
           - "'recovery_group = wps' in test_pywps_config"
           - >-

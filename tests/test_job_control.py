@@ -817,6 +817,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "database_stale_after_minutes = 420\n"
+            "database_status_window_hours = 12\n"
             "recovery_user = alpha-user\n"
             "recovery_group = alpha-group\n"
             f"python_executable = {sys.executable}\n"
@@ -838,6 +839,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertEqual(settings.database_stale_after_minutes, 420)
+        self.assertEqual(settings.database_status_window_hours, 12)
         self.assertEqual(settings.work_dir, self.root / "tmp")
         self.assertEqual(settings.recovery_user, "alpha-user")
         self.assertEqual(settings.recovery_group, "alpha-group")
@@ -1088,6 +1090,47 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     "none",
                 )
 
+    def test_database_summary_reports_recent_status_breakdown(self):
+        counts = {
+            "total": 20,
+            "accepted": 2,
+            "running": 8,
+            "successful": 9,
+            "failed": 1,
+            "dismissed": 0,
+            "unmapped": 0,
+        }
+        summary = MODULE.LayerSummary(
+            "database",
+            checked=20,
+            long_running=3,
+            status_counts=counts,
+        )
+        logger = mock.Mock()
+
+        MODULE.execute_layers(
+            self.settings(layers=["database"]),
+            self.now,
+            logger,
+            runners={"database": lambda *_args: summary},
+        )
+
+        logger.warning.assert_called_once_with(
+            "summary layer=database total=%d running=%d accepted=%d "
+            "failed=%d success=%d stalled=%d long_running=%d recovered=%d "
+            "errors=%d mode=%s limit=%s",
+            20,
+            8,
+            2,
+            1,
+            9,
+            0,
+            3,
+            0,
+            0,
+            "monitor",
+            "none",
+        )
     def test_logging_keeps_warnings_in_file_and_only_critical_on_stderr(self):
         log_file = self.root / "stalled.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
@@ -1266,6 +1309,36 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 "unmapped": 19,
             },
         )
+
+    def test_recent_database_status_summary_uses_configured_window(self):
+        statuses = argparse.Namespace(
+            ACCEPTED=0,
+            STARTED=1,
+            PAUSED=2,
+            SUCCEEDED=3,
+            FAILED=4,
+        )
+        records = [
+            argparse.Namespace(
+                status=status,
+                time_start=self.now - timedelta(hours=age),
+                time_end=None,
+            )
+            for status, age in ((0, 2), (1, 4), (3, 23), (4, 25))
+        ]
+
+        summary = MODULE.summarize_recent_database_statuses(
+            records,
+            statuses,
+            self.now,
+            timedelta(hours=24),
+        )
+
+        self.assertEqual(summary["total"], 3)
+        self.assertEqual(summary["accepted"], 1)
+        self.assertEqual(summary["running"], 1)
+        self.assertEqual(summary["successful"], 1)
+        self.assertEqual(summary["failed"], 0)
 
     def test_wps_xml_states_map_to_ogc_api_processes_statuses(self):
         self.assertEqual(MODULE.xml_job_status("ProcessAccepted"), "accepted")
