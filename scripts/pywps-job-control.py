@@ -589,6 +589,7 @@ def run_xml_layer(
     if settings.output_dir is None:
         raise ValueError("the XML layer requires output_dir")
     threshold = timedelta(minutes=settings.stale_after_minutes)
+    long_running_threshold = timedelta(minutes=settings.long_running_minutes)
     for path in find_status_files(settings.output_dir):
         summary.checked += 1
         try:
@@ -602,7 +603,12 @@ def run_xml_layer(
                     xml_job_status(document.state),
                 )
                 continue
-            slurm_oom = has_slurm_oom_failure(settings, document.job_uuid)
+            check_job_error = document.state == "ProcessStarted" and is_stalled(
+                document.last_update, now, long_running_threshold
+            )
+            slurm_oom = check_job_error and has_slurm_oom_failure(
+                settings, document.job_uuid
+            )
             if not slurm_oom and not is_stalled(document.last_update, now, threshold):
                 logger.debug(
                     "layer=xml job=%s status=%s finding=recent creation=%s mtime=%s",

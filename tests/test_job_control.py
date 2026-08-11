@@ -232,11 +232,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(self.status.read_bytes(), before)
 
-    def test_recent_slurm_oom_is_recovered_without_waiting_for_stale_threshold(self):
+    def test_long_running_slurm_oom_recovers_before_stale_threshold(self):
         self.write_status(
             "ProcessStarted",
-            creation_time=self.now - timedelta(minutes=2),
-            modification_time=self.now - timedelta(minutes=2),
+            creation_time=self.now - timedelta(minutes=12),
+            modification_time=self.now - timedelta(minutes=12),
         )
         dump = self.write_job_dump()
         (dump.parent / "job-error.txt").write_text(
@@ -270,8 +270,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
     def test_recent_job_error_warning_does_not_trigger_recovery(self):
         self.write_status(
             "ProcessStarted",
-            creation_time=self.now - timedelta(minutes=2),
-            modification_time=self.now - timedelta(minutes=2),
+            creation_time=self.now - timedelta(minutes=12),
+            modification_time=self.now - timedelta(minutes=12),
         )
         dump = self.write_job_dump()
         (dump.parent / "job-error.txt").write_text(
@@ -291,6 +291,40 @@ class RecoverStalledJobsTests(unittest.TestCase):
         recover.assert_not_called()
         document, _ = MODULE.read_xml_status(self.status)
         self.assertEqual(document.state, "ProcessStarted")
+
+    def test_recent_running_job_does_not_inspect_job_error(self):
+        self.write_status(
+            "ProcessStarted",
+            creation_time=self.now - timedelta(minutes=2),
+            modification_time=self.now - timedelta(minutes=2),
+        )
+        settings = self.settings("recover")
+        settings.long_running_minutes = 10
+        with mock.patch.object(MODULE, "has_slurm_oom_failure") as detect:
+            summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
+
+        detect.assert_not_called()
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (0, 0, 0),
+        )
+
+    def test_nonrunning_job_does_not_inspect_job_error(self):
+        self.write_status(
+            "ProcessAccepted",
+            creation_time=self.now - timedelta(minutes=20),
+            modification_time=self.now - timedelta(minutes=20),
+        )
+        settings = self.settings("recover")
+        settings.long_running_minutes = 10
+        with mock.patch.object(MODULE, "has_slurm_oom_failure") as detect:
+            summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
+
+        detect.assert_not_called()
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (0, 0, 0),
+        )
 
     def test_limit_caps_stalled_xml_jobs(self):
         self.write_status("ProcessAccepted")
