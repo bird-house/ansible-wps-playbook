@@ -4,6 +4,8 @@
 
 Changes:
 
+- use a one-minute global long-running job threshold inherited by WPS and
+  Slurm while retaining independent subsystem overrides
 - recover long-running `ProcessStarted` PyWPS status documents before the stale
   threshold when their scheduler error output contains Slurm's terminal cgroup
   OOM marker, without scanning temporary directories for other XML states

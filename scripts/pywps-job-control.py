@@ -86,7 +86,7 @@ class Settings:
     incident_archive_dir: Path | None = None
     recovery_limit: int = 100
     missing_status_recovery_limit: int = 20
-    long_running_minutes: float = 10
+    long_running_minutes: float = 1
     database_stale_after_minutes: float = 120
     work_dir: Path | None = None
     recovery_user: str = "wps"
@@ -1346,7 +1346,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--long-running-minutes",
         type=float,
-        default=float(control_config.get("long_running_minutes", "10")),
+        default=float(control_config.get("long_running_minutes", "1")),
         help="warn about nonfinal database jobs running this many minutes",
     )
     parser.add_argument(

@@ -51,6 +51,10 @@ fs_enabled: false
 fs_host: localhost
 fs_port: 6000
 
+# Shared long-running threshold. The WPS and Slurm settings below inherit this
+# value but remain independently overridable in deployment inventories.
+job_long_running_minutes: 1
+
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
@@ -114,7 +118,7 @@ slurm_job_monitor_schedule:
   weekday: "*"
 slurm_job_monitor_user: "{{ wps_user }}"
 # Warn well before Slurm reaches the hard timeout.
-slurm_job_monitor_long_running_minutes: 10
+slurm_job_monitor_long_running_minutes: "{{ job_long_running_minutes }}"
 slurm_job_monitor_pending_critical: 20
 slurm_job_monitor_script: /usr/local/sbin/slurm-job-monitor
 slurm_job_monitor_lock_file: /run/lock/slurm-job-monitor.lock
@@ -238,7 +242,7 @@ wps_job_control_recovery_schedule:
   month: "*"
   weekday: "*"
 # Warn about non-final database requests running this long.
-wps_job_control_long_running_minutes: 10
+wps_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
 wps_job_control_stale_after_minutes: 120
 wps_job_control_database_stale_after_minutes: 120
 # Maximum recovered jobs per layer.

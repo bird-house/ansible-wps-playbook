@@ -340,6 +340,7 @@ explicit switches are enabled:
 
 ```yaml
 cron_enabled: true
+job_long_running_minutes: 1
 wps_job_control_monitor_enabled: true
 wps_job_control_recovery_enabled: false
 wps_job_control_schedule:
@@ -348,7 +349,6 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-wps_job_control_long_running_minutes: 10
 wps_job_control_stale_after_minutes: 120
 wps_job_control_database_stale_after_minutes: 120
 wps_job_control_recovery_limit: 100
@@ -361,7 +361,7 @@ but it preserves failed XML documents in the incident archive. When recovery
 is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 disabled polling recovery is skipped within that ordered run.
-The database layer reports non-final requests as long-running after 10 minutes
+The database layer reports non-final requests as long-running after one minute
 by default, based on their request start time. This is an early warning only.
 XML documents and database rows have separate two-hour stale thresholds. XML
 recovery writes a failed status document; database recovery only reconciles
@@ -722,12 +722,21 @@ slurm_job_monitor_schedule:
   minute: "*/5"
   hour: "*"
 slurm_job_monitor_user: wps
-slurm_job_monitor_long_running_minutes: 10
 slurm_job_monitor_pending_critical: 20
 slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 ```
 
-The long-running warning defaults to 10 minutes. The default queue threshold
+The long-running warning defaults to one minute. Both WPS job control and the
+Slurm monitor inherit `job_long_running_minutes`. Either can be overridden
+independently without changing the global value:
+
+```yaml
+job_long_running_minutes: 1
+wps_job_control_long_running_minutes: 2
+slurm_job_monitor_long_running_minutes: 5
+```
+
+The default queue threshold
 becomes critical when 20 or more jobs are pending. Every run
 records running, pending, total, and long-running counts in
 `/var/log/pywps/slurm-job-monitor.log`, which uses the existing PyWPS log
@@ -747,7 +756,7 @@ Inspect the current queue manually without making changes:
 
 ```sh
 sudo /usr/local/sbin/slurm-job-monitor \
-  --user wps --long-running-minutes 10 --pending-critical 20
+  --user wps --long-running-minutes 1 --pending-critical 20
 ```
 
 The monitor never changes or cancels jobs. Its long-running threshold indicates
