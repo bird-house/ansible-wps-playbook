@@ -81,6 +81,7 @@
           - wps_pip_packages == []
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
+          - roocs_chunk_memory_limit == '256MiB'
           - not slurm_configure_munge
           - slurm_system_memory_reserve_percent | int == 20
           - slurm_real_memory_mb | int == 51200
@@ -255,6 +256,9 @@
         test_roocs_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/roocs/templates/roocs.demo.ini.j2') }}
+        test_roocs_dkrz_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/roocs/templates/roocs.dkrz.ini.j2') }}
       vars:
         item: "{{ test_secondary_service }}"
         db_install_sqlite: true
@@ -480,3 +484,4 @@
           - "'listen 6000;' in test_fileserver_config"
           - "'server_name files.example.test;' in test_fileserver_config"
           - "'base_dir = /test/data/mini-esgf-data/' in test_roocs_config"
+          - "'chunk_memory_limit = 256MiB' in test_roocs_dkrz_config"

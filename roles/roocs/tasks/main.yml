@@ -1,4 +1,14 @@
 ---
+- name: Validate ROOCS chunk memory limit
+  ansible.builtin.assert:
+    that:
+      - roocs_chunk_memory_limit is string
+      - roocs_chunk_memory_limit is match('^[1-9][0-9]*(KiB|MiB|GiB)$')
+    fail_msg: >-
+      roocs_chunk_memory_limit must be a positive integer followed by KiB,
+      MiB, or GiB (for example, 256MiB).
+  when: roocs_site == "dkrz"
+
 - name: Clone test data.
   git:
     repo: "https://github.com/roocs/mini-esgf-data.git"

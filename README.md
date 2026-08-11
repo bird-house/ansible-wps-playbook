@@ -212,6 +212,19 @@ host:
 make play
 ```
 
+For the DKRZ ROOCS profile, clisops reads data in Dask chunks limited to
+`256MiB` by default. This is deliberately well below a 4 GB Slurm job limit,
+because a process can hold several chunks and intermediate arrays at once.
+Override it in `custom.yml` when a different balance between memory use and
+throughput is needed:
+
+```yaml
+roocs_chunk_memory_limit: 512MiB
+```
+
+The value must be a positive integer followed by `KiB`, `MiB`, or `GiB`. It
+limits an individual chunk, not the job's total memory allocation.
+
 ### Configure collectd monitoring
 
 Collectd monitoring is enabled by default and supports Red Hat family version
