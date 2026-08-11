@@ -4,6 +4,13 @@
 
 Changes:
 
+- report the recent 24-hour database status mix in job-monitor summaries,
+  including final jobs, with a configurable 3-24 hour reporting window
+- use a one-minute global long-running job threshold inherited by WPS and
+  Slurm while retaining independent subsystem overrides
+- recover long-running `ProcessStarted` PyWPS status documents before the stale
+  threshold when their scheduler error output contains Slurm's terminal cgroup
+  OOM marker, without scanning temporary directories for other XML states
 - schedule Slurm jobs by CPU and memory, reserve host RAM, enforce job memory
   with cgroups, and use backfill scheduling to prevent global OOM incidents
 - use `linux-64.spec` as the default explicit Conda specification filename,

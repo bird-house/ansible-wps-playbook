@@ -52,6 +52,11 @@ ACCESS_LOG_RE = re.compile(
     r'(?P<status>\d{3})(?:\s|$)'
 )
 ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
+JOB_ERROR_TAIL_BYTES = 256 * 1024
+SLURM_OOM_RE = re.compile(
+    rb"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\) "
+    rb"in StepId=\S+\."
+)
 
 
 @dataclass
@@ -81,8 +86,9 @@ class Settings:
     incident_archive_dir: Path | None = None
     recovery_limit: int = 100
     missing_status_recovery_limit: int = 20
-    long_running_minutes: float = 10
+    long_running_minutes: float = 1
     database_stale_after_minutes: float = 120
+    database_status_window_hours: float = 24
     work_dir: Path | None = None
     recovery_user: str = "wps"
     recovery_group: str = "wps"
@@ -417,6 +423,33 @@ def find_job_dump(settings: Settings, job_uuid: str) -> JobDump:
     return matches[0]
 
 
+def has_slurm_oom_failure(settings: Settings, job_uuid: str) -> bool:
+    """Return true only for Slurm's terminal cgroup OOM diagnostic."""
+    try:
+        dump = find_job_dump(settings, job_uuid)
+    except FileNotFoundError:
+        return False
+    error_path = dump.workdir / "job-error.txt"
+    if error_path.is_symlink():
+        raise ValueError(f"job error output must not be a symlink: {error_path}")
+    try:
+        with error_path.open("rb") as stream:
+            before = os.fstat(stream.fileno())
+            stream.seek(max(0, before.st_size - JOB_ERROR_TAIL_BYTES))
+            contents = stream.read()
+            after = os.fstat(stream.fileno())
+        path_stat = error_path.stat()
+    except FileNotFoundError:
+        return False
+    if (
+        stat_identity(before) != stat_identity(after)
+        or stat_identity(after) != stat_identity(path_stat)
+    ):
+        # The scheduler is still writing the file. Reconsider it on the next run.
+        return False
+    return SLURM_OOM_RE.search(contents) is not None
+
+
 def archive_recovery_sources(
     document: XmlStatus,
     dump: JobDump,
@@ -557,6 +590,7 @@ def run_xml_layer(
     if settings.output_dir is None:
         raise ValueError("the XML layer requires output_dir")
     threshold = timedelta(minutes=settings.stale_after_minutes)
+    long_running_threshold = timedelta(minutes=settings.long_running_minutes)
     for path in find_status_files(settings.output_dir):
         summary.checked += 1
         try:
@@ -570,7 +604,13 @@ def run_xml_layer(
                     xml_job_status(document.state),
                 )
                 continue
-            if not is_stalled(document.last_update, now, threshold):
+            check_job_error = document.state == "ProcessStarted" and is_stalled(
+                document.last_update, now, long_running_threshold
+            )
+            slurm_oom = check_job_error and has_slurm_oom_failure(
+                settings, document.job_uuid
+            )
+            if not slurm_oom and not is_stalled(document.last_update, now, threshold):
                 logger.debug(
                     "layer=xml job=%s status=%s finding=recent creation=%s mtime=%s",
                     document.job_uuid,
@@ -581,17 +621,30 @@ def run_xml_layer(
                 continue
             summary.stalled += 1
             summary.stalled_jobs.add(document.job_uuid)
-            logger.info(
-                "layer=xml job=%s status=%s finding=stalled updated=%s",
-                document.job_uuid,
-                xml_job_status(document.state),
-                document.last_update.isoformat(),
-            )
-            if settings.mode == "recover":
-                message = (
-                    "Process failed: stalled-job recovery found no status update "
-                    f"for at least {settings.stale_after_minutes:g} minutes."
+            if slurm_oom:
+                logger.warning(
+                    "layer=xml job=%s status=%s finding=slurm-oom error=job-error.txt",
+                    document.job_uuid,
+                    xml_job_status(document.state),
                 )
+            else:
+                logger.info(
+                    "layer=xml job=%s status=%s finding=stalled updated=%s",
+                    document.job_uuid,
+                    xml_job_status(document.state),
+                    document.last_update.isoformat(),
+                )
+            if settings.mode == "recover":
+                if slurm_oom:
+                    message = (
+                        "Process failed: stalled-job recovery detected that Slurm "
+                        "terminated the worker after it exceeded its memory allocation."
+                    )
+                else:
+                    message = (
+                        "Process failed: stalled-job recovery found no status update "
+                        f"for at least {settings.stale_after_minutes:g} minutes."
+                    )
                 recover_stalled_xml(document, settings, message)
                 recovered_document, recovered_tree = read_xml_status(path)
                 archive_failed_xml(recovered_document, recovered_tree, settings, logger)
@@ -1034,6 +1087,23 @@ def summarize_database_statuses(
     return result
 
 
+def summarize_recent_database_statuses(
+    records: Iterable[object],
+    wps_status: object,
+    now: datetime,
+    window: timedelta,
+) -> dict[str, int]:
+    """Summarize records whose normalized start time is inside the window."""
+    counts: dict[object, int] = {}
+    cutoff = now - window
+    for record in records:
+        started = database_start_time(record)
+        if started is None or started < cutoff or started > now:
+            continue
+        counts[record.status] = counts.get(record.status, 0) + 1
+    return summarize_database_statuses(counts.items(), wps_status)
+
+
 def run_database_layer(
     settings: Settings,
     now: datetime,
@@ -1056,6 +1126,7 @@ def run_database_layer(
 
     threshold = timedelta(minutes=settings.database_stale_after_minutes)
     long_running_threshold = timedelta(minutes=settings.long_running_minutes)
+    status_window = timedelta(hours=settings.database_status_window_hours)
     database_url = configuration.get_config_value("logging", "database")
     engine = create_engine(database_url)
     if not inspect(engine).has_table(dblog.ProcessInstance.__tablename__):
@@ -1065,7 +1136,26 @@ def run_database_layer(
         )
     session = sessionmaker(bind=engine)()
     try:
-        if settings.status_counts:
+        if settings.mode == "monitor":
+            # Fetch a timezone-safe superset, then apply the exact UTC window
+            # after normalizing each PyWPS timestamp.
+            oldest_candidate = (
+                now - status_window - MAX_DATABASE_UTC_OFFSET
+            ).replace(tzinfo=None)
+            newest_candidate = (now + MAX_DATABASE_UTC_OFFSET).replace(tzinfo=None)
+            recent_records = session.query(dblog.ProcessInstance).filter(
+                dblog.ProcessInstance.time_start >= oldest_candidate,
+                dblog.ProcessInstance.time_start <= newest_candidate,
+            ).all()
+            status_counts = summarize_recent_database_statuses(
+                recent_records,
+                WPS_STATUS,
+                now,
+                status_window,
+            )
+            summary.status_counts = status_counts
+            summary.checked = status_counts["total"]
+        elif settings.status_counts:
             status_counts = summarize_database_statuses(
                 session.query(
                     dblog.ProcessInstance.status,
@@ -1127,7 +1217,8 @@ def run_database_layer(
             query = query.limit(settings.limit)
         records = query.all()
         for record in records:
-            summary.checked += 1
+            if settings.mode != "monitor":
+                summary.checked += 1
             try:
                 last_update = database_last_update(record)
                 started = database_start_time(record)
@@ -1294,7 +1385,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--long-running-minutes",
         type=float,
-        default=float(control_config.get("long_running_minutes", "10")),
+        default=float(control_config.get("long_running_minutes", "1")),
         help="warn about nonfinal database jobs running this many minutes",
     )
     parser.add_argument(
@@ -1308,6 +1399,12 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         type=float,
         default=float(control_config.get("database_stale_after_minutes", "120")),
         help="consider nonfinal database rows stale after this many minutes",
+    )
+    parser.add_argument(
+        "--database-status-window-hours",
+        type=float,
+        default=float(control_config.get("database_status_window_hours", "24")),
+        help="summarize database jobs started within this many hours",
     )
     parser.add_argument(
         "--limit",
@@ -1392,6 +1489,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("--stale-after-minutes must be greater than zero")
     if args.database_stale_after_minutes <= 0:
         parser.error("--database-stale-after-minutes must be greater than zero")
+    if not 3 <= args.database_status_window_hours <= 24:
+        parser.error("--database-status-window-hours must be between 3 and 24")
     if args.long_running_minutes <= 0:
         parser.error("--long-running-minutes must be greater than zero")
     if args.long_running_minutes >= args.stale_after_minutes:
@@ -1454,6 +1553,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         missing_status_recovery_limit=missing_status_recovery_limit,
         long_running_minutes=args.long_running_minutes,
         database_stale_after_minutes=args.database_stale_after_minutes,
+        database_status_window_hours=args.database_status_window_hours,
         work_dir=optional_path(config.get("server", "workdir", fallback=None)),
         recovery_user=control_config.get("recovery_user", "wps"),
         recovery_group=control_config.get("recovery_group", "wps"),
@@ -1563,18 +1663,37 @@ def execute_layers(
             log_summary = logger.warning
         else:
             log_summary = logger.info
-        log_summary(
-            "summary layer=%s checked=%d stalled=%d long_running=%d "
-            "recovered=%d errors=%d mode=%s limit=%s",
-            summary.name,
-            summary.checked,
-            summary.stalled,
-            summary.long_running,
-            summary.recovered,
-            summary.errors,
-            settings.mode,
-            settings.limit if settings.limit is not None else "none",
-        )
+        if summary.name == "database" and summary.status_counts is not None:
+            counts = summary.status_counts
+            log_summary(
+                "summary layer=database total=%d running=%d accepted=%d "
+                "failed=%d success=%d stalled=%d long_running=%d recovered=%d "
+                "errors=%d mode=%s limit=%s",
+                summary.checked,
+                counts["running"],
+                counts["accepted"],
+                counts["failed"],
+                counts["successful"],
+                summary.stalled,
+                summary.long_running,
+                summary.recovered,
+                summary.errors,
+                settings.mode,
+                settings.limit if settings.limit is not None else "none",
+            )
+        else:
+            log_summary(
+                "summary layer=%s checked=%d stalled=%d long_running=%d "
+                "recovered=%d errors=%d mode=%s limit=%s",
+                summary.name,
+                summary.checked,
+                summary.stalled,
+                summary.long_running,
+                summary.recovered,
+                summary.errors,
+                settings.mode,
+                settings.limit if settings.limit is not None else "none",
+            )
     return summaries
 
 

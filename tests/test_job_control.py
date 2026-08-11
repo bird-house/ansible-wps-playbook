@@ -232,6 +232,100 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(self.status.read_bytes(), before)
 
+    def test_long_running_slurm_oom_recovers_before_stale_threshold(self):
+        self.write_status(
+            "ProcessStarted",
+            creation_time=self.now - timedelta(minutes=12),
+            modification_time=self.now - timedelta(minutes=12),
+        )
+        dump = self.write_job_dump()
+        (dump.parent / "job-error.txt").write_text(
+            "/var/spool/slurm/d/job26626/slurm_script: line 2: 263941 Killed\n"
+            "slurmstepd: error: Detected 1 oom-kill event(s) "
+            "in StepId=26626.batch. Some processes may have been killed.\n",
+            encoding="utf-8",
+        )
+        logger = mock.Mock()
+        with mock.patch.object(
+            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
+        ):
+            summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
+
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (1, 1, 0),
+        )
+        document, tree = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessFailed")
+        self.assertIn(
+            "exceeded its memory allocation",
+            tree.find(f".//{{{OWS}}}ExceptionText").text,
+        )
+        logger.warning.assert_any_call(
+            "layer=xml job=%s status=%s finding=slurm-oom error=job-error.txt",
+            JOB_UUID,
+            "running",
+        )
+
+    def test_recent_job_error_warning_does_not_trigger_recovery(self):
+        self.write_status(
+            "ProcessStarted",
+            creation_time=self.now - timedelta(minutes=12),
+            modification_time=self.now - timedelta(minutes=12),
+        )
+        dump = self.write_job_dump()
+        (dump.parent / "job-error.txt").write_text(
+            "FutureWarning: xarray defaults will change\n",
+            encoding="utf-8",
+        )
+        recover = mock.Mock(side_effect=self.fake_dump_recovery)
+        with mock.patch.object(MODULE, "recover_stalled_xml", recover):
+            summary = MODULE.run_xml_layer(
+                self.settings("recover"), self.now, mock.Mock()
+            )
+
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (0, 0, 0),
+        )
+        recover.assert_not_called()
+        document, _ = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessStarted")
+
+    def test_recent_running_job_does_not_inspect_job_error(self):
+        self.write_status(
+            "ProcessStarted",
+            creation_time=self.now - timedelta(minutes=2),
+            modification_time=self.now - timedelta(minutes=2),
+        )
+        settings = self.settings("recover")
+        settings.long_running_minutes = 10
+        with mock.patch.object(MODULE, "has_slurm_oom_failure") as detect:
+            summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
+
+        detect.assert_not_called()
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (0, 0, 0),
+        )
+
+    def test_nonrunning_job_does_not_inspect_job_error(self):
+        self.write_status(
+            "ProcessAccepted",
+            creation_time=self.now - timedelta(minutes=20),
+            modification_time=self.now - timedelta(minutes=20),
+        )
+        settings = self.settings("recover")
+        settings.long_running_minutes = 10
+        with mock.patch.object(MODULE, "has_slurm_oom_failure") as detect:
+            summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
+
+        detect.assert_not_called()
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (0, 0, 0),
+        )
+
     def test_limit_caps_stalled_xml_jobs(self):
         self.write_status("ProcessAccepted")
         second_status = self.outputs / "223e4567-e89b-42d3-a456-426614174000.xml"
@@ -723,6 +817,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "database_stale_after_minutes = 420\n"
+            "database_status_window_hours = 12\n"
             "recovery_user = alpha-user\n"
             "recovery_group = alpha-group\n"
             f"python_executable = {sys.executable}\n"
@@ -744,6 +839,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertEqual(settings.database_stale_after_minutes, 420)
+        self.assertEqual(settings.database_status_window_hours, 12)
         self.assertEqual(settings.work_dir, self.root / "tmp")
         self.assertEqual(settings.recovery_user, "alpha-user")
         self.assertEqual(settings.recovery_group, "alpha-group")
@@ -994,6 +1090,47 @@ class RecoverStalledJobsTests(unittest.TestCase):
                     "none",
                 )
 
+    def test_database_summary_reports_recent_status_breakdown(self):
+        counts = {
+            "total": 20,
+            "accepted": 2,
+            "running": 8,
+            "successful": 9,
+            "failed": 1,
+            "dismissed": 0,
+            "unmapped": 0,
+        }
+        summary = MODULE.LayerSummary(
+            "database",
+            checked=20,
+            long_running=3,
+            status_counts=counts,
+        )
+        logger = mock.Mock()
+
+        MODULE.execute_layers(
+            self.settings(layers=["database"]),
+            self.now,
+            logger,
+            runners={"database": lambda *_args: summary},
+        )
+
+        logger.warning.assert_called_once_with(
+            "summary layer=database total=%d running=%d accepted=%d "
+            "failed=%d success=%d stalled=%d long_running=%d recovered=%d "
+            "errors=%d mode=%s limit=%s",
+            20,
+            8,
+            2,
+            1,
+            9,
+            0,
+            3,
+            0,
+            0,
+            "monitor",
+            "none",
+        )
     def test_logging_keeps_warnings_in_file_and_only_critical_on_stderr(self):
         log_file = self.root / "stalled.log"
         with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
@@ -1172,6 +1309,36 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 "unmapped": 19,
             },
         )
+
+    def test_recent_database_status_summary_uses_configured_window(self):
+        statuses = argparse.Namespace(
+            ACCEPTED=0,
+            STARTED=1,
+            PAUSED=2,
+            SUCCEEDED=3,
+            FAILED=4,
+        )
+        records = [
+            argparse.Namespace(
+                status=status,
+                time_start=self.now - timedelta(hours=age),
+                time_end=None,
+            )
+            for status, age in ((0, 2), (1, 4), (3, 23), (4, 25))
+        ]
+
+        summary = MODULE.summarize_recent_database_statuses(
+            records,
+            statuses,
+            self.now,
+            timedelta(hours=24),
+        )
+
+        self.assertEqual(summary["total"], 3)
+        self.assertEqual(summary["accepted"], 1)
+        self.assertEqual(summary["running"], 1)
+        self.assertEqual(summary["successful"], 1)
+        self.assertEqual(summary["failed"], 0)
 
     def test_wps_xml_states_map_to_ogc_api_processes_statuses(self):
         self.assertEqual(MODULE.xml_job_status("ProcessAccepted"), "accepted")

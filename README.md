@@ -340,6 +340,7 @@ explicit switches are enabled:
 
 ```yaml
 cron_enabled: true
+job_long_running_minutes: 1
 wps_job_control_monitor_enabled: true
 wps_job_control_recovery_enabled: false
 wps_job_control_schedule:
@@ -348,9 +349,9 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-wps_job_control_long_running_minutes: 10
 wps_job_control_stale_after_minutes: 120
 wps_job_control_database_stale_after_minutes: 120
+wps_job_control_database_status_window_hours: 24
 wps_job_control_recovery_limit: 100
 wps_job_incident_archive_enabled: true
 wps_job_incident_keep_days: 30
@@ -361,8 +362,18 @@ but it preserves failed XML documents in the incident archive. When recovery
 is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 disabled polling recovery is skipped within that ordered run.
-The database layer reports non-final requests as long-running after 10 minutes
+The database layer reports non-final requests as long-running after one minute
 by default, based on their request start time. This is an early warning only.
+Its monitor summary also counts every database request started within the
+configured recent window, including final requests, and reports the status mix:
+
+```text
+summary layer=database total=20 running=8 accepted=2 failed=1 success=9 ...
+```
+
+`wps_job_control_database_status_window_hours` defaults to 24 and accepts
+values from 3 through 24 hours. This reporting window does not restrict stale
+detection or recovery; old non-final requests remain eligible for recovery.
 XML documents and database rows have separate two-hour stale thresholds. XML
 recovery writes a failed status document; database recovery only reconciles
 the database row and removes its stored request. Stalled database rows are
@@ -391,9 +402,14 @@ operations exit successfully without inspecting or changing jobs.
 
 The XML and database layers run independently. The XML layer examines both
 `Status@creationTime` and the file modification time, using the newer value as
-the last update. When PyWPS labels its local wall-clock value as UTC, the monitor
-recognizes the host UTC offset by its agreement with the file modification time
-and corrects it; valid UTC timestamps remain unchanged. Only
+the last update. Once a `ProcessStarted` document reaches the configured
+long-running threshold, the XML layer inspects its matching `job-error.txt`. A
+Slurm terminal cgroup OOM diagnostic makes that job recoverable without waiting
+for the XML stale threshold. Other states and younger running jobs do not cause
+temporary-directory scans. Other stderr content, including warnings, does not
+trigger early recovery. When PyWPS labels its local wall-clock value as UTC, the
+monitor recognizes the host UTC offset by its agreement with the file
+modification time and corrects it; valid UTC timestamps remain unchanged. Only
 `ProcessSucceeded` and `ProcessFailed` are final; every
 other state older than the threshold is stalled. The database layer uses the
 last database status time, falling back to the request start time. Timestamps
@@ -444,6 +460,12 @@ the configured incident-retention cleanup. The PyWPS update runs as the service
 user rather than root, uses that account's home and XDG paths instead of root's
 user directories, runs from the service source directory just like Gunicorn,
 and disables temporary-directory cleanup.
+
+Slurm cgroup OOM failures use the same dump-backed path, but are eligible on
+the first recovery run after the long-running threshold that sees Slurm's
+completed `oom-kill event(s)` marker in `job-error.txt`. The generated failure
+text reports that the worker exceeded its memory allocation, allowing clients
+to stop polling promptly.
 
 Recovery fails without changing XML or database state when the dump is absent,
 duplicated, changed, or does not match the UUID, work directory, or status
@@ -711,12 +733,21 @@ slurm_job_monitor_schedule:
   minute: "*/5"
   hour: "*"
 slurm_job_monitor_user: wps
-slurm_job_monitor_long_running_minutes: 10
 slurm_job_monitor_pending_critical: 20
 slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 ```
 
-The long-running warning defaults to 10 minutes. The default queue threshold
+The long-running warning defaults to one minute. Both WPS job control and the
+Slurm monitor inherit `job_long_running_minutes`. Either can be overridden
+independently without changing the global value:
+
+```yaml
+job_long_running_minutes: 1
+wps_job_control_long_running_minutes: 2
+slurm_job_monitor_long_running_minutes: 5
+```
+
+The default queue threshold
 becomes critical when 20 or more jobs are pending. Every run
 records running, pending, total, and long-running counts in
 `/var/log/pywps/slurm-job-monitor.log`, which uses the existing PyWPS log
@@ -736,7 +767,7 @@ Inspect the current queue manually without making changes:
 
 ```sh
 sudo /usr/local/sbin/slurm-job-monitor \
-  --user wps --long-running-minutes 10 --pending-critical 20
+  --user wps --long-running-minutes 1 --pending-critical 20
 ```
 
 The monitor never changes or cancels jobs. Its long-running threshold indicates

@@ -19,6 +19,10 @@ wps_logrotate_rotations: 7
 # First deploy stalled-job checks in report-only mode and review their log.
 # Report stalled requests without changing them.
 wps_job_control_monitor_enabled: true
+# Shared default for WPS and Slurm long-running detection. Override
+# wps_job_control_long_running_minutes or slurm_job_monitor_long_running_minutes
+# independently when a deployment needs different thresholds.
+job_long_running_minutes: 1
 # Allow commands that recover stalled requests or status documents.
 wps_job_control_recovery_enabled: false
 # Write a complete hourly job statistics report.
@@ -32,9 +36,10 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-wps_job_control_long_running_minutes: 10
 wps_job_control_stale_after_minutes: 120
 wps_job_control_database_stale_after_minutes: 120
+# Recent database status mix shown by the five-minute monitor (3-24 hours).
+wps_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
 wps_job_control_recovery_limit: 100
 # Preserve failed status XML for later investigation.
@@ -74,7 +79,6 @@ slurm_enabled: false
 slurm_job_timeout_minutes: 90
 # Report queue pressure and jobs approaching the hard timeout when Slurm is enabled.
 slurm_job_monitor_enabled: true
-slurm_job_monitor_long_running_minutes: 10
 slurm_job_monitor_pending_critical: 20
 slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 
