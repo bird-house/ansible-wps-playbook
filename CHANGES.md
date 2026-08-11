@@ -4,6 +4,8 @@
 
 Changes:
 
+- ignore status documents removed by output retention after an XML directory
+  scan, without hiding missing scheduler dumps or other recovery failures
 - report the recent 24-hour database status mix in job-monitor summaries,
   including final jobs, with a configurable 3-24 hour reporting window
 - use a one-minute global long-running job threshold inherited by WPS and

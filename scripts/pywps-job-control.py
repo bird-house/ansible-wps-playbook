@@ -656,6 +656,17 @@ def run_xml_layer(
             if settings.limit is not None and summary.stalled >= settings.limit:
                 break
         except Exception as error:
+            if (
+                isinstance(error, FileNotFoundError)
+                and error.filename is not None
+                and Path(error.filename) == path
+            ):
+                # Output retention may remove a status after the directory scan.
+                logger.debug(
+                    "layer=xml file=%s decision=skip reason=status-disappeared",
+                    path,
+                )
+                continue
             summary.errors += 1
             if settings.mode == "recover" and UUID_RE.fullmatch(path.stem):
                 summary.recovery_blocked_jobs.add(path.stem)

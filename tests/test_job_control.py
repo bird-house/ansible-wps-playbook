@@ -476,6 +476,27 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(summary.errors, 1)
         self.assertEqual(self.status.read_bytes(), before)
 
+    def test_status_removed_after_directory_scan_is_not_an_error(self):
+        self.write_status()
+        logger = mock.Mock()
+        disappeared = FileNotFoundError(
+            2,
+            "No such file or directory",
+            str(self.status),
+        )
+
+        with mock.patch.object(MODULE, "read_xml_status", side_effect=disappeared):
+            summary = MODULE.run_xml_layer(
+                self.settings("recover"), self.now, logger
+            )
+
+        self.assertEqual((summary.checked, summary.errors), (1, 0))
+        self.assertEqual(summary.recovery_blocked_jobs, set())
+        logger.debug.assert_called_once_with(
+            "layer=xml file=%s decision=skip reason=status-disappeared",
+            self.status,
+        )
+
     def test_dump_backed_recovery_archives_exact_xml_and_job_dump(self):
         self.write_status()
         dump_path = self.write_job_dump()
