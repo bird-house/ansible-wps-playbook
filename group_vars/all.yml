@@ -57,17 +57,46 @@ slurm_enabled: false
 slurm_cpus: 4
 slurm_drmaa_version: 1.1.4
 slurm_roles: ['controller', 'exec']
+# Keep host services outside Slurm's allocatable memory. Jobs receive an equal
+# share by default, while deployments with memory-heavy workloads can raise
+# the per-job allocation and let Slurm run fewer jobs concurrently.
+slurm_system_memory_reserve_percent: 20
+slurm_real_memory_mb: >-
+  {{
+    ((ansible_memtotal_mb | int)
+     * (100 - (slurm_system_memory_reserve_percent | int)) / 100) | int
+  }}
+slurm_default_job_memory_mb: >-
+  {{
+    [
+      ((slurm_real_memory_mb | int) // (slurm_cpus | int)),
+      1
+    ] | max
+  }}
+slurm_max_job_memory_mb: "{{ slurm_real_memory_mb }}"
 slurm_config:
-  SchedulerType: "sched/builtin"
+  JobAcctGatherType: "jobacct_gather/cgroup"
+  ProctrackType: "proctrack/cgroup"
+  SchedulerType: "sched/backfill"
   SelectType: "select/cons_res"
-  SelectTypeParameters: "CR_Core"
+  SelectTypeParameters: "CR_Core_Memory"
+  TaskPlugin: "task/affinity,task/cgroup"
+slurm_cgroup_config:
+  AllowedRAMSpace: 100
+  AllowedSwapSpace: 0
+  ConstrainCores: true
+  ConstrainRAMSpace: true
+  ConstrainSwapSpace: true
 slurm_nodes:
   - name: localhost
     CPUs: "{{ slurm_cpus }}"
+    RealMemory: "{{ slurm_real_memory_mb }}"
 slurm_partitions:
   - name: fast
     Default: YES
     DefaultTime: "{{ slurm_job_timeout_minutes }}"
+    DefMemPerNode: "{{ slurm_default_job_memory_mb }}"
+    MaxMemPerNode: "{{ slurm_max_job_memory_mb }}"
     MaxTime: "{{ slurm_job_timeout_minutes }}"
     Nodes: localhost
 slurm_munge_key: /etc/munge/munge.key

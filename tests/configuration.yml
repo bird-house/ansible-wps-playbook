@@ -9,6 +9,7 @@
 
   vars:
     ansible_fqdn: localhost
+    ansible_memtotal_mb: 64000
     test_primary_service:
       name: alpha
       hostname: alpha.example.test
@@ -79,6 +80,24 @@
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
           - not slurm_configure_munge
+          - slurm_system_memory_reserve_percent | int == 20
+          - slurm_real_memory_mb | int == 51200
+          - slurm_default_job_memory_mb | int == 12800
+          - slurm_max_job_memory_mb | int == 51200
+          - slurm_config.SchedulerType == 'sched/backfill'
+          - slurm_config.SelectType == 'select/cons_res'
+          - slurm_config.SelectTypeParameters == 'CR_Core_Memory'
+          - slurm_config.ProctrackType == 'proctrack/cgroup'
+          - slurm_config.TaskPlugin == 'task/affinity,task/cgroup'
+          - slurm_config.JobAcctGatherType == 'jobacct_gather/cgroup'
+          - slurm_cgroup_config.ConstrainCores
+          - slurm_cgroup_config.ConstrainRAMSpace
+          - slurm_cgroup_config.ConstrainSwapSpace
+          - slurm_cgroup_config.AllowedRAMSpace | int == 100
+          - slurm_cgroup_config.AllowedSwapSpace | int == 0
+          - slurm_nodes[0].RealMemory | int == 51200
+          - slurm_partitions[0].DefMemPerNode | int == 12800
+          - slurm_partitions[0].MaxMemPerNode | int == 51200
           - slurm_job_timeout_minutes | int == 90
           - slurm_partitions[0].DefaultTime | int == 90
           - slurm_partitions[0].MaxTime | int == 90
@@ -244,6 +263,16 @@
         wps_cache_valid: 5m
         wps_health_cache_valid: 15s
 
+    - name: Render Slurm cgroup configuration
+      ansible.builtin.set_fact:
+        test_slurm_cgroup_config: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/galaxyproject.slurm/templates/generic.conf.j2') }}
+      vars:
+        item:
+          config: slurm_cgroup_config
+
     - name: Check rendered primary service configuration
       ansible.builtin.assert:
         quiet: true
@@ -268,8 +297,17 @@
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
           - >-
-            'PartitionName=fast Default=YES DefaultTime=90 MaxTime=90 Nodes=localhost'
+            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=12800 '
+            'MaxMemPerNode=51200 MaxTime=90 Nodes=localhost'
             in test_slurm_config
+          - >-
+            'NodeName=localhost CPUs=4 RealMemory=51200'
+            in test_slurm_config
+          - "'AllowedRAMSpace=100' in test_slurm_cgroup_config"
+          - "'AllowedSwapSpace=0' in test_slurm_cgroup_config"
+          - "'ConstrainCores=yes' in test_slurm_cgroup_config"
+          - "'ConstrainRAMSpace=yes' in test_slurm_cgroup_config"
+          - "'ConstrainSwapSpace=yes' in test_slurm_cgroup_config"
           - "'set -euo pipefail' in test_restart_script"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"
