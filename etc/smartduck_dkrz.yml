@@ -2,10 +2,6 @@
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
-cron_user: root
-# db
-db_install_postgresql: true
-db_install_sqlite: false
 # conda
 conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
@@ -13,7 +9,6 @@ conda_env_spec_file: spec-list.txt
 wps_enable_https: true
 # slurm
 slurm_enabled: yes
-slurm_cpus: 4
 # Configuration for Duck/CRAI WPS
 wps_services:
   - name: duck
@@ -27,6 +22,5 @@ wps_services:
     parallelprocesses: -1
     storage_copy_function: link
     log_level: INFO
-    cleantempdir: true
     provider_name: CLINT
     provider_url: https://climateintelligence.eu/

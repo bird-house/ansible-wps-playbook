@@ -10,6 +10,8 @@
 
   vars:
     ansible_fqdn: localhost
+    ansible_default_ipv4:
+      interface: eth0
     ansible_memtotal_mb: 64000
     test_primary_service:
       name: alpha
@@ -51,8 +53,8 @@
           - wps_job_control_schedule.hour == '*'
           - job_long_running_minutes | float == 1
           - wps_job_control_long_running_minutes | float == 1
-          - wps_job_control_stale_after_minutes | float == 120
-          - wps_job_control_database_stale_after_minutes | float == 120
+          - wps_job_control_stale_after_minutes | float == 30
+          - wps_job_control_database_stale_after_minutes | float == 30
           - wps_job_control_database_status_window_hours | float == 24
           - >-
             wps_job_control_long_running_minutes | float
@@ -66,11 +68,11 @@
             wps_job_control_stale_after_minutes | float
             < wps_outputs_keep_minutes | float
           - wps_job_control_monitor_enabled
-          - not wps_job_control_recovery_enabled
-          - not wps_missing_status_recovery_enabled
-          - wps_missing_status_poll_window_minutes == 180
+          - wps_job_control_recovery_enabled
+          - wps_missing_status_recovery_enabled
+          - wps_missing_status_poll_window_minutes == 60
           - wps_missing_status_min_poll_count == 3
-          - wps_missing_status_min_poll_duration_minutes == 150
+          - wps_missing_status_min_poll_duration_minutes == 35
           - wps_missing_status_recovery_limit == 20
           - wps_missing_status_database_guard
           - conda_env_spec_file == 'linux-64.spec'
@@ -109,9 +111,9 @@
           - slurm_nodes[0].RealMemory | int == 51200
           - slurm_partitions[0].DefMemPerNode | int == 12800
           - slurm_partitions[0].MaxMemPerNode | int == 51200
-          - slurm_job_timeout_minutes | int == 90
-          - slurm_partitions[0].DefaultTime | int == 90
-          - slurm_partitions[0].MaxTime | int == 90
+          - slurm_job_timeout_minutes | int == 25
+          - slurm_partitions[0].DefaultTime | int == 25
+          - slurm_partitions[0].MaxTime | int == 25
           - >-
             slurm_job_timeout_minutes | int
             < wps_job_control_stale_after_minutes | float
@@ -137,8 +139,8 @@
           - collectd_load_enabled
           - not collectd_disk_enabled
           - collectd_disk_mount == '/mnt/ext_pywps_outputs'
-          - not collectd_memory_enabled
-          - not collectd_interface_enabled
+          - collectd_memory_enabled
+          - collectd_interface_enabled
           - collectd_interval == 60
           - collectd_cleanup_enabled
           - collectd_cleanup_schedule == '*-*-* 00:30:00'
@@ -315,8 +317,8 @@
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
           - >-
-            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=12800 '
-            'MaxMemPerNode=51200 MaxTime=90 Nodes=localhost'
+            'PartitionName=fast Default=YES DefaultTime=25 DefMemPerNode=12800 '
+            'MaxMemPerNode=51200 MaxTime=25 Nodes=localhost'
             in test_slurm_config
           - >-
             'NodeName=localhost CPUs=4 RealMemory=51200'
@@ -396,13 +398,13 @@
           - "'[stalled_jobs]' not in test_pywps_config"
           - "'service_name' not in test_pywps_config"
           - "'monitor_enabled = true' in test_pywps_config"
-          - "'recovery_enabled = false' in test_pywps_config"
-          - "'missing_status_recovery_enabled = false' in test_pywps_config"
+          - "'recovery_enabled = true' in test_pywps_config"
+          - "'missing_status_recovery_enabled = true' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers =' not in test_pywps_config"
           - "'long_running_minutes = 1' in test_pywps_config"
-          - "'stale_after_minutes = 120' in test_pywps_config"
-          - "'database_stale_after_minutes = 120' in test_pywps_config"
+          - "'stale_after_minutes = 30' in test_pywps_config"
+          - "'database_stale_after_minutes = 30' in test_pywps_config"
           - "'database_status_window_hours = 24' in test_pywps_config"
           - "'recovery_user = wps' in test_pywps_config"
           - "'recovery_group = wps' in test_pywps_config"
@@ -420,8 +422,8 @@
           - "'missing_status_recovery_limit = 20' in test_pywps_config"
           - "'LoadPlugin load' in test_collectd_load_config"
           - "'LoadPlugin df' not in test_collectd_load_config"
-          - "'LoadPlugin memory' not in test_collectd_load_config"
-          - "'LoadPlugin interface' not in test_collectd_load_config"
+          - "'LoadPlugin memory' in test_collectd_load_config"
+          - "'LoadPlugin interface' in test_collectd_load_config"
           - "'StoreRates false' in test_collectd_load_config"
           - "'LoadPlugin load' in test_collectd_all_config"
           - "'LoadPlugin df' in test_collectd_all_config"
@@ -447,8 +449,8 @@
           - "'Persistent=true' in test_collectd_cleanup_timer"
           - "'--load' in test_collectd_summary_load_service"
           - "'--disk-mount' not in test_collectd_summary_load_service"
-          - "'--memory' not in test_collectd_summary_load_service"
-          - "'--interface' not in test_collectd_summary_load_service"
+          - "'--memory' in test_collectd_summary_load_service"
+          - "'--interface eth0' in test_collectd_summary_load_service"
           - >-
             '--output /var/log/collectd-daily-summary.log'
             in test_collectd_summary_load_service
@@ -467,8 +469,8 @@
             '--output /var/log/collectd-hourly-summary.log'
             in test_collectd_hourly_summary_load_service
           - "'--disk-mount' not in test_collectd_hourly_summary_load_service"
-          - "'--memory' not in test_collectd_hourly_summary_load_service"
-          - "'--interface' not in test_collectd_hourly_summary_load_service"
+          - "'--memory' in test_collectd_hourly_summary_load_service"
+          - "'--interface eth0' in test_collectd_hourly_summary_load_service"
           - >-
             '--disk-mount /mnt/ext_pywps_outputs'
             in test_collectd_hourly_summary_all_service
@@ -478,9 +480,9 @@
             'OnCalendar=*-*-* *:05:00' in test_collectd_hourly_summary_timer
           - "'Persistent=true' in test_collectd_hourly_summary_timer"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
-          - "'poll_window_minutes = 180' in test_pywps_config"
+          - "'poll_window_minutes = 60' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"
-          - "'min_poll_duration_minutes = 150' in test_pywps_config"
+          - "'min_poll_duration_minutes = 35' in test_pywps_config"
           - "'missing_status_database_guard = true' in test_pywps_config"
 
     - name: Check rendered alternate configuration

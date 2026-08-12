@@ -12,7 +12,6 @@ service_gid: 399
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
-cron_user: root
 wps_outputs_keep_hours: 12
 wps_temp_keep_hours: 12
 # conda
@@ -20,20 +19,14 @@ conda_env_use_spec: true
 conda_env_spec_file: spec-list.txt
 # conda_env_file: env.yml
 # db
-db_install_postgresql: true
 # db_host: "136.172.60.7"
 # postgresql_pg_hba_md5_hosts: ['136.172.60.7/32']
-db_install_sqlite: false
-db_user: pywps
-db_password: pywps
 # nginx
 # nginx_keepalive_timeout: 300
 # nginx_keepalive_requests: 100
 # nginx_proxy_timeout: 300
 # gunicorn
 gunicorn_workers: 25
-gunicorn_worker_class: 'gevent'
-gunicorn_timeout: 30
 # slurm
 slurm_enabled: true
 slurm_cpus: 8
@@ -53,10 +46,10 @@ roocs_profile: dkrz
 collectd_disk_enabled: true
 collectd_disk_mount: /mnt/rook_disk7
 collectd_memory_enabled: true
- collectd_interface_enabled: true 
-# recovery  
+collectd_interface_enabled: true
+# recovery
 wps_job_control_recovery_enabled: true
-wps_missing_status_recovery_enabled: true  
+wps_missing_status_recovery_enabled: true
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git

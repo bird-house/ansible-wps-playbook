@@ -1,13 +1,8 @@
 ---
-server_name: localhost
 wps_enable_https: true
-# Fileserver for WPS outputs
-fs_enabled: false
-fs_host: "{{ server_name }}"
-fs_port: 5001
 # Configuration for Emu WPS
 wps_services:
   - name: emu
-    hostname: "{{ server_name }}"
+    hostname: localhost
     port: 5000
     sethomedir: true

@@ -1,6 +1,4 @@
 ---
-db_install_postgresql: true
-db_install_sqlite: false
 db_host: "192.168.50.44"
 postgresql_pg_hba_md5_hosts: ['192.168.50.44/32', '192.168.50.45/32', '192.168.50.46/32']
 slurm_enabled: true
