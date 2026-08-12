@@ -23,7 +23,7 @@ slurm_cpus: 12
 # Rook workers commonly need 15-18 GiB. With roughly 64 GiB installed and the
 # default 20% system reserve, this admits two ordinary workers at a time while
 # preserving all eight CPUs for smaller or explicitly sized jobs.
-slurm_default_job_memory_mb: 4000
+#slurm_default_job_memory_mb: 4000
 # access control
 wps_enable_acl: true
 wps_acl_allow:
