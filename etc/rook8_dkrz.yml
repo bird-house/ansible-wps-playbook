@@ -42,8 +42,7 @@ wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
     # version: v1.3.0
-    # version: main
-    version: dev-subset
+    version: main
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
     port: 80
