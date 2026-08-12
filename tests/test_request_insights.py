@@ -194,6 +194,29 @@ class RequestInsightsTests(unittest.TestCase):
         item = record("1", "failed", "Process error: unknown")
         self.assertEqual(MODULE.failure_category(item), "unknown")
 
+    def test_scheduler_timeout_discards_preceding_warning(self):
+        item = record(
+            "1",
+            "failed",
+            "FutureWarning: xarray defaults will change slurmstepd: error: *** JOB "
+            "2867399 ON localhost CANCELLED AT 2026-08-12T19:59:13 DUE TO TIME LIMIT ***",
+        )
+        self.assertEqual(MODULE.failure_category(item), "timeout")
+        self.assertEqual(
+            MODULE.primary_failure_message(item),
+            "slurmstepd: error: *** JOB 2867399 ON localhost CANCELLED AT "
+            "2026-08-12T19:59:13 DUE TO TIME LIMIT ***",
+        )
+
+    def test_longitude_domain_failure_is_spatial(self):
+        item = record(
+            "1",
+            "failed",
+            "The requested longitude subset -0.37, 1.63 is not within the longitude "
+            "bounds of this dataset and could not be converted to this longitude frame.",
+        )
+        self.assertEqual(MODULE.failure_category(item), "spatial")
+
     def test_runtime_diagnostic_overrides_generic_xml_failure_category(self):
         item = record("1", "failed", "Process failed, please check server error log")
         item["diagnostics"] = [

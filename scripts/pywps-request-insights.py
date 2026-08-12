@@ -42,6 +42,14 @@ FAILURE_PATTERNS = (
         ),
     ),
     (
+        "spatial",
+        re.compile(
+            r"not within (?:the )?(?:longitude|latitude) bounds|longitude frame|"
+            r"outside (?:the )?(?:spatial|longitude|latitude) bounds|invalid bounding box",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "input",
         re.compile(
             r"invalid (?:input|parameter)|missing (?:input|parameter)|not found|"
@@ -64,6 +72,14 @@ NO_DATA_RE = re.compile(
     r"There were no valid data points found in the requested subset\."
     r"(?: Please expand the area covered by the bounding box, the time period "
     r"or the level range you have selected\.)?",
+    re.IGNORECASE,
+)
+SLURM_TIME_LIMIT_RE = re.compile(
+    r"slurmstepd: error: \*{3} JOB .+? DUE TO TIME LIMIT \*{3}",
+    re.IGNORECASE,
+)
+SLURM_OOM_MESSAGE_RE = re.compile(
+    r"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\)[^.]*\.?",
     re.IGNORECASE,
 )
 
@@ -367,6 +383,12 @@ def primary_failure_message(record: dict[str, object]) -> str:
 
 def concise_failure_message(message: str) -> str:
     normalized = " ".join(message.split())
+    time_limit = SLURM_TIME_LIMIT_RE.search(normalized)
+    if time_limit:
+        return time_limit.group(0)
+    oom = SLURM_OOM_MESSAGE_RE.search(normalized)
+    if oom:
+        return oom.group(0)
     no_data = NO_DATA_RE.search(normalized)
     if no_data:
         return no_data.group(0)
