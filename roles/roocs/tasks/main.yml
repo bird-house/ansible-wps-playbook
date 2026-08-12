@@ -12,7 +12,7 @@
         is match('^[1-9][0-9]* ?(KiB|MiB|GiB|KB|MB|GB)$')
     fail_msg: >-
       roocs_chunk_memory_limit and roocs_file_size_limit must be positive
-      integer sizes such as 256MiB or 1GB.
+      integer sizes such as 128MiB or 2GB.
   when: roocs_site == "dkrz"
 
 - name: Clone test data.

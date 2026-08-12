@@ -81,7 +81,7 @@
           - wps_pip_packages == []
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
-          - roocs_chunk_memory_limit == '256MiB'
+          - roocs_chunk_memory_limit == '128MiB'
           - roocs_file_size_limit == '2GB'
           - not slurm_configure_munge
           - slurm_system_memory_reserve_percent | int == 20
@@ -485,5 +485,5 @@
           - "'listen 6000;' in test_fileserver_config"
           - "'server_name files.example.test;' in test_fileserver_config"
           - "'base_dir = /test/data/mini-esgf-data/' in test_roocs_config"
-          - "'chunk_memory_limit = 256MiB' in test_roocs_dkrz_config"
+          - "'chunk_memory_limit = 128MiB' in test_roocs_dkrz_config"
           - "'file_size_limit = 2GB' in test_roocs_dkrz_config"
