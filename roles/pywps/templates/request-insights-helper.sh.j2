@@ -18,7 +18,7 @@ service=$1
 shift
 shopt -s nullglob
 logs=("{{ wps_log_dir }}/$service-requests.log"*)
-if (( ${#logs[@]} == 0 )); then
+if [[ -z ${logs[0]:-} ]]; then
     echo "No request logs found for service: $service" >&2
     exit 1
 fi
