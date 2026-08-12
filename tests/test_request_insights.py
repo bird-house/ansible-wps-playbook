@@ -143,6 +143,51 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(production["failures"][0]["collection"], collection)
         self.assertEqual(production["failures"][0]["category"], "timeout")
 
+    def test_derived_step_outputs_are_not_reported_as_collections(self):
+        workflow = {
+            "inputs": {
+                "tas": ["c3s-cmip6.example.tas"],
+                "derived": ["regrid_tas_1/output"],
+            },
+            "steps": {
+                "subset_tas_1": {
+                    "run": "subset",
+                    "in": {"collection": "inputs/tas", "time": "2050/2050"},
+                },
+                "average_tas_1": {
+                    "run": "average",
+                    "in": {"collection": "subset_tas_1/output"},
+                },
+            },
+        }
+        item = record("1")
+        item["process"] = "orchestrate"
+        item["inputs"] = {
+            "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+        }
+        collections = MODULE.aggregate([item], top=10)["orchestrate"]["collections"]
+        self.assertEqual(list(collections), ["c3s-cmip6.example.tas"])
+
+    def test_traceback_is_reduced_to_no_data_root_cause(self):
+        message = (
+            'Traceback File "subset.py" ValueError: There were no valid data points '
+            "found in the requested subset. Please expand the area covered by the "
+            "bounding box, the time period or the level range you have selected. "
+            "During handling of the above exception, another exception occurred: "
+            'Traceback File "wps.py" ProcessError: There were no valid data points '
+            "found in the requested subset."
+        )
+        item = record("1", "failed", message)
+        item["process"] = "orchestrate"
+        report = MODULE.aggregate([item], top=10)
+        self.assertEqual(report["failure_categories"], {"no-data": 1})
+        self.assertEqual(
+            MODULE.primary_failure_message(item),
+            "There were no valid data points found in the requested subset. Please "
+            "expand the area covered by the bounding box, the time period or the "
+            "level range you have selected.",
+        )
+
     def test_runtime_diagnostic_overrides_generic_xml_failure_category(self):
         item = record("1", "failed", "Process failed, please check server error log")
         item["diagnostics"] = [

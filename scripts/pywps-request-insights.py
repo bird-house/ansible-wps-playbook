@@ -35,6 +35,13 @@ FAILURE_PATTERNS = (
         ),
     ),
     (
+        "no-data",
+        re.compile(
+            r"no valid data points|no data (?:found|available)|empty (?:subset|selection)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "input",
         re.compile(
             r"invalid (?:input|parameter)|missing (?:input|parameter)|not found|"
@@ -49,6 +56,13 @@ FAILURE_PATTERNS = (
 )
 GENERIC_FAILURE_RE = re.compile(
     r"^NoApplicableCode\s+(?:None\s+)?Process failed, please check server error log\s*$",
+    re.IGNORECASE,
+)
+STEP_OUTPUT_RE = re.compile(r"^[A-Za-z0-9_.-]+/output$")
+NO_DATA_RE = re.compile(
+    r"There were no valid data points found in the requested subset\."
+    r"(?: Please expand the area covered by the bounding box, the time period "
+    r"or the level range you have selected\.)?",
     re.IGNORECASE,
 )
 
@@ -287,7 +301,8 @@ def orchestrate_request_data(
         }
         for values in aliases.values():
             for collection in values:
-                collections.setdefault(collection, {"years": set(), "ranges": []})
+                if not STEP_OUTPUT_RE.fullmatch(collection):
+                    collections.setdefault(collection, {"years": set(), "ranges": []})
         if not isinstance(steps, dict):
             continue
         for step in steps.values():
@@ -299,9 +314,19 @@ def orchestrate_request_data(
             selected = []
             for reference in references:
                 alias = reference.split("/", 1)[1] if reference.startswith("inputs/") else reference
-                selected.extend(aliases.get(alias, [reference] if reference not in aliases else []))
+                resolved = aliases.get(alias, [reference] if reference not in aliases else [])
+                selected.extend(
+                    collection
+                    for collection in resolved
+                    if not STEP_OUTPUT_RE.fullmatch(collection)
+                )
             if not selected:
-                selected = [item for values in aliases.values() for item in values]
+                selected = [
+                    item
+                    for values in aliases.values()
+                    for item in values
+                    if not STEP_OUTPUT_RE.fullmatch(item)
+                ]
             for collection in selected:
                 details = collections.setdefault(collection, {"years": set(), "ranges": []})
                 details["years"].update(years)
@@ -330,13 +355,28 @@ def primary_failure_message(record: dict[str, object]) -> str:
     if isinstance(diagnostics, list):
         for diagnostic in diagnostics:
             if isinstance(diagnostic, dict) and diagnostic.get("message"):
-                return str(diagnostic["message"])
+                return concise_failure_message(str(diagnostic["message"]))
     failures = record.get("failures")
     if isinstance(failures, list):
         for failure in failures:
             if isinstance(failure, dict) and failure.get("message"):
-                return str(failure["message"])
+                return concise_failure_message(str(failure["message"]))
     return "unknown failure"
+
+
+def concise_failure_message(message: str) -> str:
+    normalized = " ".join(message.split())
+    no_data = NO_DATA_RE.search(normalized)
+    if no_data:
+        return no_data.group(0)
+    exceptions = re.findall(
+        r"(?:ProcessError|ValueError|MemoryError|TimeoutError):\s*"
+        r"(.+?)(?=\s+During handling|\s+Traceback|$)",
+        normalized,
+    )
+    if exceptions:
+        return exceptions[-1].strip()
+    return normalized
 
 
 def aggregate_orchestrate(

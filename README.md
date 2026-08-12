@@ -687,9 +687,11 @@ process/input pair. JSON `ComplexData` is expanded into useful dotted coverage
 dimensions. Orchestrate workflows receive dedicated dimensions such as
 `orchestrate.workflow.inputs.tas` and
 `orchestrate.workflow.steps.subset.time`, with generated step names collapsed
-to their `run` operation. Failures are grouped into `memory`, `timeout`, `input`,
-`scheduler`, `other`, and `unknown`, followed by the most common exact
-exception messages and example job IDs for log or incident follow-up. Memory
+to their `run` operation. Derived references such as `subset_tas_1/output` are
+not counted as source collections. Failures are grouped into `memory`,
+`timeout`, `no-data`, `input`, `scheduler`, `other`, and `unknown`, followed by
+concise root-cause messages and example job IDs for log or incident follow-up.
+Repeated Python tracebacks are reduced to their actionable exception. Memory
 detection recognizes common OOM, cgroup and Python
 allocation errors; timeout detection recognizes Slurm time-limit cancellation,
 wall-clock, deadline, timed-out, and stale no-update recovery messages. Both
