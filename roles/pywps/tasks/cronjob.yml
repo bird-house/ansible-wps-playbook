@@ -147,6 +147,22 @@
     group: root
     mode: "0755"
 
+- name: Install PyWPS request-insights script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scripts/pywps-request-insights.py"
+    dest: "{{ cron_script_dir }}/pywps-request-insights.py"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install PyWPS request-insights command
+  ansible.builtin.template:
+    src: ./templates/request-insights-helper.sh.j2
+    dest: "{{ cron_script_dir }}/request-insights"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Create PyWPS job-incident archive base directory
   ansible.builtin.file:
     path: "{{ wps_job_incident_archive_dir }}"

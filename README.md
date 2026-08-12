@@ -662,6 +662,26 @@ The duration is derived from a version-1 job UUID when available, otherwise
 from the XML `Status` creation time, and the status file modification time. It
 is therefore an operational estimate rather than a database-quality timing.
 
+Aggregate the current and rotated request logs with:
+
+```sh
+sudo /var/lib/pywps/request-insights SERVICE_NAME
+sudo /var/lib/pywps/request-insights SERVICE_NAME \
+  --from 2026-08-01 --to 2026-08-12
+sudo /var/lib/pywps/request-insights SERVICE_NAME --process subset --json
+```
+
+The report groups requests by process, summarizes median, 95th-percentile and
+maximum durations, and lists the most frequently requested values for every
+process/input pair. Failures are grouped into `memory`, `timeout`, `input`,
+`scheduler`, `other`, and `unknown`, followed by the most common exact
+exception messages. Memory detection recognizes common OOM, cgroup and Python
+allocation errors; timeout detection recognizes Slurm time-limit cancellation,
+wall-clock, deadline, timed-out, and stale no-update recovery messages. Both
+plain and gzip-compressed logrotate files are accepted, and duplicate job IDs
+across rotations are ignored. `--top` controls the number of values and
+messages shown.
+
 ### Summarize historical PyWPS database activity
 
 The read-only `db-monitor` operator command aggregates database requests for an
