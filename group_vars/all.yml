@@ -20,8 +20,8 @@ collectd_csv_dir: /var/lib/collectd/csv
 collectd_load_enabled: true
 collectd_disk_enabled: false
 collectd_disk_mount: /mnt/ext_pywps_outputs
-collectd_memory_enabled: false
-collectd_interface_enabled: false
+collectd_memory_enabled: true
+collectd_interface_enabled: true
 collectd_interface: "{{ ansible_default_ipv4.interface | default('eth0') }}"
 collectd_cleanup_enabled: true
 collectd_cleanup_script: /usr/local/sbin/collectd-cleanup
@@ -223,7 +223,7 @@ wps_logrotate_rotations: 7
 # Report stalled requests without changing them.
 wps_job_control_monitor_enabled: true
 # Allow commands that recover stalled requests or status documents.
-wps_job_control_recovery_enabled: false
+wps_job_control_recovery_enabled: true
 # Write a complete hourly job statistics report.
 wps_job_statistics_enabled: true
 wps_job_statistics_schedule:
@@ -258,7 +258,7 @@ wps_job_incident_archive_dir: "{{ service_user_home }}/job-incidents"
 wps_job_incident_keep_days: 30
 wps_job_incident_keep_minutes: "{{ (wps_job_incident_keep_days | int) * 1440 }}"
 # Create failure XML for repeated Nginx 404 status polling.
-wps_missing_status_recovery_enabled: false
+wps_missing_status_recovery_enabled: true
 wps_missing_status_poll_window_minutes: 180
 wps_missing_status_min_poll_count: 3
 wps_missing_status_min_poll_duration_minutes: 150

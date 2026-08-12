@@ -16,7 +16,6 @@ wps_restart_schedule: daily
 # Rotate PyWPS logs after one day only when they exceed this size.
 wps_logrotate_min_size: 10M
 wps_logrotate_rotations: 7
-# First deploy stalled-job checks in report-only mode and review their log.
 # Report stalled requests without changing them.
 wps_job_control_monitor_enabled: true
 # Shared default for WPS and Slurm long-running detection. Override
@@ -24,7 +23,7 @@ wps_job_control_monitor_enabled: true
 # independently when a deployment needs different thresholds.
 job_long_running_minutes: 1
 # Allow commands that recover stalled requests or status documents.
-wps_job_control_recovery_enabled: false
+wps_job_control_recovery_enabled: true
 # Write a complete hourly job statistics report.
 wps_job_statistics_enabled: true
 wps_job_statistics_schedule:
@@ -47,7 +46,7 @@ wps_job_incident_archive_enabled: true
 wps_job_incident_archive_dir: /var/lib/pywps/job-incidents
 wps_job_incident_keep_days: 30
 # Create failure XML for repeated Nginx 404 status polling.
-wps_missing_status_recovery_enabled: false
+wps_missing_status_recovery_enabled: true
 wps_missing_status_poll_window_minutes: 180
 wps_missing_status_min_poll_count: 3
 wps_missing_status_min_poll_duration_minutes: 150

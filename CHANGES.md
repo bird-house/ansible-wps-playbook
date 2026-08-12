@@ -4,6 +4,8 @@
 
 Changes:
 
+- enable all ordered PyWPS recovery layers and all collectd monitoring except
+  deployment-specific disk metrics by default
 - keep version-coupled ROOCS project configuration in one template using DKRZ
   and conventional `/data` path defaults, optionally replace them from a DKRZ
   path profile, allow every final path variable to be overridden directly, and

@@ -272,14 +272,15 @@ update the single template together with the deployed application version.
 
 Collectd monitoring is enabled by default and supports Red Hat family version
 9 hosts. The collectd package must be available from a configured repository
-such as EPEL. The default configuration collects load; disk, memory, and
-network interface statistics are independent options. Set
+such as EPEL. The default configuration collects load, memory, and network
+interface statistics. Disk statistics remain opt-in because they require a
+deployment-specific mount point. Set
 `collectd_enabled: false` to disable host monitoring entirely.
 
 ```yaml
 collectd_enabled: true
 collectd_load_enabled: true
-collectd_disk_enabled: true
+collectd_disk_enabled: false
 collectd_disk_mount: /mnt/ext_pywps_outputs
 collectd_memory_enabled: true
 collectd_interface_enabled: true
@@ -391,14 +392,15 @@ remains available and can still be run manually:
 ### Monitor and recover stalled jobs
 
 The playbook installs the job-control script once. Scheduled monitoring does
-not change live request state. Scheduled recovery remains disabled until its
-explicit switches are enabled:
+not change live request state. The ordered XML, database, and missing-status
+polling recovery layers are enabled by default:
 
 ```yaml
 cron_enabled: true
 job_long_running_minutes: 1
 wps_job_control_monitor_enabled: true
-wps_job_control_recovery_enabled: false
+wps_job_control_recovery_enabled: true
+wps_missing_status_recovery_enabled: true
 wps_job_control_schedule:
   minute: "*/5"
   hour: "*"
@@ -417,7 +419,7 @@ The monitor runs every five minutes. It does not change live request state,
 but it preserves failed XML documents in the incident archive. When recovery
 is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
-disabled polling recovery is skipped within that ordered run.
+polling recovery can still be disabled independently when it is not wanted.
 The database layer reports non-final requests as long-running after one minute
 by default, based on their request start time. This is an early warning only.
 Its monitor summary also counts every database request started within the
@@ -445,8 +447,8 @@ The playbook renders the operation switches into every service configuration:
 ```ini
 [job_control]
 monitor_enabled = true
-recovery_enabled = false
-missing_status_recovery_enabled = false
+recovery_enabled = true
+missing_status_recovery_enabled = true
 statistics_enabled = true
 incident_archive_enabled = true
 incident_archive_dir = /var/lib/pywps/job-incidents/SERVICE_NAME
@@ -529,7 +531,7 @@ destination. That UUID is excluded from database recovery for the remainder of
 the run. There is deliberately no lossy XML-only fallback. In the database
 layer, other stale rows are marked failed and matching stored queue entries are
 removed; this does not change the database schema.
-Polling recovery is skipped unless its separate switch is enabled. The generated
+Polling recovery can be disabled with its separate switch. The generated
 `[job_control]` section lives in the service's existing PyWPS configuration,
 and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
@@ -627,7 +629,7 @@ sudo /var/lib/pywps/statistics SERVICE_NAME
 
 ### Recover repeatedly polled missing status documents
 
-The ordered, opt-in recovery run can inspect recent Nginx access logs for WPS
+The ordered recovery run inspects recent Nginx access logs for WPS
 clients repeatedly polling a status URL that returns `404`. Once the same valid
 UUID has reached the configured request count and polling duration, it creates
 a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
