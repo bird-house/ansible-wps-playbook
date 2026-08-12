@@ -85,6 +85,8 @@
           - roocs_chunk_memory_limit == '128MiB'
           - roocs_file_size_limit == '2GB'
           - roocs_profile is none
+          - roocs_project_path_defaults.cmip5 == '/data/cmip5'
+          - roocs_project_path_defaults.cmip6 == '/data/CMIP6'
           - roocs_cmip5_path == '/data/cmip5'
           - roocs_cmip6_path == '/data/CMIP6'
           - "'dkrz' in roocs_project_path_profiles"

@@ -1,6 +1,19 @@
 ---
-# Profiles contain only local data-pool paths. The ROOCS project semantics stay
-# in the single version-coupled template.
+# Generic local data-pool paths used when no profile is selected.
+roocs_project_path_defaults:
+  cmip5: /data/cmip5
+  cmip6: /data/CMIP6
+  cordex: /data/cordex
+  c3s_cmip5: /data/c3s-cmip5
+  c3s_cmip6: /data/CMIP6
+  c3s_cmip6_decadal: /data/CMIP6
+  c3s_cordex: /data/c3s-cordex
+  c3s_ipcc_atlas: /data/c3s-ipcc-ar6-atlas
+  c3s_cica_atlas: /data/C3S-CICA-ATLAS
+  copernicus_interactive_climate_atlas: /data/C3S-CICA-ATLAS
+
+# Profiles replace generic defaults. ROOCS project semantics remain in the
+# single version-coupled template.
 roocs_project_path_profiles:
   dkrz:
     cmip5: /mnt/lustre/work/kd0956/CMIP5/data/cmip5
@@ -15,25 +28,25 @@ roocs_project_path_profiles:
     copernicus_interactive_climate_atlas: >-
       /mnt/lustre/work/ik1017/Ingest/C3S-CICA-ATLAS
 
-# Direct inventory values have higher precedence than these role defaults.
-# Without a selected profile, use a conventional /data layout.
+# Final public variables. Direct inventory definitions have higher precedence
+# than these role defaults.
 roocs_cmip5_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('cmip5', '/data/cmip5') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('cmip5', roocs_project_path_defaults.cmip5) }}
 roocs_cmip6_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('cmip6', '/data/CMIP6') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('cmip6', roocs_project_path_defaults.cmip6) }}
 roocs_cordex_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('cordex', '/data/cordex') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('cordex', roocs_project_path_defaults.cordex) }}
 roocs_c3s_cmip5_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cmip5', '/data/c3s-cmip5') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cmip5', roocs_project_path_defaults.c3s_cmip5) }}
 roocs_c3s_cmip6_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cmip6', '/data/CMIP6') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cmip6', roocs_project_path_defaults.c3s_cmip6) }}
 roocs_c3s_cmip6_decadal_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cmip6_decadal', '/data/CMIP6') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cmip6_decadal', roocs_project_path_defaults.c3s_cmip6_decadal) }}
 roocs_c3s_cordex_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cordex', '/data/c3s-cordex') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cordex', roocs_project_path_defaults.c3s_cordex) }}
 roocs_c3s_ipcc_atlas_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_ipcc_atlas', '/data/c3s-ipcc-ar6-atlas') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_ipcc_atlas', roocs_project_path_defaults.c3s_ipcc_atlas) }}
 roocs_c3s_cica_atlas_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cica_atlas', '/data/C3S-CICA-ATLAS') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('c3s_cica_atlas', roocs_project_path_defaults.c3s_cica_atlas) }}
 roocs_copernicus_interactive_climate_atlas_path: >-
-  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('copernicus_interactive_climate_atlas', '/data/C3S-CICA-ATLAS') }}
+  {{ roocs_project_path_profiles.get(roocs_profile, {}).get('copernicus_interactive_climate_atlas', roocs_project_path_defaults.copernicus_interactive_climate_atlas) }}
