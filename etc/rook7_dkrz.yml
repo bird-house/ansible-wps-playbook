@@ -33,14 +33,14 @@ roocs_profile: dkrz
 collectd_disk_enabled: true
 collectd_disk_mount: /mnt/rook_disk7
 collectd_memory_enabled: true
-collectd_interface_enabled: true 
-# recovery  
+collectd_interface_enabled: true
+# recovery
 wps_job_control_recovery_enabled: true
 wps_missing_status_recovery_enabled: true
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    #version: v1.3.0
+    # version: v1.3.0
     version: main
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
