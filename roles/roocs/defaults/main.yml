@@ -1,4 +1,14 @@
 ---
+# Select an optional local data-pool path profile. Direct inventory variables
+# always have final precedence over role defaults and profile values.
+roocs_profile: null
+roocs_cache_dir: /tmp/inventory_cache
+
+# Keep individual clisops/Dask read chunks small relative to job memory.
+roocs_chunk_memory_limit: 128MiB
+# Split written output before an individual file grows beyond this size.
+roocs_file_size_limit: 2GB
+
 # Generic local data-pool paths used when no profile is selected.
 roocs_project_path_defaults:
   cmip5: /data/cmip5

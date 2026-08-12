@@ -269,15 +269,6 @@ selinux_enabled: true
 
 # roocs
 roocs_enabled: false
-# Optionally select local data-pool path defaults. With no profile selected,
-# the role uses conventional paths below /data. Direct path variables in
-# inventory always take final precedence.
-roocs_profile: null
-roocs_cache_dir: "/tmp/inventory_cache"
-# Keep individual clisops/Dask read chunks small relative to job memory.
-roocs_chunk_memory_limit: 128MiB
-# Split written output before an individual file grows beyond this size.
-roocs_file_size_limit: 2GB
 
 # pywps
 wps_user: "{{ service_user }}"
