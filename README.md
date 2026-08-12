@@ -826,6 +826,20 @@ sudo /usr/local/sbin/slurm-job-monitor \
   --user wps --long-running-minutes 1 --pending-critical 20
 ```
 
+For a compact live view of pending and running jobs, including each running
+batch step's peak resident memory and its percentage of the requested memory,
+use the interactive queue-status command. It batches the accounting lookup, so
+each refresh makes one `squeue` and at most one `sstat` request:
+
+```sh
+watch -n 1 -- slurm-queue-status --user wps
+```
+
+Omit `--user` to show every job visible to the current account. `MAX RSS` is
+Slurm's high-water mark for the batch step rather than an instantaneous or
+whole-job aggregate. A dash means accounting data is not yet available, which
+is normal just after a job starts or finishes.
+
 The monitor never changes or cancels jobs. Its long-running threshold indicates
 elapsed runtime, not lack of progress.
 

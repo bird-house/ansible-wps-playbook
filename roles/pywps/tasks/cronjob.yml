@@ -183,6 +183,15 @@
     mode: "0755"
   when: slurm_enabled | bool
 
+- name: Install interactive Slurm queue-status script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scripts/slurm-queue-status.py"
+    dest: "{{ slurm_queue_status_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: slurm_enabled | bool
+
 - name: Remove obsolete Slurm job-control script
   ansible.builtin.file:
     path: /usr/local/sbin/slurm-job-control
@@ -191,6 +200,12 @@
 - name: Remove Slurm job-monitor script when Slurm is disabled
   ansible.builtin.file:
     path: "{{ slurm_job_monitor_script }}"
+    state: absent
+  when: not (slurm_enabled | bool)
+
+- name: Remove Slurm queue-status script when Slurm is disabled
+  ansible.builtin.file:
+    path: "{{ slurm_queue_status_script }}"
     state: absent
   when: not (slurm_enabled | bool)
 
