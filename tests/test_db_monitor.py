@@ -115,6 +115,15 @@ class DatabaseMonitorTests(unittest.TestCase):
         output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
         self.assertIn('"first line\\nsecond line"', output)
 
+    def test_text_report_handles_an_empty_range(self):
+        report = MODULE.summarize([], self.statuses, self.period)
+        with mock.patch("sys.stdout") as stdout:
+            MODULE.print_report(report)
+        output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
+        self.assertIn("Total", output)
+        self.assertIn("Success rate: n/a", output)
+        self.assertIn("Errors (0 failures, 0 unique messages)", output)
+
     @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
     def test_naive_uuid1_time_uses_writer_offset(self):
         previous_timezone = os.environ.get("TZ")

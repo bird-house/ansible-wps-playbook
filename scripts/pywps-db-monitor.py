@@ -244,53 +244,157 @@ def json_default(value: object) -> str:
     raise TypeError(f"cannot serialize {type(value).__name__}")
 
 
-def format_number(value: object) -> str:
+def format_number(value: object, *, decimals: int = 2) -> str:
     if value is None:
         return "n/a"
     if isinstance(value, float):
-        return f"{value:.2f}"
+        return f"{value:.{decimals}f}"
     return str(value)
+
+
+def format_duration(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    if value < 1:
+        return f"{value * 1000:.0f}ms"
+    if value < 60:
+        return f"{value:.1f}s"
+    seconds = int(round(value))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    parts = []
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds or not parts:
+        parts.append(f"{seconds}s")
+    return " ".join(parts)
+
+
+def format_local_timestamp(value: str | datetime) -> str:
+    timestamp = datetime.fromisoformat(value) if isinstance(value, str) else value
+    return timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+def print_table(
+    headers: tuple[str, ...],
+    rows: list[tuple[str, ...]],
+    *,
+    right_aligned: set[int] | None = None,
+) -> None:
+    right_aligned = right_aligned or set()
+    widths = [
+        max([len(headers[index])] + [len(row[index]) for row in rows])
+        for index in range(len(headers))
+    ]
+
+    def formatted(row: tuple[str, ...]) -> str:
+        cells = []
+        for index, value in enumerate(row):
+            align = ">" if index in right_aligned else "<"
+            cells.append(f"{value:{align}{widths[index]}}")
+        return "  ".join(cells).rstrip()
+
+    print(formatted(headers))
+    print("  ".join("-" * width for width in widths))
+    for row in rows:
+        print(formatted(row))
 
 
 def print_report(report: dict) -> None:
     request = report["requests"]
-    success_rate = format_number(request["success_rate_percent"])
-    if request["success_rate_percent"] is not None:
-        success_rate += "%"
-    print(f"range\t{report['range']['start']}\t{report['range']['end']}")
-    print("requests\t" + "\t".join(
-        [f"total={request['total']}"]
-        + [f"{name}={request[name]}" for name in STATUS_NAMES]
-        + [f"success_rate={success_rate}"]
-    ))
-    for label in ("requests_per_day", "duration_seconds"):
-        values = report[label]
-        fields = ("count", "minimum", "median", "maximum", "total")
-        print(label + "\t" + "\t".join(
-            f"{name}={format_number(values[name])}"
-            for name in fields
-            if name in values
-    ))
-
-    print("\nprocesses")
+    total = request["total"]
+    final = request["successful"] + request["failed"]
+    print("PyWPS database report")
     print(
-        "identifier\ttotal\taccepted\trunning\tsuccessful\tfailed\t"
-        "dismissed\tunmapped\tduration_total_seconds"
+        "Range: "
+        f"{format_local_timestamp(report['range']['start'])}  ->  "
+        f"{format_local_timestamp(report['range']['end'])}"
     )
-    for process in report["processes"]:
-        print("\t".join(
-            [process["identifier"], str(process["total"])]
-            + [str(process[name]) for name in STATUS_NAMES]
-            + [format_number(process["duration_seconds"]["total"])]
-        ))
+    print()
 
-    print("\nerrors")
-    print("count\tfirst\tlast\tmessage")
-    for error in report["errors"]:
+    status_rows = [("Total", str(total), "100.00%" if total else "n/a")]
+    for name in STATUS_NAMES:
+        count = request[name]
+        if count:
+            share = f"{count * 100 / total:.2f}%" if total else "n/a"
+            status_rows.append((name.replace("_", " ").title(), str(count), share))
+    print("Requests")
+    print_table(("Status", "Count", "Share"), status_rows, right_aligned={1, 2})
+    success_rate = request["success_rate_percent"]
+    rate_text = f"{success_rate:.2f}%" if success_rate is not None else "n/a"
+    print(f"Success rate: {rate_text} of {final} final requests")
+
+    daily = report["requests_per_day"]
+    durations = report["duration_seconds"]
+    print("\nTiming")
+    print(
+        "Requests/day: "
+        f"min {format_number(daily['minimum'])}  "
+        f"median {format_number(daily['median'])}  "
+        f"max {format_number(daily['maximum'])}"
+    )
+    print(
+        f"Completed durations ({durations['count']}): "
+        f"min {format_duration(durations['minimum'])}  "
+        f"median {format_duration(durations['median'])}  "
+        f"max {format_duration(durations['maximum'])}  "
+        f"total {format_duration(durations['total'])}"
+    )
+
+    print("\nProcesses")
+    process_rows = []
+    for process in sorted(
+        report["processes"],
+        key=lambda item: (-item["total"], item["identifier"]),
+    ):
+        process_final = process["successful"] + process["failed"]
+        process_rate = (
+            f"{process['successful'] * 100 / process_final:.1f}%"
+            if process_final
+            else "n/a"
+        )
+        active = process["accepted"] + process["running"]
+        other = process["dismissed"] + process["unmapped"]
+        process_rows.append(
+            (
+                process["identifier"],
+                str(process["total"]),
+                str(process["successful"]),
+                str(process["failed"]),
+                str(active),
+                str(other),
+                process_rate,
+                format_duration(process["duration_seconds"]["total"]),
+            )
+        )
+    print_table(
+        (
+            "Process",
+            "Total",
+            "OK",
+            "Failed",
+            "Active",
+            "Other",
+            "Success",
+            "Duration",
+        ),
+        process_rows,
+        right_aligned={1, 2, 3, 4, 5, 6, 7},
+    )
+
+    errors = report["errors"]
+    error_count = sum(error["count"] for error in errors)
+    print(f"\nErrors ({error_count} failures, {len(errors)} unique messages)")
+    if not errors:
+        print("None")
+    for error in errors:
         message = json.dumps(error["message"], ensure_ascii=False)
+        print(f"\n{error['count']}x  {message}")
         print(
-            f"{error['count']}\t{error['first'].isoformat()}\t"
-            f"{error['last'].isoformat()}\t{message}"
+            f"    First: {format_local_timestamp(error['first'])}\n"
+            f"    Last:  {format_local_timestamp(error['last'])}"
         )
 
 
