@@ -8,87 +8,27 @@ server_name: wps.example.org
 # Clean completed outputs and abandoned process directories every hour.
 cron_enabled: true
 cron_mailto: ops@example.org
-cron_user: root
 wps_outputs_keep_hours: 24
 wps_temp_keep_hours: 12
-wps_restart_enabled: true
-wps_restart_schedule: daily
-# Rotate PyWPS logs after one day only when they exceed this size.
-wps_logrotate_min_size: 10M
-wps_logrotate_rotations: 7
-# Report stalled requests without changing them.
-wps_job_control_monitor_enabled: true
-# Shared default for WPS and Slurm long-running detection. Override
-# wps_job_control_long_running_minutes or slurm_job_monitor_long_running_minutes
-# independently when a deployment needs different thresholds.
-job_long_running_minutes: 1
-# Allow commands that recover stalled requests or status documents.
-wps_job_control_recovery_enabled: true
-# Write a complete hourly job statistics report.
-wps_job_statistics_enabled: true
-wps_job_statistics_schedule:
-  minute: "4"
-  hour: "*"
-wps_job_control_schedule:
-  minute: "*/5"
-  hour: "*"
-wps_job_control_recovery_schedule:
-  minute: "1-56/5"
-  hour: "*"
-wps_job_control_stale_after_minutes: 30
-wps_job_control_database_stale_after_minutes: 30
-# Recent database status mix shown by the five-minute monitor (3-24 hours).
-wps_job_control_database_status_window_hours: 24
-# Maximum recovered jobs per layer.
-wps_job_control_recovery_limit: 100
-# Preserve failed status XML for later investigation.
-wps_job_incident_archive_enabled: true
-wps_job_incident_archive_dir: /var/lib/pywps/job-incidents
-wps_job_incident_keep_days: 30
-# Create failure XML for repeated Nginx 404 status polling.
-wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: 60
-wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 35
-wps_missing_status_recovery_limit: 20
-wps_missing_status_database_guard: true
 
 # Use a separately managed PostgreSQL database.
 db_install_postgresql: false
-db_install_sqlite: false
 db_host: postgresql.example.org
-db_port: 5432
-db_user: pywps
 db_password: REPLACE_WITH_DATABASE_PASSWORD
 
 # Reproducible application environments. Each application repository must
 # contain this explicit Conda specification. For repositories that still use
 # spec-list.txt, override conda_env_spec_file with that legacy filename.
 conda_env_use_spec: true
-conda_env_spec_file: linux-64.spec
 
 # TLS certificate and key must already exist on the target host.
 wps_enable_https: true
 ssl_certs_cert_path: /etc/ssl/wps.example.org/wps.example.org.pem
 ssl_certs_privkey_path: /etc/ssl/wps.example.org/wps.example.org.key
 
-# Keep Slurm disabled for a regular single-host deployment.
-slurm_enabled: false
-# Stop the Slurm process before PyWPS treats its request as stale.
-slurm_job_timeout_minutes: 25
-# Report queue pressure and jobs approaching the hard timeout when Slurm is enabled.
-slurm_job_monitor_enabled: true
-slurm_job_monitor_pending_critical: 20
-slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
-
 # Tune these values for the CPUs and workload available on the target.
 gunicorn_workers: 5
-gunicorn_worker_connections: 1000
 gunicorn_timeout: 120
-gunicorn_max_requests: 1000
-gunicorn_max_requests_jitter: 100
-# Temporary fallback for cleaning up live Gunicorn processes reparented to PID 1.
-gunicorn_cleanup_orphaned_processes: false
 
 wps_services:
   - name: emu
@@ -97,13 +37,8 @@ wps_services:
     hostname: "{{ server_name }}"
     port: 443
     maxsingleinputsize: 200mb
-    maxrequestsize: 200mb
     maxprocesses: 16
-    parallelprocesses: 4
-    mode: default
     log_level: INFO
-    cleantempdir: true
-    storage_copy_function: copy
     provider_name: Example Operations Team
     provider_url: https://www.example.org/
     contact_name: Operations

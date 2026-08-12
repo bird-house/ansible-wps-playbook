@@ -9,6 +9,8 @@ Changes:
 - stop Slurm jobs after 25 minutes, reconcile stale XML/database state after
   30 minutes, and recover repeatedly polled missing status documents after 35
   minutes within a one-hour access-log window
+- remove inherited defaults from the example and DKRZ inventory files so they
+  contain only deployment choices and intentional overrides
 - keep version-coupled ROOCS project configuration in one template using DKRZ
   and conventional `/data` path defaults, optionally replace them from a DKRZ
   path profile, allow every final path variable to be overridden directly, and

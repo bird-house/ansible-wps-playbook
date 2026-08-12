@@ -5,11 +5,8 @@ demo_data_dir: /vagrant/.local/data
 epel_repo_disable: false
 # conda
 conda_env_use_spec: true
-conda_env_spec_file: linux-64.spec
 # conda_env_file: env.yml
 # db
-db_install_postgresql: true
-db_install_sqlite: false
 db_host: "192.168.50.44"
 postgresql_pg_hba_md5_hosts: ['192.168.50.44/32', '192.168.50.45/32', '192.168.50.46/32']
 # slurm
