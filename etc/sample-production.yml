@@ -35,8 +35,8 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-wps_job_control_stale_after_minutes: 120
-wps_job_control_database_stale_after_minutes: 120
+wps_job_control_stale_after_minutes: 30
+wps_job_control_database_stale_after_minutes: 30
 # Recent database status mix shown by the five-minute monitor (3-24 hours).
 wps_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
@@ -47,9 +47,9 @@ wps_job_incident_archive_dir: /var/lib/pywps/job-incidents
 wps_job_incident_keep_days: 30
 # Create failure XML for repeated Nginx 404 status polling.
 wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: 180
+wps_missing_status_poll_window_minutes: 60
 wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 150
+wps_missing_status_min_poll_duration_minutes: 35
 wps_missing_status_recovery_limit: 20
 wps_missing_status_database_guard: true
 
@@ -75,7 +75,7 @@ ssl_certs_privkey_path: /etc/ssl/wps.example.org/wps.example.org.key
 # Keep Slurm disabled for a regular single-host deployment.
 slurm_enabled: false
 # Stop the Slurm process before PyWPS treats its request as stale.
-slurm_job_timeout_minutes: 90
+slurm_job_timeout_minutes: 25
 # Report queue pressure and jobs approaching the hard timeout when Slurm is enabled.
 slurm_job_monitor_enabled: true
 slurm_job_monitor_pending_critical: 20

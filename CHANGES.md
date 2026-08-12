@@ -6,6 +6,9 @@ Changes:
 
 - enable all ordered PyWPS recovery layers and all collectd monitoring except
   deployment-specific disk metrics by default
+- stop Slurm jobs after 25 minutes, reconcile stale XML/database state after
+  30 minutes, and recover repeatedly polled missing status documents after 35
+  minutes within a one-hour access-log window
 - keep version-coupled ROOCS project configuration in one template using DKRZ
   and conventional `/data` path defaults, optionally replace them from a DKRZ
   path profile, allow every final path variable to be overridden directly, and
@@ -41,8 +44,8 @@ Changes:
   fail-safe validation instead of lossy XML replacement
 - require job control and its recovery child to use each service's deployed
   Conda Python rather than the host interpreter
-- stage Slurm, XML/database, and missing-status polling limits at 90, 120, and
-  150 minutes, and avoid also reporting stalled database rows as long-running
+- stage Slurm, XML/database, and missing-status polling limits, and avoid also
+  reporting stalled database rows as long-running
 - apply the configured cron mail recipient to the host-wide Slurm monitor
 - make the managed cron file idempotent and harden output cleanup against
   empty service globs and concurrent file removal

@@ -407,8 +407,8 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-wps_job_control_stale_after_minutes: 120
-wps_job_control_database_stale_after_minutes: 120
+wps_job_control_stale_after_minutes: 30
+wps_job_control_database_stale_after_minutes: 30
 wps_job_control_database_status_window_hours: 24
 wps_job_control_recovery_limit: 100
 wps_job_incident_archive_enabled: true
@@ -638,20 +638,20 @@ instead of polling forever.
 ```yaml
 wps_job_control_recovery_enabled: true
 wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: 180
+wps_missing_status_poll_window_minutes: 60
 wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 150
+wps_missing_status_min_poll_duration_minutes: 35
 wps_missing_status_recovery_limit: 20
 wps_missing_status_access_log: /var/log/nginx/access.log
 wps_missing_status_database_guard: true
 ```
 
 The default recovery schedule runs every five minutes at minute 1 and
-considers only requests from the preceding three hours. Polling is the last
+considers only requests from the preceding hour. Polling is the last
 recovery layer, so
 XML and database reconciliation has already completed in the same locked run.
 Recovery requires at least three `GET` or `HEAD` responses
-with status `404`, spanning at least 150 minutes rather than arriving in one
+with status `404`, spanning at least 35 minutes rather than arriving in one
 short burst. Only the exact output path configured for that PyWPS service and a
 syntactically valid UUID filename are accepted. Only the configured active log
 is inspected. Rotated logs are intentionally ignored: persistent polling
@@ -764,14 +764,15 @@ provide this validation when the service runs in scheduler mode.
 #### Limit and monitor Slurm jobs
 
 Slurm enforces a default and maximum runtime on the `fast` partition. Its
-90-minute limit stops scheduler work before the two-hour XML and database
-stale thresholds. The CDS client's three-hour limit remains an outer safeguard
-for queue health rather than the normal scheduler cutoff. These limits can be
+25-minute limit stops scheduler work before the 30-minute XML and database
+stale thresholds, and before workloads observed to exhaust their memory around
+30 minutes. The CDS client's three-hour limit remains an outer safeguard for
+queue health rather than the normal scheduler cutoff. These limits can be
 overridden independently, but the Slurm timeout must remain shorter:
 
 ```yaml
-wps_job_control_stale_after_minutes: 120
-slurm_job_timeout_minutes: 90
+wps_job_control_stale_after_minutes: 30
+slurm_job_timeout_minutes: 25
 ```
 
 Slurm uses its value as both `DefaultTime` and `MaxTime`, so jobs receive the
