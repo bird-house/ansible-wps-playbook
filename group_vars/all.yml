@@ -124,8 +124,9 @@ slurm_job_monitor_script: /usr/local/sbin/slurm-job-monitor
 slurm_job_monitor_lock_file: /run/lock/slurm-job-monitor.lock
 slurm_job_monitor_log_file: "{{ wps_log_dir }}/slurm-job-monitor.log"
 slurm_job_monitor_alert_file: "{{ wps_run_dir }}/slurm-red-alert.json"
-# Interactive, read-only queue overview for operators.
-slurm_queue_status_script: /usr/local/bin/slurm-queue-status
+# Small interactive Slurm queue overview.
+slurm_job_status_script: "{{ cron_script_dir }}/slurm-job-status.py"
+slurm_top_script: "{{ cron_script_dir }}/slurm-top"
 
 # miniconda: we need to use Miniforge! See extra_vars.yml
 miniconda_parent_dir: "{{ prefix }}"

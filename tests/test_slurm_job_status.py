@@ -8,15 +8,15 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "slurm-queue-status.py"
-SPEC = importlib.util.spec_from_file_location("slurm_queue_status", SCRIPT)
+SCRIPT = Path(__file__).parents[1] / "scripts" / "slurm-job-status.py"
+SPEC = importlib.util.spec_from_file_location("slurm_job_status", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-class SlurmQueueStatusTests(unittest.TestCase):
+class SlurmJobStatusTests(unittest.TestCase):
     def test_parse_memory_supports_slurm_units_and_markers(self):
         self.assertEqual(MODULE.parse_memory("512"), 512 * 1024**2)
         self.assertEqual(MODULE.parse_memory("1024K"), 1024**2)

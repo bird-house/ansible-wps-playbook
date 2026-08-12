@@ -124,7 +124,8 @@
           - slurm_job_monitor_long_running_minutes | int == 1
           - slurm_job_monitor_pending_critical == 20
           - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
-          - slurm_queue_status_script == '/usr/local/bin/slurm-queue-status'
+          - slurm_job_status_script == '/var/lib/pywps/slurm-job-status.py'
+          - slurm_top_script == '/var/lib/pywps/slurm-top'
           - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
           - >-
             slurm_job_monitor_log_file
@@ -177,6 +178,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/pywps/templates/job-control-helper.sh.j2') }}
+        test_slurm_top: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/pywps/templates/slurm-top.sh.j2') }}
         test_logrotate_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/logrotate.j2') }}
@@ -349,6 +354,11 @@
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_job_control_helper
+          - "'status_script=\"/var/lib/pywps/slurm-job-status.py\"' in test_slurm_top"
+          - "'status_options=(--user \"wps\")' in test_slurm_top"
+          - >-
+            'exec watch -n "$interval" -- "$status_script"'
+            in test_slurm_top
           - "'rotate 7' in test_logrotate_config"
           - "'daily' in test_logrotate_config"
           - "'minsize 10M' in test_logrotate_config"

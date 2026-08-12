@@ -209,7 +209,7 @@ def render(jobs: Sequence[Job], usage: dict[str, int | None]) -> str:
 def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Show pending/running Slurm jobs and batch-step peak RSS.",
-        epilog="Refresh every second with: watch -n 1 -- slurm-queue-status",
+        epilog="For a live display, use the installed slurm-top command.",
     )
     parser.add_argument(
         "--user",
@@ -225,10 +225,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         running_ids = [job.job_id for job in jobs if job.state in {"R", "RUNNING"}]
         print(render(jobs, batch_max_rss(running_ids)))
     except FileNotFoundError as error:
-        print(f"slurm-queue-status: command not found: {error.filename}", file=sys.stderr)
+        print(f"slurm-job-status: command not found: {error.filename}", file=sys.stderr)
         return 2
     except (subprocess.CalledProcessError, ValueError) as error:
-        print(f"slurm-queue-status: {error}", file=sys.stderr)
+        print(f"slurm-job-status: {error}", file=sys.stderr)
         return 1
     return 0
 

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+status_script="{{ slurm_job_status_script }}"
+interval=${SLURM_TOP_INTERVAL:-1}
+
+has_user=false
+for argument in "$@"; do
+    case $argument in
+        --user | --user=*) has_user=true ;;
+    esac
+done
+
+status_options=()
+if [[ $has_user == false ]]; then
+    status_options=(--user "{{ slurm_job_monitor_user }}")
+fi
+
+exec watch -n "$interval" -- "$status_script" "${status_options[@]}" "$@"
