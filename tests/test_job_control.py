@@ -29,6 +29,7 @@ UTC = timezone.utc
 JOB_UUID = "123e4567-e89b-42d3-a456-426614174000"
 OTHER_JOB_UUID = "223e4567-e89b-42d3-a456-426614174000"
 THIRD_JOB_UUID = "323e4567-e89b-42d3-a456-426614174000"
+FOURTH_JOB_UUID = "423e4567-e89b-42d3-a456-426614174000"
 OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
@@ -222,13 +223,13 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 os.environ["TZ"] = previous_timezone
             time.tzset()
 
-    def test_monitor_reports_nonfinal_status_without_changing_it(self):
+    def test_monitor_does_not_timeout_accepted_status(self):
         self.write_status("ProcessAccepted")
         before = self.status.read_bytes()
         summary = MODULE.run_xml_layer(self.settings(), self.now, mock.Mock())
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (1, 1, 0, 0),
+            (1, 0, 0, 0),
         )
         self.assertEqual(self.status.read_bytes(), before)
 
@@ -310,27 +311,29 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
     def test_nonrunning_job_does_not_inspect_job_error(self):
-        self.write_status(
-            "ProcessAccepted",
-            creation_time=self.now - timedelta(minutes=20),
-            modification_time=self.now - timedelta(minutes=20),
-        )
-        settings = self.settings("recover")
-        settings.long_running_minutes = 10
-        with mock.patch.object(MODULE, "has_slurm_oom_failure") as detect:
-            summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
+        for state in ("ProcessAccepted", "ProcessPaused", "ProcessQueued"):
+            with self.subTest(state=state):
+                self.write_status(
+                    state,
+                    creation_time=self.now - timedelta(minutes=20),
+                    modification_time=self.now - timedelta(minutes=20),
+                )
+                settings = self.settings("recover")
+                settings.long_running_minutes = 10
+                with mock.patch.object(MODULE, "has_slurm_oom_failure") as detect:
+                    summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
 
-        detect.assert_not_called()
-        self.assertEqual(
-            (summary.stalled, summary.recovered, summary.errors),
-            (0, 0, 0),
-        )
+                detect.assert_not_called()
+                self.assertEqual(
+                    (summary.stalled, summary.recovered, summary.errors),
+                    (0, 0, 0),
+                )
 
     def test_limit_caps_stalled_xml_jobs(self):
-        self.write_status("ProcessAccepted")
+        self.write_status("ProcessStarted")
         second_status = self.outputs / "223e4567-e89b-42d3-a456-426614174000.xml"
         second_status.write_text(
-            status_xml("ProcessAccepted", self.now - timedelta(hours=8)),
+            status_xml("ProcessStarted", self.now - timedelta(hours=8)),
             encoding="utf-8",
         )
         old = (self.now - timedelta(hours=8)).timestamp()
@@ -341,33 +344,19 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_xml_layer(settings, self.now, mock.Mock())
         self.assertEqual((summary.checked, summary.stalled), (1, 1))
 
-    def test_recovery_changes_any_old_nonfinal_status_to_failed(self):
+    def test_recovery_does_not_fail_old_accepted_status(self):
         self.write_status("ProcessAccepted")
+        before = self.status.read_bytes()
         logger = mock.Mock()
-        with mock.patch.object(
-            MODULE, "recover_stalled_xml", side_effect=self.fake_dump_recovery
-        ):
+        recover = mock.Mock(side_effect=self.fake_dump_recovery)
+        with mock.patch.object(MODULE, "recover_stalled_xml", recover):
             summary = MODULE.run_xml_layer(self.settings("recover"), self.now, logger)
-        self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
-        logger.warning.assert_called_once_with(
-            "layer=xml job=%s status=failed action=recovered",
-            JOB_UUID,
+        self.assertEqual(
+            (summary.stalled, summary.recovered, summary.errors),
+            (0, 0, 0),
         )
-
-        root = ET.parse(self.status).getroot()
-        status = root.find(f".//{{{WPS}}}Status")
-        self.assertEqual(status.attrib["creationTime"], "2026-07-31T10:00:00Z")
-        failed = status.find(f"{{{WPS}}}ProcessFailed")
-        self.assertIsNotNone(failed)
-        report = failed.find(f"{{{WPS}}}ExceptionReport")
-        self.assertIsNotNone(report)
-        exception = report.find(f"{{{OWS}}}Exception")
-        self.assertEqual(exception.attrib["exceptionCode"], "NoApplicableCode")
-        self.assertEqual(exception.attrib["locator"], "None")
-        self.assertIn(
-            "at least 360 minutes",
-            status.find(f".//{{{OWS}}}ExceptionText").text,
-        )
+        recover.assert_not_called()
+        self.assertEqual(self.status.read_bytes(), before)
 
     @unittest.skipUnless(
         OWSLIB_AVAILABLE,
@@ -462,10 +451,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertIn(b"stalled-job recovery", archived[0].read_bytes())
 
-    def test_unknown_process_state_is_nonfinal(self):
+    def test_unknown_process_state_is_not_timed_out(self):
         self.write_status("ProcessQueued")
         summary = MODULE.run_xml_layer(self.settings(), self.now, mock.Mock())
-        self.assertEqual(summary.stalled, 1)
+        self.assertEqual(summary.stalled, 0)
 
     def test_invalid_creation_time_is_an_error_and_is_not_recovered(self):
         self.status.write_text(status_xml("ProcessStarted", self.now).replace(
@@ -1331,6 +1320,21 @@ class RecoverStalledJobsTests(unittest.TestCase):
             },
         )
 
+    def test_database_timeout_status_is_only_started(self):
+        statuses = argparse.Namespace(
+            ACCEPTED=0,
+            STARTED=1,
+            PAUSED=2,
+            SUCCEEDED=3,
+            FAILED=4,
+        )
+        self.assertTrue(MODULE.database_status_can_timeout(1, statuses))
+        for status in (None, 0, 2, 3, 4, 99):
+            with self.subTest(status=status):
+                self.assertFalse(
+                    MODULE.database_status_can_timeout(status, statuses)
+                )
+
     def test_recent_database_status_summary_uses_configured_window(self):
         statuses = argparse.Namespace(
             ACCEPTED=0,
@@ -1555,7 +1559,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
-    def test_database_recovery_handles_started_and_null_status_requests(self):
+    def test_database_recovery_handles_started_but_not_accepted_requests(self):
         pywps_config = self.root / "pywps.cfg"
         database = self.root / "pywps.sqlite"
         workdir = self.root / "work"
@@ -1596,11 +1600,23 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 operation="execute",
                 version="1.0.0",
                 time_start=old,
-                status=None,
+                status=WPS_STATUS.ACCEPTED,
                 percent_done=0,
             )
         )
         session.add(dblog.RequestInstance(uuid=THIRD_JOB_UUID, request=b"{}"))
+        session.add(
+            dblog.ProcessInstance(
+                uuid=FOURTH_JOB_UUID,
+                pid=45678,
+                operation="execute",
+                version="1.0.0",
+                time_start=old,
+                status=WPS_STATUS.PAUSED,
+                percent_done=20,
+            )
+        )
+        session.add(dblog.RequestInstance(uuid=FOURTH_JOB_UUID, request=b"{}"))
         session.add(
             dblog.ProcessInstance(
                 uuid=OTHER_JOB_UUID,
@@ -1621,13 +1637,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (2, 2, 2, 0),
-        )
-        logger.info.assert_any_call(
-            "layer=database job=%s status=%s finding=stalled updated=%s",
-            THIRD_JOB_UUID,
-            "unmapped",
-            old.replace(tzinfo=UTC).isoformat(),
+            (1, 1, 1, 0),
         )
         self.assertEqual(
             logger.warning.call_args_list,
@@ -1635,10 +1645,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 mock.call(
                     "layer=database job=%s status=failed action=recovered",
                     JOB_UUID,
-                ),
-                mock.call(
-                    "layer=database job=%s status=failed action=recovered",
-                    THIRD_JOB_UUID,
                 ),
             ],
         )
@@ -1650,13 +1656,25 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertIsNone(
             session.query(dblog.RequestInstance).filter_by(uuid=JOB_UUID).first()
         )
-        null_status = (
+        accepted = (
             session.query(dblog.ProcessInstance).filter_by(uuid=THIRD_JOB_UUID).one()
         )
-        self.assertEqual(null_status.status, WPS_STATUS.FAILED)
-        self.assertEqual(null_status.percent_done, 100)
-        self.assertIsNone(
-            session.query(dblog.RequestInstance).filter_by(uuid=THIRD_JOB_UUID).first()
+        self.assertEqual(accepted.status, WPS_STATUS.ACCEPTED)
+        self.assertEqual(accepted.percent_done, 0)
+        self.assertIsNotNone(
+            session.query(dblog.RequestInstance)
+            .filter_by(uuid=THIRD_JOB_UUID)
+            .first()
+        )
+        paused = (
+            session.query(dblog.ProcessInstance).filter_by(uuid=FOURTH_JOB_UUID).one()
+        )
+        self.assertEqual(paused.status, WPS_STATUS.PAUSED)
+        self.assertEqual(paused.percent_done, 20)
+        self.assertIsNotNone(
+            session.query(dblog.RequestInstance)
+            .filter_by(uuid=FOURTH_JOB_UUID)
+            .first()
         )
         recent = session.query(dblog.ProcessInstance).filter_by(uuid=OTHER_JOB_UUID).one()
         self.assertEqual(recent.status, WPS_STATUS.STARTED)

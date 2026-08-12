@@ -106,7 +106,7 @@ slurm_partitions:
 slurm_munge_key: /etc/munge/munge.key
 # The local prerequisite role creates the key and manages the Munge service.
 slurm_configure_munge: false
-# Slurm stops the process before PyWPS treats its request as stale.
+# Slurm limits running allocation time; pending queue time is not counted.
 slurm_job_timeout_minutes: 25
 # Report host-wide Slurm queue pressure and long-running jobs by default.
 slurm_job_monitor_enabled: true
@@ -244,7 +244,7 @@ wps_job_control_recovery_schedule:
   day: "*"
   month: "*"
   weekday: "*"
-# Warn about non-final database requests running this long.
+# Warn about started database requests running this long; queue wait is excluded.
 wps_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
 wps_job_control_stale_after_minutes: 30
 wps_job_control_database_stale_after_minutes: 30
