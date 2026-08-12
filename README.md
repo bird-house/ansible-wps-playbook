@@ -826,6 +826,23 @@ sudo /usr/local/sbin/slurm-job-monitor \
   --user wps --long-running-minutes 1 --pending-critical 20
 ```
 
+For a compact live view of pending and running jobs, including each running
+batch step's peak resident memory and its percentage of the requested memory,
+use the interactive `slurm-top` command. It batches the accounting lookup, so
+each refresh makes one `squeue` and at most one `sstat` request:
+
+```sh
+/var/lib/pywps/slurm-top
+```
+
+The command refreshes every second and defaults to `slurm_job_monitor_user`.
+Pass `--user USER` to select another account, or set `SLURM_TOP_INTERVAL` to
+change the refresh interval. The shortcut and its `slurm-job-status.py` backend
+live alongside the other monitoring scripts in `/var/lib/pywps`. `MAX RSS` is
+Slurm's high-water mark for the batch step rather than an instantaneous or
+whole-job aggregate. A dash means accounting data is not yet available, which
+is normal just after a job starts or finishes.
+
 The monitor never changes or cancels jobs. Its long-running threshold indicates
 elapsed runtime, not lack of progress.
 

@@ -183,6 +183,24 @@
     mode: "0755"
   when: slurm_enabled | bool
 
+- name: Install interactive Slurm job-status script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scripts/slurm-job-status.py"
+    dest: "{{ slurm_job_status_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: slurm_enabled | bool
+
+- name: Install Slurm live-view shortcut
+  ansible.builtin.template:
+    src: ./templates/slurm-top.sh.j2
+    dest: "{{ slurm_top_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  when: slurm_enabled | bool
+
 - name: Remove obsolete Slurm job-control script
   ansible.builtin.file:
     path: /usr/local/sbin/slurm-job-control
@@ -192,6 +210,15 @@
   ansible.builtin.file:
     path: "{{ slurm_job_monitor_script }}"
     state: absent
+  when: not (slurm_enabled | bool)
+
+- name: Remove Slurm job-status tools when Slurm is disabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ slurm_job_status_script }}"
+    - "{{ slurm_top_script }}"
   when: not (slurm_enabled | bool)
 
 - name: Remove obsolete Slurm job-control cron entry
