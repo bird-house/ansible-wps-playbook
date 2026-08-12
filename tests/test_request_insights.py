@@ -142,6 +142,8 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertEqual(production["failures"][0]["collection"], collection)
         self.assertEqual(production["failures"][0]["category"], "timeout")
+        self.assertEqual(production["failure_categories"], {"timeout": 1})
+        self.assertEqual(production["failure_group_count"], 1)
         self.assertEqual(production["failures"][0]["years"], "2056,2058,2070")
         self.assertEqual(production["failures"][0]["time_ranges"], ["2056/2070"])
 
@@ -288,6 +290,57 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertIn("Orchestrate production data", output.getvalue())
         self.assertNotIn("Requested-data coverage", output.getvalue())
         self.assertNotIn("\nFailure causes", output.getvalue())
+
+    def test_orchestrate_failure_categories_are_not_limited_by_top(self):
+        records = []
+        for number, message in enumerate(
+            (
+                "There were no valid data points found in the requested subset.",
+                "Job cancelled due to time limit",
+                "Detected 1 oom-kill event(s)",
+            ),
+            1,
+        ):
+            item = record(str(number), "failed", message)
+            item["process"] = "orchestrate"
+            records.append(item)
+        production = MODULE.aggregate(records, top=1)["orchestrate"]
+        self.assertEqual(
+            production["failure_categories"],
+            {"no-data": 1, "timeout": 1, "memory": 1},
+        )
+        self.assertEqual(production["failure_group_count"], 3)
+        self.assertEqual(len(production["failures"]), 1)
+
+    def test_collection_sorting_by_name_and_frequency(self):
+        records = []
+        for number, collection, outcome in (
+            (1, "z.collection", "successful"),
+            (2, "a.collection", "successful"),
+            (3, "z.collection", "failed"),
+            (4, "z.collection", "successful"),
+        ):
+            workflow = {
+                "inputs": {"tas": [collection]},
+                "steps": {
+                    "subset": {
+                        "run": "subset",
+                        "in": {"collection": "inputs/tas", "time": "2050/2050"},
+                    }
+                },
+            }
+            item = record(str(number), outcome, "timeout" if outcome == "failed" else None)
+            item["process"] = "orchestrate"
+            item["inputs"] = {
+                "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+            }
+            records.append(item)
+        by_name = MODULE.aggregate(records, top=10, sort_by="name")["orchestrate"]
+        by_requests = MODULE.aggregate(records, top=10, sort_by="requests")["orchestrate"]
+        by_failed = MODULE.aggregate(records, top=10, sort_by="failed")["orchestrate"]
+        self.assertEqual(list(by_name["collections"]), ["a.collection", "z.collection"])
+        self.assertEqual(list(by_requests["collections"]), ["z.collection", "a.collection"])
+        self.assertEqual(list(by_failed["collections"]), ["z.collection", "a.collection"])
 
 
 if __name__ == "__main__":

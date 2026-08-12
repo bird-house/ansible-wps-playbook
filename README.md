@@ -676,10 +676,14 @@ sudo /var/lib/pywps/request-insights SERVICE_NAME
 sudo /var/lib/pywps/request-insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
 sudo /var/lib/pywps/request-insights SERVICE_NAME --process subset --json
+sudo /var/lib/pywps/request-insights SERVICE_NAME --sort failed
 ```
 
 `request-insights` selects `orchestrate` by default. Use `--all-processes` for
 the whole-service view, or `--process PROCESS` to select another process.
+Collections are ordered alphabetically by default. Use `--sort requests`,
+`--sort successful`, or `--sort failed` for descending frequency; names break
+ties deterministically.
 
 The report groups requests by process, summarizes median, 95th-percentile and
 maximum durations, and lists the most frequently requested values for every
@@ -707,6 +711,11 @@ failed workflow with its collection, failure category, message, and example
 job IDs. Failures are grouped separately by requested year coverage and time
 range so problems affecting different periods are not merged. The section
 explicitly counts workflows without retained input lineage.
+
+Failure-category totals always include every selected failed job, so rare
+memory and timeout events remain visible even when `--top` limits the detailed
+collection/period groups. The report states when groups were omitted; increase
+`--top` to inspect more of them.
 
 Because `orchestrate` is the default selection, its text report omits the
 generic coverage and failure sections that would duplicate the production-data

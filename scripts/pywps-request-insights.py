@@ -403,7 +403,7 @@ def concise_failure_message(message: str) -> str:
 
 
 def aggregate_orchestrate(
-    records: list[dict[str, object]], top: int
+    records: list[dict[str, object]], top: int, sort_by: str
 ) -> dict[str, object] | None:
     orchestrate = [record for record in records if record.get("process") == "orchestrate"]
     if not orchestrate:
@@ -417,6 +417,7 @@ def aggregate_orchestrate(
         tuple[str, str, str, str, tuple[str, ...]], set[str]
     ] = defaultdict(set)
     outcomes: Counter[str] = Counter()
+    failure_categories: Counter[str] = Counter()
     for record in orchestrate:
         outcome = str(record.get("outcome") or "unknown")
         outcomes[outcome] += 1
@@ -431,6 +432,7 @@ def aggregate_orchestrate(
             collection_ranges[collection].update(details["ranges"])
         if outcome == "failed":
             category = failure_category(record)
+            failure_categories[category] += 1
             message = primary_failure_message(record)
             for collection in targets:
                 details = requested.get(collection, {"years": set(), "ranges": []})
@@ -440,7 +442,18 @@ def aggregate_orchestrate(
                 failures[key] += 1
                 failure_jobs[key].add(str(record.get("job_id") or "unknown"))
     collections = {}
-    for collection, counts in sorted(collection_counts.items()):
+    collection_items = list(collection_counts.items())
+    if sort_by == "name":
+        collection_items.sort(key=lambda item: item[0])
+    else:
+        metric = "successful" if sort_by == "successful" else "failed" if sort_by == "failed" else None
+        collection_items.sort(
+            key=lambda item: (
+                -(item[1].get(metric, 0) if metric else sum(item[1].values())),
+                item[0],
+            )
+        )
+    for collection, counts in collection_items:
         years = collection_years[collection]
         collections[collection] = {
             "requests": sum(counts.values()),
@@ -452,6 +465,11 @@ def aggregate_orchestrate(
                 for value, count in collection_ranges[collection].most_common(top)
             ],
         }
+    failure_items = list(failures.items())
+    if sort_by == "name":
+        failure_items.sort(key=lambda item: item[0])
+    else:
+        failure_items.sort(key=lambda item: (-item[1], item[0]))
     failure_report = [
         {
             "count": count,
@@ -462,7 +480,7 @@ def aggregate_orchestrate(
             "message": key[4],
             "example_jobs": sorted(failure_jobs[key])[:3],
         }
-        for key, count in failures.most_common(top)
+        for key, count in failure_items[:top]
     ]
     return {
         "requests": len(orchestrate),
@@ -470,11 +488,15 @@ def aggregate_orchestrate(
         "jobs_with_workflow_lineage": lineage_jobs,
         "jobs_without_workflow_lineage": len(orchestrate) - lineage_jobs,
         "collections": collections,
+        "failure_categories": dict(failure_categories.most_common()),
+        "failure_group_count": len(failures),
         "failures": failure_report,
     }
 
 
-def aggregate(records: list[dict[str, object]], top: int) -> dict[str, object]:
+def aggregate(
+    records: list[dict[str, object]], top: int, sort_by: str = "name"
+) -> dict[str, object]:
     outcomes: Counter[str] = Counter()
     processes: dict[str, Counter[str]] = defaultdict(Counter)
     process_durations: dict[str, list[float]] = defaultdict(list)
@@ -580,7 +602,7 @@ def aggregate(records: list[dict[str, object]], top: int) -> dict[str, object]:
         },
         "processes": process_report,
         "coverage": coverage_report,
-        "orchestrate": aggregate_orchestrate(records, top),
+        "orchestrate": aggregate_orchestrate(records, top, sort_by),
         "failure_categories": dict(failure_categories.most_common()),
         "failure_messages": messages,
     }
@@ -634,7 +656,17 @@ def print_report(report: dict[str, object]) -> None:
             )
             for time_range in values["time_ranges"]:
                 print(f"    {time_range['count']:>5}  time={time_range['value']}")
-        print("  Failed data")
+        print("  Failure causes (unique jobs)")
+        if not orchestrate["failure_categories"]:
+            print("    No orchestrate failures.")
+        for category, count in orchestrate["failure_categories"].items():
+            print(f"    {category}: {count}")
+        shown = len(orchestrate["failures"])
+        groups = orchestrate["failure_group_count"]
+        heading = "  Failed data"
+        if shown < groups:
+            heading += f" (showing {shown} of {groups} groups; increase --top to see more)"
+        print(heading)
         if not orchestrate["failures"]:
             print("    No orchestrate failures.")
         for failure in orchestrate["failures"]:
@@ -690,6 +722,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="include every process instead of only orchestrate",
     )
     parser.add_argument("--top", type=int, default=10, help="values/messages per section")
+    parser.add_argument(
+        "--sort",
+        choices=("name", "requests", "successful", "failed"),
+        default="name",
+        help="order collections by name or descending frequency (default: name)",
+    )
     parser.add_argument("--json", action="store_true", help="write machine-readable JSON")
     args = parser.parse_args(argv)
     if args.top < 1:
@@ -717,7 +755,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.all_processes and record.get("process") != args.process:
             continue
         selected.append(record)
-    report = aggregate(selected, args.top)
+    report = aggregate(selected, args.top, args.sort)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
