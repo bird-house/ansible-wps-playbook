@@ -48,7 +48,7 @@ wps_acl_allow:
    - 136.156.0.0/16   # cds
 # roocs
 roocs_enabled: true
-roocs_site: dkrz
+roocs_profile: dkrz
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git

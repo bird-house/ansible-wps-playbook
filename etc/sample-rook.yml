@@ -13,8 +13,6 @@ wps_acl_allow:
   - 192.168.128.1/24
 # roocs
 roocs_enabled: true
-roocs_site: demo
-roocs_demo_data_dir: /vagrant/.local/data
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git

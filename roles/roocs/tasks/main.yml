@@ -1,4 +1,39 @@
 ---
+- name: Validate selected ROOCS path profile
+  ansible.builtin.assert:
+    that:
+      - roocs_project_path_profiles is mapping
+      - >-
+        roocs_profile is none
+        or (roocs_profile is string
+            and roocs_profile in roocs_project_path_profiles)
+    fail_msg: >-
+      Unknown ROOCS path profile '{{ roocs_profile }}'. Available profiles:
+      {{ roocs_project_path_profiles.keys() | sort | join(', ') }}.
+
+- name: Validate ROOCS project paths
+  ansible.builtin.assert:
+    that:
+      - item.value is string
+      - item.value | length > 0
+    fail_msg: "ROOCS project path '{{ item.key }}' must be a non-empty string."
+  loop: "{{ roocs_paths_to_validate | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    roocs_paths_to_validate:
+      cmip5: "{{ roocs_cmip5_path }}"
+      cmip6: "{{ roocs_cmip6_path }}"
+      cordex: "{{ roocs_cordex_path }}"
+      c3s_cmip5: "{{ roocs_c3s_cmip5_path }}"
+      c3s_cmip6: "{{ roocs_c3s_cmip6_path }}"
+      c3s_cmip6_decadal: "{{ roocs_c3s_cmip6_decadal_path }}"
+      c3s_cordex: "{{ roocs_c3s_cordex_path }}"
+      c3s_ipcc_atlas: "{{ roocs_c3s_ipcc_atlas_path }}"
+      c3s_cica_atlas: "{{ roocs_c3s_cica_atlas_path }}"
+      copernicus_interactive_climate_atlas: >-
+        {{ roocs_copernicus_interactive_climate_atlas_path }}
+
 - name: Validate ROOCS read and write limits
   ansible.builtin.assert:
     that:
@@ -13,17 +48,6 @@
     fail_msg: >-
       roocs_chunk_memory_limit and roocs_file_size_limit must be positive
       integer sizes such as 128MiB or 2GB.
-  when: roocs_site == "dkrz"
-
-- name: Clone test data.
-  git:
-    repo: "https://github.com/roocs/mini-esgf-data.git"
-    version: "master"
-    dest: "{{ roocs_demo_data_dir }}/mini-esgf-data"
-    update: true
-    force: true
-  run_once: true
-  when: roocs_site == "demo"
 
 - name: Clean roocs cache dir
   file:
@@ -32,7 +56,7 @@
 
 - name: Copy roocs config
   template:
-    src: "./templates/roocs.{{ roocs_site }}.ini.j2"
+    src: "./templates/roocs.ini.j2"
     dest: "/etc/roocs.ini"
     owner: root
     group: "{{ wps_group }}"
