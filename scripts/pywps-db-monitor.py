@@ -153,6 +153,7 @@ def summarize(records: Iterable[object], wps_status: object, period: TimeRange) 
     processes: dict[str, ProcessSummary] = {}
     errors: dict[str, list[datetime]] = defaultdict(list)
     durations: list[float] = []
+    successful_durations: list[float] = []
     daily = Counter()
     local_timezone = datetime.now().astimezone().tzinfo
 
@@ -177,6 +178,8 @@ def summarize(records: Iterable[object], wps_status: object, period: TimeRange) 
         if duration is not None:
             durations.append(duration)
             process.durations.append(duration)
+            if state == "successful":
+                successful_durations.append(duration)
         if state == "failed":
             message = str(getattr(record, "message", None) or "(empty)")
             errors[message].append(started)
@@ -198,6 +201,9 @@ def summarize(records: Iterable[object], wps_status: object, period: TimeRange) 
         },
         "requests_per_day": numeric_summary(list(daily.values())),
         "duration_seconds": numeric_summary(durations, include_total=True),
+        "successful_duration_seconds": duration_distribution(
+            successful_durations
+        ),
         "processes": [
             {
                 "identifier": process.identifier,
@@ -236,6 +242,19 @@ def numeric_summary(values: list[float], *, include_total: bool = False) -> dict
     if include_total:
         result["total"] = sum(values)
     return result
+
+
+def duration_distribution(values: list[float]) -> dict:
+    return {
+        "count": len(values),
+        "under_1_minute": sum(value < 60 for value in values),
+        "from_1_to_under_10_minutes": sum(60 <= value < 600 for value in values),
+        "from_10_to_under_30_minutes": sum(
+            600 <= value < 1800 for value in values
+        ),
+        "30_minutes_or_more": sum(value >= 1800 for value in values),
+        "maximum": max(values) if values else None,
+    }
 
 
 def json_default(value: object) -> str:
@@ -336,11 +355,30 @@ def print_report(report: dict) -> None:
         f"max {format_number(daily['maximum'])}"
     )
     print(
-        f"Completed durations ({durations['count']}): "
+        f"Recorded durations ({durations['count']}): "
         f"min {format_duration(durations['minimum'])}  "
         f"median {format_duration(durations['median'])}  "
         f"max {format_duration(durations['maximum'])}  "
         f"total {format_duration(durations['total'])}"
+    )
+
+    successful_durations = report["successful_duration_seconds"]
+    measured = successful_durations["count"]
+    duration_rows = []
+    for label, key in (
+        ("< 1 minute", "under_1_minute"),
+        ("1 to < 10 minutes", "from_1_to_under_10_minutes"),
+        ("10 to < 30 minutes", "from_10_to_under_30_minutes"),
+        (">= 30 minutes", "30_minutes_or_more"),
+    ):
+        count = successful_durations[key]
+        share = f"{count * 100 / measured:.1f}%" if measured else "n/a"
+        duration_rows.append((label, str(count), share))
+    print(f"\nSuccessful job durations ({measured} measured)")
+    print_table(("Runtime", "Jobs", "Share"), duration_rows, right_aligned={1, 2})
+    print(
+        "Longest successful job: "
+        f"{format_duration(successful_durations['maximum'])}"
     )
 
     print("\nProcesses")

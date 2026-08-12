@@ -631,8 +631,9 @@ sudo /var/lib/pywps/statistics SERVICE_NAME
 
 The read-only `db-monitor` operator command aggregates database requests for an
 explicit range. It reports every job state, success rate, request and duration
-statistics, per-process totals, and failed messages grouped with their count
-and first and last occurrence:
+statistics, successful-job runtime ranges and maximum duration, per-process
+totals, and failed messages grouped with their count and first and last
+occurrence:
 
 ```sh
 sudo /var/lib/pywps/db-monitor rook 2026-08-01/2026-08-06

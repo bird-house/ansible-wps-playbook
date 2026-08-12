@@ -97,6 +97,12 @@ class DatabaseMonitorTests(unittest.TestCase):
         self.assertEqual(report["requests"]["running"], 1)
         self.assertEqual(report["requests"]["success_rate_percent"], 33.33)
         self.assertEqual(report["duration_seconds"]["total"], 360)
+        self.assertEqual(report["successful_duration_seconds"]["count"], 1)
+        self.assertEqual(
+            report["successful_duration_seconds"]["from_1_to_under_10_minutes"],
+            1,
+        )
+        self.assertEqual(report["successful_duration_seconds"]["maximum"], 60)
         self.assertEqual([item["identifier"] for item in report["processes"]], [
             "orchestrate",
             "subset",
@@ -123,6 +129,22 @@ class DatabaseMonitorTests(unittest.TestCase):
         self.assertIn("Total", output)
         self.assertIn("Success rate: n/a", output)
         self.assertIn("Errors (0 failures, 0 unique messages)", output)
+
+    def test_successful_duration_distribution_uses_distinct_ranges(self):
+        distribution = MODULE.duration_distribution(
+            [30, 60, 599.9, 600, 1799.9, 1800, 7200]
+        )
+        self.assertEqual(
+            distribution,
+            {
+                "count": 7,
+                "under_1_minute": 1,
+                "from_1_to_under_10_minutes": 2,
+                "from_10_to_under_30_minutes": 2,
+                "30_minutes_or_more": 2,
+                "maximum": 7200,
+            },
+        )
 
     @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
     def test_naive_uuid1_time_uses_writer_offset(self):
