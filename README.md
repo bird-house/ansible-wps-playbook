@@ -420,8 +420,10 @@ but it preserves failed XML documents in the incident archive. When recovery
 is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 polling recovery can still be disabled independently when it is not wanted.
-The database layer reports non-final requests as long-running after one minute
-by default, based on their request start time. This is an early warning only.
+The database layer reports `started` requests as long-running after one minute
+by default, based on their request start time. Accepted, queued, paused, and
+unknown requests are not timed out because their age may be queue wait rather
+than execution time. This is an early warning only.
 Its monitor summary also counts every database request started within the
 configured recent window, including final requests, and reports the status mix:
 
@@ -431,7 +433,7 @@ summary layer=database total=20 running=8 accepted=2 failed=1 success=9 ...
 
 `wps_job_control_database_status_window_hours` defaults to 24 and accepts
 values from 3 through 24 hours. This reporting window does not restrict stale
-detection or recovery; old non-final requests remain eligible for recovery.
+detection or recovery; old `started` requests remain eligible for recovery.
 XML documents and database rows have separate two-hour stale thresholds. XML
 recovery writes a failed status document; database recovery only reconciles
 the database row and removes its stored request. Stalled database rows are
@@ -468,9 +470,11 @@ temporary-directory scans. Other stderr content, including warnings, does not
 trigger early recovery. When PyWPS labels its local wall-clock value as UTC, the
 monitor recognizes the host UTC offset by its agreement with the file
 modification time and corrects it; valid UTC timestamps remain unchanged. Only
-`ProcessSucceeded` and `ProcessFailed` are final; every
-other state older than the threshold is stalled. The database layer uses the
-last database status time, falling back to the request start time. Timestamps
+`ProcessStarted` documents are subject to the XML stale timeout.
+`ProcessAccepted`, queued, paused, and unknown states remain available for
+monitoring without being recovered as failed, regardless of their age. The
+database timeout likewise applies only to `started` rows and uses the last
+database status time, falling back to the request start time. Timestamps
 with `Z` are interpreted as UTC. Naive PyWPS database timestamps are matched
 to the UTC creation time encoded by each version-1 job UUID. This preserves
 the writer's timezone even when the monitor runs in a different timezone.
@@ -806,7 +810,9 @@ slurm_job_timeout_minutes: 25
 Slurm uses its value as both `DefaultTime` and `MaxTime`, so jobs receive the
 limit even when PyWPS does not pass `--time` during submission and cannot
 request a higher limit. This native enforcement does not require Slurm
-accounting or `slurmdbd`.
+accounting or `slurmdbd`. Slurm starts the runtime limit only after resources
+are allocated and the job enters `RUNNING`; time spent `PENDING` under load does
+not consume the limit.
 
 An independent read-only monitor makes one `squeue` request for `PENDING` and
 `RUNNING` jobs owned by the configured PyWPS Unix account. It is enabled by

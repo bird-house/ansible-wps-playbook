@@ -28,6 +28,7 @@ UUID_RE = re.compile(
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
 )
 FINAL_XML_STATES = {"ProcessSucceeded", "ProcessFailed"}
+TIMEOUT_XML_STATES = {"ProcessStarted"}
 XML_JOB_STATUSES = {
     "ProcessAccepted": "accepted",
     "ProcessStarted": "running",
@@ -604,6 +605,14 @@ def run_xml_layer(
                     xml_job_status(document.state),
                 )
                 continue
+            if document.state not in TIMEOUT_XML_STATES:
+                logger.debug(
+                    "layer=xml job=%s status=%s decision=skip-timeout "
+                    "reason=job-not-running",
+                    document.job_uuid,
+                    xml_job_status(document.state),
+                )
+                continue
             check_job_error = document.state == "ProcessStarted" and is_stalled(
                 document.last_update, now, long_running_threshold
             )
@@ -1079,6 +1088,11 @@ def database_job_status(value: object, wps_status: object) -> str | None:
     return None
 
 
+def database_status_can_timeout(value: object, wps_status: object) -> bool:
+    """Return whether a PyWPS status represents active execution."""
+    return value == getattr(wps_status, "STARTED", object())
+
+
 def summarize_database_statuses(
     rows: Iterable[tuple[object, int]], wps_status: object
 ) -> dict[str, int]:
@@ -1189,13 +1203,11 @@ def run_database_layer(
                     status_counts["dismissed"],
                     status_counts["unmapped"],
                 )
+        # Queue wait is not execution time. Only STARTED rows can become
+        # long-running or stale; accepted, paused, and unknown rows remain
+        # visible in status aggregates without being recovered as failed.
         query = session.query(dblog.ProcessInstance).filter(
-            or_(
-                dblog.ProcessInstance.status.is_(None),
-                dblog.ProcessInstance.status.notin_(
-                    [WPS_STATUS.SUCCEEDED, WPS_STATUS.FAILED]
-                ),
-            )
+            dblog.ProcessInstance.status == WPS_STATUS.STARTED
         )
         if settings.mode == "recover" and settings.database_recovery_excluded_jobs:
             query = query.filter(
@@ -1231,6 +1243,14 @@ def run_database_layer(
             if settings.mode != "monitor":
                 summary.checked += 1
             try:
+                if not database_status_can_timeout(record.status, WPS_STATUS):
+                    logger.debug(
+                        "layer=database job=%s status=%s decision=skip-timeout "
+                        "reason=job-not-running",
+                        record.uuid,
+                        database_job_status(record.status, WPS_STATUS) or "unmapped",
+                    )
+                    continue
                 last_update = database_last_update(record)
                 started = database_start_time(record)
                 finding = classify_database_job(
@@ -1397,19 +1417,19 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--long-running-minutes",
         type=float,
         default=float(control_config.get("long_running_minutes", "1")),
-        help="warn about nonfinal database jobs running this many minutes",
+        help="warn about started database jobs running this many minutes",
     )
     parser.add_argument(
         "--stale-after-minutes",
         type=float,
         default=float(control_config.get("stale_after_minutes", "120")),
-        help="consider nonfinal XML jobs stalled after this many minutes",
+        help="consider started XML jobs stalled after this many minutes",
     )
     parser.add_argument(
         "--database-stale-after-minutes",
         type=float,
         default=float(control_config.get("database_stale_after_minutes", "120")),
-        help="consider nonfinal database rows stale after this many minutes",
+        help="consider started database rows stale after this many minutes",
     )
     parser.add_argument(
         "--database-status-window-hours",

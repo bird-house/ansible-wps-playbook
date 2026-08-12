@@ -4,6 +4,8 @@
 
 Changes:
 
+- apply Slurm, XML, and database timeouts only to actively running jobs so
+  pending, accepted, queued, paused, and unknown jobs survive queue pressure
 - add a read-only `db-monitor` helper for optional year, month, date, or exact
   PyWPS request time ranges, with aggregate status, duration, per-process, and
   grouped error-message reporting in text or JSON
