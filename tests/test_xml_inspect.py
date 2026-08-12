@@ -89,6 +89,19 @@ class XmlInspectTests(unittest.TestCase):
             self.assertEqual(MODULE.main(arguments), 0)
         self.assertEqual(second.getvalue(), "")
 
+    def test_loads_matching_job_error_diagnostic(self):
+        process_dir = self.root / "work" / "pywps_process_subset"
+        process_dir.mkdir(parents=True)
+        (process_dir / "job_1.dump").write_text(
+            json.dumps({"process": {"uuid": JOB_ID}}), encoding="utf-8"
+        )
+        (process_dir / "job-error.txt").write_text(
+            "slurmstepd: error: Detected 1 oom-kill event(s)", encoding="utf-8"
+        )
+        diagnostics = MODULE.load_job_diagnostics(self.root / "work")
+        self.assertEqual(diagnostics[JOB_ID][0]["source"], "job-error.txt")
+        self.assertIn("oom-kill", diagnostics[JOB_ID][0]["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

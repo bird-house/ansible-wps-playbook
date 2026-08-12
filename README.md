@@ -644,6 +644,13 @@ or references when present in the XML, approximate duration, success or
 failure, and OWS exception details. A small state file prevents the same
 retained XML document being recorded again on the next hourly scan.
 
+For failed jobs, the inspector also looks for the matching PyWPS job dump and
+captures the tail of `job-error.txt` when that work directory still exists.
+This lets the insights report classify a generic XML failure using concrete
+Slurm OOM or timeout evidence. Work directories may be cleaned before the
+hourly scan; failures without surviving evidence remain unclassified rather
+than being guessed from their duration.
+
 ```yaml
 wps_job_inspect_enabled: true
 wps_job_inspect_schedule:
@@ -671,6 +678,9 @@ sudo /var/lib/pywps/request-insights SERVICE_NAME \
 sudo /var/lib/pywps/request-insights SERVICE_NAME --process subset --json
 ```
 
+`request-insights` selects `orchestrate` by default. Use `--all-processes` for
+the whole-service view, or `--process PROCESS` to select another process.
+
 The report groups requests by process, summarizes median, 95th-percentile and
 maximum durations, and lists the most frequently requested values for every
 process/input pair. JSON `ComplexData` is expanded into useful dotted coverage
@@ -679,12 +689,21 @@ dimensions. Orchestrate workflows receive dedicated dimensions such as
 `orchestrate.workflow.steps.subset.time`, with generated step names collapsed
 to their `run` operation. Failures are grouped into `memory`, `timeout`, `input`,
 `scheduler`, `other`, and `unknown`, followed by the most common exact
-exception messages. Memory detection recognizes common OOM, cgroup and Python
+exception messages and example job IDs for log or incident follow-up. Memory
+detection recognizes common OOM, cgroup and Python
 allocation errors; timeout detection recognizes Slurm time-limit cancellation,
 wall-clock, deadline, timed-out, and stale no-update recovery messages. Both
 plain and gzip-compressed logrotate files are accepted, and duplicate job IDs
 across rotations are ignored. `--top` controls the number of values and
 messages shown.
+
+When orchestrate records are present, a dedicated production-data section
+resolves workflow aliases such as `inputs/tas` to their complete collection
+identifiers. It expands `time` ranges and `time_components` into inclusive year
+coverage, reports the requested ranges per collection, and associates each
+failed workflow with its collection, failure category, message, and example
+job IDs. The section explicitly counts workflows without retained input
+lineage.
 
 ### Summarize historical PyWPS database activity
 

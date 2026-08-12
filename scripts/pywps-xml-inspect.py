@@ -20,6 +20,7 @@ UTC = timezone.utc
 FINAL_STATES = {"ProcessSucceeded": "successful", "ProcessFailed": "failed"}
 UUID_EPOCH_100NS = 0x01B21DD213814000
 MAX_VALUE_LENGTH = 1000
+MAX_DIAGNOSTIC_LENGTH = 8000
 
 
 def local_name(tag: str) -> str:
@@ -82,7 +83,9 @@ def input_value(input_element: ET.Element) -> dict[str, object]:
     return {"type": "unknown", "value": None}
 
 
-def inspect(path: Path, service: str) -> dict[str, object] | None:
+def inspect(
+    path: Path, service: str, diagnostics: list[dict[str, str]] | None = None
+) -> dict[str, object] | None:
     root = ET.parse(path).getroot()
     status = first_descendant(root, "Status")
     if status is None:
@@ -139,7 +142,30 @@ def inspect(path: Path, service: str) -> dict[str, object] | None:
         "duration_source": duration_source if duration is not None else None,
         "outcome": FINAL_STATES[state],
         "failures": failures,
+        "diagnostics": (diagnostics or []) if state == "ProcessFailed" else [],
     }
+
+
+def load_job_diagnostics(work_dir: Path | None) -> dict[str, list[dict[str, str]]]:
+    if work_dir is None or not work_dir.is_dir():
+        return {}
+    result = {}
+    for dump_path in work_dir.glob("pywps_process_*/job_*.dump"):
+        try:
+            with dump_path.open(encoding="utf-8") as stream:
+                dump = json.load(stream)
+            job_id = str(dump.get("process", {}).get("uuid") or "")
+            if not job_id:
+                continue
+            error_path = dump_path.parent / "job-error.txt"
+            with error_path.open("rb") as stream:
+                stream.seek(max(0, error_path.stat().st_size - MAX_DIAGNOSTIC_LENGTH))
+                message = " ".join(stream.read().decode("utf-8", errors="replace").split())
+            if message:
+                result[job_id] = [{"source": "job-error.txt", "message": message}]
+        except (AttributeError, json.JSONDecodeError, OSError, TypeError):
+            continue
+    return result
 
 
 def read_state(path: Path | None) -> set[str]:
@@ -187,6 +213,11 @@ def main(argv: list[str] | None = None) -> int:
     if output_dir is None:
         output_dir = Path(config.get("server", "outputpath"))
     service = args.service or (args.config.stem if args.config else output_dir.name)
+    work_dir = None
+    if args.config is not None:
+        configured_work_dir = config.get("server", "workdir", fallback="").strip()
+        work_dir = Path(configured_work_dir) if configured_work_dir else None
+    job_diagnostics = load_job_diagnostics(work_dir)
 
     previous = read_state(args.state_file)
     current: set[str] = set()
@@ -194,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     errors = 0
     for path in sorted(output_dir.glob("*.xml")):
         try:
-            record = inspect(path, service)
+            record = inspect(path, service, job_diagnostics.get(path.stem))
         except (ET.ParseError, OSError, ValueError) as error:
             print(f"{path}: {error}", file=sys.stderr)
             errors += 1

@@ -49,6 +49,7 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(report["coverage"]["subset.dataset"]["distinct_values"], 2)
         self.assertEqual(report["coverage"]["subset.dataset"]["top_values"][0]["count"], 3)
         self.assertEqual(report["failure_categories"], {"memory": 1, "timeout": 1})
+        self.assertIn("3", report["failure_messages"][0]["example_jobs"])
         self.assertEqual(report["durations"]["all"]["max_seconds"], 240.0)
         self.assertEqual(
             MODULE.failure_category(
@@ -92,7 +93,8 @@ class RequestInsightsTests(unittest.TestCase):
                 {"type": "ComplexData", "value": json.dumps(workflow)}
             ]
         }
-        coverage = MODULE.aggregate([item], top=10)["coverage"]
+        report = MODULE.aggregate([item], top=10)
+        coverage = report["coverage"]
         self.assertEqual(
             coverage["orchestrate.workflow.inputs.tas"]["top_values"][0]["value"],
             '"c3s-cordex.output.EUR-11.example.day.tas"',
@@ -102,6 +104,61 @@ class RequestInsightsTests(unittest.TestCase):
             '"2060/2070"',
         )
         self.assertNotIn("orchestrate.workflow", coverage)
+        production = report["orchestrate"]
+        collection = "c3s-cordex.output.EUR-11.example.day.tas"
+        self.assertEqual(production["jobs_with_workflow_lineage"], 1)
+        self.assertEqual(production["jobs_without_workflow_lineage"], 0)
+        self.assertEqual(production["collections"][collection]["requests"], 1)
+        self.assertEqual(production["collections"][collection]["year_coverage"], "2060-2070")
+
+    def test_orchestrate_failure_is_associated_with_collection(self):
+        workflow = {
+            "inputs": {"pr": ["c3s-cordex.output.EUR-11.example.day.pr"]},
+            "steps": {
+                "subset_pr_1": {
+                    "run": "subset",
+                    "in": {
+                        "collection": "inputs/pr",
+                        "time": "2056/2070",
+                        "time_components": "month:jan,feb|year:2056,2058,2070",
+                    },
+                }
+            },
+        }
+        item = record("1", "failed", "Job cancelled due to time limit")
+        item["process"] = "orchestrate"
+        item["inputs"] = {
+            "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+        }
+        production = MODULE.aggregate([item], top=10)["orchestrate"]
+        collection = "c3s-cordex.output.EUR-11.example.day.pr"
+        self.assertEqual(
+            production["collections"][collection]["year_coverage"],
+            "2056,2058,2070",
+        )
+        self.assertEqual(production["failures"][0]["collection"], collection)
+        self.assertEqual(production["failures"][0]["category"], "timeout")
+
+    def test_runtime_diagnostic_overrides_generic_xml_failure_category(self):
+        item = record("1", "failed", "Process failed, please check server error log")
+        item["diagnostics"] = [
+            {
+                "source": "job-error.txt",
+                "message": "slurmstepd: error: Detected 1 oom-kill event(s)",
+            }
+        ]
+        report = MODULE.aggregate([item], top=10)
+        self.assertEqual(report["failure_categories"], {"memory": 1})
+        self.assertTrue(
+            any(
+                message["code"] == "diagnostic"
+                for message in report["failure_messages"]
+            )
+        )
+
+    def test_generic_xml_failure_is_unknown_without_diagnostic(self):
+        item = record("1", "failed", "Process failed, please check server error log")
+        self.assertEqual(MODULE.failure_category(item), "unknown")
 
     def test_filters_dates_and_renders_json(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -113,10 +170,36 @@ class RequestInsightsTests(unittest.TestCase):
             output = io.StringIO()
             with redirect_stdout(output):
                 result = MODULE.main(
-                    [str(log), "--from", "2026-08-02", "--to", "2026-08-02", "--json"]
+                    [
+                        str(log),
+                        "--from",
+                        "2026-08-02",
+                        "--to",
+                        "2026-08-02",
+                        "--all-processes",
+                        "--json",
+                    ]
                 )
         self.assertEqual(result, 0)
         self.assertEqual(json.loads(output.getvalue())["requests"], 1)
+
+    def test_defaults_to_orchestrate_process(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / "requests.log"
+            subset = record("1")
+            orchestrate = record("2")
+            orchestrate["process"] = "orchestrate"
+            log.write_text(
+                json.dumps(subset) + "\n" + json.dumps(orchestrate) + "\n",
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = MODULE.main([str(log), "--json"])
+        self.assertEqual(result, 0)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["requests"], 1)
+        self.assertEqual(list(report["processes"]), ["orchestrate"])
 
 
 if __name__ == "__main__":
