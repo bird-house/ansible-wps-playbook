@@ -139,7 +139,9 @@ checks.
 
 [`requirements.yml`](requirements.yml) pins every Galaxy role and collection
 to an exact version. Normal development, CI, and deployments therefore use the
-same dependencies.
+same dependencies. Each dependency is installed and retried separately, so a
+transient download failure does not redownload every successfully installed
+dependency.
 
 Updating dependencies is an explicit, tested change:
 
