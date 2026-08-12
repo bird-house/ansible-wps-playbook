@@ -238,7 +238,7 @@ def requested_years(parameters: dict[str, object]) -> tuple[set[int], list[str]]
         if match:
             component_years.update(int(year) for year in re.findall(r"\b[12][0-9]{3}\b", match.group(1)))
     if component_years:
-        return component_years, ranges + component_values
+        return component_years, ranges
     years = set()
     for value in ranges:
         endpoints = [int(year) for year in re.findall(r"\b[12][0-9]{3}\b", value)]
@@ -533,7 +533,7 @@ def print_report(report: dict[str, object]) -> None:
     successful = int(outcomes.get("successful", 0))
     total = int(report["requests"])
     rate = (successful / total * 100) if total else 0
-    print("PyWPS request summary")
+    print("PyWPS request insights")
     print(f"Period: {period['first'] or 'n/a'} to {period['last'] or 'n/a'}")
     print(f"Requests: {total}  successful={successful}  failed={failures}  success_rate={rate:.1f}%")
 
@@ -574,30 +574,31 @@ def print_report(report: dict[str, object]) -> None:
                 f"{failure['collection']}: {failure['message']} jobs={jobs}"
             )
 
-    print("\nRequested-data coverage")
-    if not report["coverage"]:
-        print("  No input lineage was present in the inspected XML records.")
-    for name, values in report["coverage"].items():
-        print(f"  {name}: uses={values['uses']} distinct={values['distinct_values']}")
-        for item in values["top_values"]:
-            print(f"    {item['count']:>5}  {item['value']}")
+    if set(report["processes"]) != {"orchestrate"}:
+        print("\nRequested-data coverage")
+        if not report["coverage"]:
+            print("  No input lineage was present in the inspected XML records.")
+        for name, values in report["coverage"].items():
+            print(f"  {name}: uses={values['uses']} distinct={values['distinct_values']}")
+            for item in values["top_values"]:
+                print(f"    {item['count']:>5}  {item['value']}")
 
-    print("\nFailure causes")
-    if not report["failure_categories"]:
-        print("  No failures.")
-    for category, count in report["failure_categories"].items():
-        percentage = (count / failures * 100) if failures else 0
-        print(f"  {category}: {count} ({percentage:.1f}%)")
-    for item in report["failure_messages"]:
-        details = " ".join(
-            value for value in (item["code"], item["locator"]) if value
-        )
-        suffix = f" ({details})" if details else ""
-        jobs = ",".join(item["example_jobs"])
-        print(
-            f"    {item['count']:>5} [{item['category']}] {item['message']}{suffix} "
-            f"jobs={jobs}"
-        )
+        print("\nFailure causes")
+        if not report["failure_categories"]:
+            print("  No failures.")
+        for category, count in report["failure_categories"].items():
+            percentage = (count / failures * 100) if failures else 0
+            print(f"  {category}: {count} ({percentage:.1f}%)")
+        for item in report["failure_messages"]:
+            details = " ".join(
+                value for value in (item["code"], item["locator"]) if value
+            )
+            suffix = f" ({details})" if details else ""
+            jobs = ",".join(item["example_jobs"])
+            print(
+                f"    {item['count']:>5} [{item['category']}] "
+                f"{item['message']}{suffix} jobs={jobs}"
+            )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

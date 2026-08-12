@@ -136,6 +136,10 @@ class RequestInsightsTests(unittest.TestCase):
             production["collections"][collection]["year_coverage"],
             "2056,2058,2070",
         )
+        self.assertEqual(
+            production["collections"][collection]["time_ranges"],
+            [{"count": 1, "value": "2056/2070"}],
+        )
         self.assertEqual(production["failures"][0]["collection"], collection)
         self.assertEqual(production["failures"][0]["category"], "timeout")
 
@@ -200,6 +204,16 @@ class RequestInsightsTests(unittest.TestCase):
         report = json.loads(output.getvalue())
         self.assertEqual(report["requests"], 1)
         self.assertEqual(list(report["processes"]), ["orchestrate"])
+
+    def test_orchestrate_text_omits_duplicate_generic_sections(self):
+        report = MODULE.aggregate([dict(record("1"), process="orchestrate")], top=10)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(report)
+        self.assertIn("PyWPS request insights", output.getvalue())
+        self.assertIn("Orchestrate production data", output.getvalue())
+        self.assertNotIn("Requested-data coverage", output.getvalue())
+        self.assertNotIn("\nFailure causes", output.getvalue())
 
 
 if __name__ == "__main__":

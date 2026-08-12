@@ -705,6 +705,10 @@ failed workflow with its collection, failure category, message, and example
 job IDs. The section explicitly counts workflows without retained input
 lineage.
 
+Because `orchestrate` is the default selection, its text report omits the
+generic coverage and failure sections that would duplicate the production-data
+view. They remain available with `--all-processes` or another `--process`.
+
 ### Summarize historical PyWPS database activity
 
 The read-only `db-monitor` operator command aggregates database requests for an
