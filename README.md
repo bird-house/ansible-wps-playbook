@@ -704,8 +704,9 @@ resolves workflow aliases such as `inputs/tas` to their complete collection
 identifiers. It expands `time` ranges and `time_components` into inclusive year
 coverage, reports the requested ranges per collection, and associates each
 failed workflow with its collection, failure category, message, and example
-job IDs. The section explicitly counts workflows without retained input
-lineage.
+job IDs. Failures are grouped separately by requested year coverage and time
+range so problems affecting different periods are not merged. The section
+explicitly counts workflows without retained input lineage.
 
 Because `orchestrate` is the default selection, its text report omits the
 generic coverage and failure sections that would duplicate the production-data

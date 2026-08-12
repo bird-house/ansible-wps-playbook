@@ -55,7 +55,8 @@ FAILURE_PATTERNS = (
     ),
 )
 GENERIC_FAILURE_RE = re.compile(
-    r"^NoApplicableCode\s+(?:None\s+)?Process failed, please check server error log\s*$",
+    r"^(?:NoApplicableCode\s+(?:None\s+)?)?"
+    r"(?:Process failed, please check server error log|Process error: unknown)\s*$",
     re.IGNORECASE,
 )
 STEP_OUTPUT_RE = re.compile(r"^[A-Za-z0-9_.-]+/output$")
@@ -389,8 +390,10 @@ def aggregate_orchestrate(
     collection_counts: dict[str, Counter[str]] = defaultdict(Counter)
     collection_years: dict[str, set[int]] = defaultdict(set)
     collection_ranges: dict[str, Counter[str]] = defaultdict(Counter)
-    failures: Counter[tuple[str, str, str]] = Counter()
-    failure_jobs: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+    failures: Counter[tuple[str, str, str, str, tuple[str, ...]]] = Counter()
+    failure_jobs: dict[
+        tuple[str, str, str, str, tuple[str, ...]], set[str]
+    ] = defaultdict(set)
     outcomes: Counter[str] = Counter()
     for record in orchestrate:
         outcome = str(record.get("outcome") or "unknown")
@@ -408,7 +411,10 @@ def aggregate_orchestrate(
             category = failure_category(record)
             message = primary_failure_message(record)
             for collection in targets:
-                key = (collection, category, message)
+                details = requested.get(collection, {"years": set(), "ranges": []})
+                years = compact_years(details["years"])
+                ranges = tuple(sorted(set(details["ranges"])))
+                key = (collection, years, ranges, category, message)
                 failures[key] += 1
                 failure_jobs[key].add(str(record.get("job_id") or "unknown"))
     collections = {}
@@ -428,8 +434,10 @@ def aggregate_orchestrate(
         {
             "count": count,
             "collection": key[0],
-            "category": key[1],
-            "message": key[2],
+            "years": key[1],
+            "time_ranges": list(key[2]),
+            "category": key[3],
+            "message": key[4],
             "example_jobs": sorted(failure_jobs[key])[:3],
         }
         for key, count in failures.most_common(top)
@@ -611,7 +619,9 @@ def print_report(report: dict[str, object]) -> None:
             jobs = ",".join(failure["example_jobs"])
             print(
                 f"    {failure['count']:>5} [{failure['category']}] "
-                f"{failure['collection']}: {failure['message']} jobs={jobs}"
+                f"{failure['collection']}: years={failure['years']} "
+                f"time={','.join(failure['time_ranges']) or 'unknown'} "
+                f"reason={failure['message']} jobs={jobs}"
             )
 
     if set(report["processes"]) != {"orchestrate"}:

@@ -142,6 +142,8 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertEqual(production["failures"][0]["collection"], collection)
         self.assertEqual(production["failures"][0]["category"], "timeout")
+        self.assertEqual(production["failures"][0]["years"], "2056,2058,2070")
+        self.assertEqual(production["failures"][0]["time_ranges"], ["2056/2070"])
 
     def test_derived_step_outputs_are_not_reported_as_collections(self):
         workflow = {
@@ -187,6 +189,10 @@ class RequestInsightsTests(unittest.TestCase):
             "expand the area covered by the bounding box, the time period or the "
             "level range you have selected.",
         )
+
+    def test_process_error_unknown_is_unknown(self):
+        item = record("1", "failed", "Process error: unknown")
+        self.assertEqual(MODULE.failure_category(item), "unknown")
 
     def test_runtime_diagnostic_overrides_generic_xml_failure_category(self):
         item = record("1", "failed", "Process failed, please check server error log")
