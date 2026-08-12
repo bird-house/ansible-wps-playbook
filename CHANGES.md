@@ -4,6 +4,13 @@
 
 Changes:
 
+- keep version-coupled ROOCS project configuration in one template using DKRZ
+  and conventional `/data` path defaults, optionally replace them from a DKRZ
+  path profile, allow every final path variable to be overridden directly, and
+  remove the obsolete CEDA and demo templates
+- make the DKRZ clisops/Dask read and output file limits configurable, lowering
+  the read default to 128 MiB for memory-constrained Slurm jobs while retaining
+  the 2 GB output-file default
 - ignore status documents removed by output retention after an XML directory
   scan, without hiding missing scheduler dumps or other recovery failures
 - report the recent 24-hour database status mix in job-monitor summaries,

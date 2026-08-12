@@ -269,9 +269,6 @@ selinux_enabled: true
 
 # roocs
 roocs_enabled: false
-roocs_site: demo
-roocs_demo_data_dir: /data
-roocs_cache_dir: "/tmp/inventory_cache"
 
 # pywps
 wps_user: "{{ service_user }}"

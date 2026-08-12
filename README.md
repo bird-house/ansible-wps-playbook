@@ -212,6 +212,62 @@ host:
 make play
 ```
 
+For the DKRZ ROOCS profile, clisops reads data in Dask chunks limited to
+`128MiB` and splits written output at `2GB` by default. The read limit is
+deliberately well below a 4 GB Slurm job limit, because a process can hold
+several chunks and intermediate arrays at once. Override either setting in
+`custom.yml` when a different balance between memory use, output size, and
+throughput is needed:
+
+```yaml
+roocs_chunk_memory_limit: 512MiB
+roocs_file_size_limit: 1GB
+```
+
+The values must be positive integer byte sizes, for example `128MiB` or `2GB`.
+The read setting limits an individual chunk, not the job's total memory
+allocation; the write setting controls when clisops splits output files.
+
+ROOCS project options remain in one versioned template because they are
+coupled to the deployed Rook and clisops versions. Without a profile, ordinary
+path variables use conventional locations below `/data`:
+
+```yaml
+roocs_enabled: true
+roocs_cmip5_path: /data/cmip5
+roocs_cmip6_path: /data/CMIP6
+```
+
+A profile replaces those defaults. DKRZ deployments select the included DKRZ
+path profile:
+
+```yaml
+roocs_profile: dkrz
+```
+
+Direct variables in `custom.yml` have final precedence, including when a
+profile is selected:
+
+```yaml
+roocs_profile: dkrz
+roocs_cmip6_path: /new/data/pool/CMIP6
+```
+
+Additional institutions can define and select another path profile while
+continuing to use the same ROOCS project configuration:
+
+```yaml
+roocs_profile: ipsl
+roocs_project_path_profiles:
+  ipsl:
+    cmip5: /ipsl/data/CMIP5
+    cmip6: /ipsl/data/CMIP6
+    # Define the remaining project paths here.
+```
+
+When project semantics need to change for a newer Rook or clisops release,
+update the single template together with the deployed application version.
+
 ### Configure collectd monitoring
 
 Collectd monitoring is enabled by default and supports Red Hat family version
