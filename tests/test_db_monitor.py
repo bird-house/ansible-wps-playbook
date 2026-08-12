@@ -55,11 +55,80 @@ class DatabaseMonitorTests(unittest.TestCase):
         self.assertEqual(period.end.astimezone().date().isoformat(), "2026-08-06")
         self.assertEqual(period.end.microsecond, 999999)
 
+    def test_single_year_month_and_date_select_complete_period(self):
+        year = MODULE.parse_time_range("2026")
+        self.assertEqual(year.start.astimezone().date().isoformat(), "2026-01-01")
+        self.assertEqual(year.end.astimezone().date().isoformat(), "2026-12-31")
+
+        month = MODULE.parse_time_range("2024-02")
+        self.assertEqual(month.start.astimezone().date().isoformat(), "2024-02-01")
+        self.assertEqual(month.end.astimezone().date().isoformat(), "2024-02-29")
+
+        day = MODULE.parse_time_range("2026-08-12")
+        self.assertEqual(day.start.astimezone().date().isoformat(), "2026-08-12")
+        self.assertEqual(day.end.astimezone().date().isoformat(), "2026-08-12")
+
+    def test_range_boundaries_accept_year_month_and_open_ends(self):
+        period = MODULE.parse_time_range("2025/2026-08")
+        self.assertEqual(period.start.astimezone().date().isoformat(), "2025-01-01")
+        self.assertEqual(period.end.astimezone().date().isoformat(), "2026-08-31")
+
+        from_month = MODULE.parse_time_range("2026-08/")
+        self.assertEqual(
+            from_month.start.astimezone().date().isoformat(), "2026-08-01"
+        )
+        self.assertIsNone(from_month.end)
+
+        through_month = MODULE.parse_time_range("/2026-08")
+        self.assertIsNone(through_month.start)
+        self.assertEqual(
+            through_month.end.astimezone().date().isoformat(), "2026-08-31"
+        )
+
+        all_time = MODULE.parse_time_range("/")
+        self.assertIsNone(all_time.start)
+        self.assertIsNone(all_time.end)
+
     def test_rejects_reversed_and_malformed_ranges(self):
-        with self.assertRaisesRegex(ValueError, "one '/'"):
-            MODULE.parse_time_range("2026-08-01")
+        with self.assertRaisesRegex(ValueError, "single range value"):
+            MODULE.parse_time_range("2026-08-01T12:00:00")
+        with self.assertRaisesRegex(ValueError, "at most one '/'"):
+            MODULE.parse_time_range("2026/2027/2028")
         with self.assertRaisesRegex(ValueError, "must not be after"):
             MODULE.parse_time_range("2026-08-07/2026-08-06")
+
+    def test_from_and_to_options_are_independently_optional(self):
+        with mock.patch.object(MODULE.Path, "is_file", return_value=True):
+            from_args = MODULE.parse_args(
+                ["--config", "/etc/pywps/rook.cfg", "--from", "2026-08"]
+            )
+            to_args = MODULE.parse_args(
+                ["--config", "/etc/pywps/rook.cfg", "--to", "2026"]
+            )
+            all_args = MODULE.parse_args(["--config", "/etc/pywps/rook.cfg"])
+        self.assertEqual(
+            from_args.period.start.astimezone().date().isoformat(), "2026-08-01"
+        )
+        self.assertIsNone(from_args.period.end)
+        self.assertIsNone(to_args.period.start)
+        self.assertEqual(
+            to_args.period.end.astimezone().date().isoformat(), "2026-12-31"
+        )
+        self.assertIsNone(all_args.period.start)
+        self.assertIsNone(all_args.period.end)
+
+    def test_range_position_cannot_be_combined_with_from_or_to(self):
+        with mock.patch.object(MODULE.Path, "is_file", return_value=True):
+            with mock.patch("sys.stderr"), self.assertRaises(SystemExit):
+                MODULE.parse_args(
+                    [
+                        "--config",
+                        "/etc/pywps/rook.cfg",
+                        "2026",
+                        "--from",
+                        "2025",
+                    ]
+                )
 
     def test_aggregates_statuses_processes_durations_and_errors(self):
         records = [

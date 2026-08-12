@@ -360,7 +360,7 @@
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_job_control_helper
-          - "'db-monitor SERVICE_NAME START/END' in test_db_monitor_helper"
+          - "'db-monitor SERVICE_NAME [[START][/END]]' in test_db_monitor_helper"
           - >-
             'monitor_script="/var/lib/pywps/pywps-db-monitor.py"'
             in test_db_monitor_helper
@@ -368,7 +368,7 @@
             'exec "$python" "$monitor_script"'
             in test_db_monitor_helper
           - >-
-            '--config "$config_file" "$time_range" "$@"'
+            '--config "$config_file" "${range_option[@]}" "$@"'
             in test_db_monitor_helper
           - "'status_script=\"/var/lib/pywps/slurm-job-status.py\"' in test_slurm_top"
           - "'status_options=(--user \"wps\")' in test_slurm_top"

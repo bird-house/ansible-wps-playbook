@@ -637,10 +637,18 @@ occurrence:
 
 ```sh
 sudo /var/lib/pywps/db-monitor rook 2026-08-01/2026-08-06
+sudo /var/lib/pywps/db-monitor rook 2026-08
+sudo /var/lib/pywps/db-monitor rook 2026
+sudo /var/lib/pywps/db-monitor rook 2026-08/
+sudo /var/lib/pywps/db-monitor rook /2026-08
+sudo /var/lib/pywps/db-monitor rook --from 2026-01 --to 2026-08
 ```
 
-Date-only endpoints include the complete local calendar day. ISO timestamps,
-including `Z` or explicit UTC offsets, are also accepted. Add
+One year, month, or date selects that complete local calendar period. A slash
+sets separate inclusive bounds; omit its left or right side for an open-ended
+range, or omit the range entirely to report all recorded requests. Full ISO
+timestamps, including `Z` or explicit UTC offsets, are also accepted. The
+equivalent `--from` and `--to` options can be used independently. Add
 `--identifier orchestrate` to select one process or `--json` for structured
 output. The range selects `execute` requests by their start time; non-final
 requests are included, and completed-job duration uses the full elapsed time.

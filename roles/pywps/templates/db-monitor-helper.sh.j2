@@ -11,7 +11,7 @@ fail() {
 
 usage() {
     local exit_code=${1:-2}
-    echo "Usage: db-monitor SERVICE_NAME START/END [--identifier PROCESS] [--json]" >&2
+    echo "Usage: db-monitor SERVICE_NAME [[START][/END]] [--identifier PROCESS] [--json]" >&2
     exit "$exit_code"
 }
 
@@ -19,14 +19,21 @@ main() {
     if [[ ${1:-} == -h || ${1:-} == --help ]]; then
         usage 0
     fi
-    [[ $# -ge 2 ]] || usage
+    [[ $# -ge 1 ]] || usage
     if [[ ! $1 =~ ^[A-Za-z0-9_.-]+$ ]]; then
         usage
     fi
 
     local app=$1
-    local time_range=$2
-    shift 2
+    local -a range_option=()
+    shift
+    if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+        usage 0
+    fi
+    if [[ $# -gt 0 && $1 != --* ]]; then
+        range_option=("$1")
+        shift
+    fi
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"
@@ -38,7 +45,7 @@ main() {
         || fail "PyWPS database monitor not found or not executable: $monitor_script"
 
     exec "$python" "$monitor_script" \
-        --config "$config_file" "$time_range" "$@"
+        --config "$config_file" "${range_option[@]}" "$@"
 }
 
 main "$@"

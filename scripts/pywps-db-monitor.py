@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import json
 import os
+import re
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -32,8 +34,8 @@ STATUS_NAMES = (
 
 @dataclass(frozen=True)
 class TimeRange:
-    start: datetime
-    end: datetime
+    start: datetime | None
+    end: datetime | None
     value: str
 
 
@@ -52,32 +54,57 @@ class ProcessSummary:
     durations: list[float]
 
 
+YEAR_RE = re.compile(r"^[0-9]{4}$")
+MONTH_RE = re.compile(r"^[0-9]{4}-[0-9]{2}$")
+DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+
+
 def parse_endpoint(value: str, *, is_end: bool) -> datetime:
     text = value.strip()
     if not text:
         raise ValueError("time range endpoints must not be empty")
-    date_only = len(text) == 10
-    if text.endswith("Z"):
-        text = f"{text[:-1]}+00:00"
     try:
-        parsed = datetime.fromisoformat(text)
+        if YEAR_RE.fullmatch(text):
+            year = int(text)
+            parsed = datetime.combine(
+                date(year, 12, 31) if is_end else date(year, 1, 1),
+                time.max if is_end else time.min,
+            )
+        elif MONTH_RE.fullmatch(text):
+            year, month = (int(part) for part in text.split("-"))
+            day = calendar.monthrange(year, month)[1] if is_end else 1
+            parsed = datetime.combine(
+                date(year, month, day),
+                time.max if is_end else time.min,
+            )
+        else:
+            normalized = f"{text[:-1]}+00:00" if text.endswith("Z") else text
+            parsed = datetime.fromisoformat(normalized)
+            if DATE_RE.fullmatch(text) and is_end:
+                parsed = datetime.combine(parsed.date(), time.max)
     except ValueError as error:
         raise ValueError(f"invalid ISO timestamp: {value}") from error
-    if date_only and is_end:
-        parsed = datetime.combine(parsed.date(), time.max)
     if parsed.tzinfo is None:
         parsed = parsed.astimezone()
     return parsed.astimezone(UTC)
 
 
 def parse_time_range(value: str) -> TimeRange:
-    try:
-        start_text, end_text = value.split("/")
-    except ValueError as error:
-        raise ValueError("time range must contain one '/' between two timestamps") from error
-    start = parse_endpoint(start_text, is_end=False)
-    end = parse_endpoint(end_text, is_end=True)
-    if start > end:
+    text = value.strip()
+    if "/" not in text:
+        if not any(pattern.fullmatch(text) for pattern in (YEAR_RE, MONTH_RE, DATE_RE)):
+            raise ValueError(
+                "a single range value must be a year, month, or date"
+            )
+        start_text = end_text = text
+    else:
+        parts = text.split("/")
+        if len(parts) != 2:
+            raise ValueError("time range must contain at most one '/'")
+        start_text, end_text = parts
+    start = parse_endpoint(start_text, is_end=False) if start_text.strip() else None
+    end = parse_endpoint(end_text, is_end=True) if end_text.strip() else None
+    if start is not None and end is not None and start > end:
         raise ValueError("time range start must not be after its end")
     return TimeRange(start=start, end=end, value=value)
 
@@ -162,7 +189,9 @@ def summarize(records: Iterable[object], wps_status: object, period: TimeRange) 
         if start_value is None:
             continue
         started = database_timestamp(record, start_value)
-        if started < period.start or started > period.end:
+        if period.start is not None and started < period.start:
+            continue
+        if period.end is not None and started > period.end:
             continue
         state = status_name(getattr(record, "status", None), wps_status)
         statuses[state] += 1
@@ -189,8 +218,8 @@ def summarize(records: Iterable[object], wps_status: object, period: TimeRange) 
     return {
         "range": {
             "input": period.value,
-            "start": period.start.isoformat(),
-            "end": period.end.isoformat(),
+            "start": period.start.isoformat() if period.start is not None else None,
+            "end": period.end.isoformat() if period.end is not None else None,
         },
         "requests": {
             "total": total,
@@ -326,10 +355,18 @@ def print_report(report: dict) -> None:
     total = request["total"]
     final = request["successful"] + request["failed"]
     print("PyWPS database report")
+    range_start = (
+        format_local_timestamp(report["range"]["start"])
+        if report["range"]["start"] is not None
+        else "unbounded"
+    )
+    range_end = (
+        format_local_timestamp(report["range"]["end"])
+        if report["range"]["end"] is not None
+        else "unbounded"
+    )
     print(
-        "Range: "
-        f"{format_local_timestamp(report['range']['start'])}  ->  "
-        f"{format_local_timestamp(report['range']['end'])}"
+        f"Range: {range_start}  ->  {range_end}"
     )
     print()
 
@@ -457,13 +494,15 @@ def load_records(config_path: Path, period: TimeRange, identifier: str | None):
         )
     session = sessionmaker(bind=engine)()
     try:
-        oldest = (period.start - MAX_DATABASE_UTC_OFFSET).replace(tzinfo=None)
-        newest = (period.end + MAX_DATABASE_UTC_OFFSET).replace(tzinfo=None)
         query = session.query(dblog.ProcessInstance).filter(
             dblog.ProcessInstance.operation == "execute",
-            dblog.ProcessInstance.time_start >= oldest,
-            dblog.ProcessInstance.time_start <= newest,
         )
+        if period.start is not None:
+            oldest = (period.start - MAX_DATABASE_UTC_OFFSET).replace(tzinfo=None)
+            query = query.filter(dblog.ProcessInstance.time_start >= oldest)
+        if period.end is not None:
+            newest = (period.end + MAX_DATABASE_UTC_OFFSET).replace(tzinfo=None)
+            query = query.filter(dblog.ProcessInstance.time_start <= newest)
         if identifier is not None:
             query = query.filter(dblog.ProcessInstance.identifier == identifier)
         records = query.all()
@@ -477,8 +516,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "time_range",
-        metavar="START/END",
-        help="ISO timestamps or dates; date-only endpoints include whole days",
+        nargs="?",
+        metavar="[START][/END]",
+        help=(
+            "optional year, month, date, or ISO timestamp bounds; "
+            "omit both bounds to report all time"
+        ),
+    )
+    parser.add_argument(
+        "--from",
+        dest="from_value",
+        metavar="START",
+        help="optional inclusive lower year, month, date, or timestamp bound",
+    )
+    parser.add_argument(
+        "--to",
+        dest="to_value",
+        metavar="END",
+        help="optional inclusive upper year, month, date, or timestamp bound",
     )
     parser.add_argument(
         "--config",
@@ -496,8 +551,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="write the complete report as JSON",
     )
     args = parser.parse_args(argv)
+    if args.time_range is not None and (
+        args.from_value is not None or args.to_value is not None
+    ):
+        parser.error("positional range cannot be combined with --from or --to")
+    range_value = args.time_range
+    if range_value is None:
+        range_value = f"{args.from_value or ''}/{args.to_value or ''}"
     try:
-        args.period = parse_time_range(args.time_range)
+        args.period = parse_time_range(range_value)
     except ValueError as error:
         parser.error(str(error))
     if not args.config.is_file():
