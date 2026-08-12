@@ -673,7 +673,11 @@ sudo /var/lib/pywps/request-insights SERVICE_NAME --process subset --json
 
 The report groups requests by process, summarizes median, 95th-percentile and
 maximum durations, and lists the most frequently requested values for every
-process/input pair. Failures are grouped into `memory`, `timeout`, `input`,
+process/input pair. JSON `ComplexData` is expanded into useful dotted coverage
+dimensions. Orchestrate workflows receive dedicated dimensions such as
+`orchestrate.workflow.inputs.tas` and
+`orchestrate.workflow.steps.subset.time`, with generated step names collapsed
+to their `run` operation. Failures are grouped into `memory`, `timeout`, `input`,
 `scheduler`, `other`, and `unknown`, followed by the most common exact
 exception messages. Memory detection recognizes common OOM, cgroup and Python
 allocation errors; timeout detection recognizes Slurm time-limit cancellation,

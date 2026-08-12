@@ -74,6 +74,35 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(errors, [])
 
+    def test_unpacks_workflow_collections_and_step_parameters(self):
+        workflow = {
+            "inputs": {"tas": ["c3s-cordex.output.EUR-11.example.day.tas"]},
+            "steps": {
+                "subset_tas_1": {
+                    "run": "subset",
+                    "in": {"collection": "inputs/tas", "time": "2060/2070"},
+                }
+            },
+            "outputs": {"output": "subset_tas_1/output"},
+        }
+        item = record("1")
+        item["process"] = "orchestrate"
+        item["inputs"] = {
+            "workflow": [
+                {"type": "ComplexData", "value": json.dumps(workflow)}
+            ]
+        }
+        coverage = MODULE.aggregate([item], top=10)["coverage"]
+        self.assertEqual(
+            coverage["orchestrate.workflow.inputs.tas"]["top_values"][0]["value"],
+            '"c3s-cordex.output.EUR-11.example.day.tas"',
+        )
+        self.assertEqual(
+            coverage["orchestrate.workflow.steps.subset.time"]["top_values"][0]["value"],
+            '"2060/2070"',
+        )
+        self.assertNotIn("orchestrate.workflow", coverage)
+
     def test_filters_dates_and_renders_json(self):
         with tempfile.TemporaryDirectory() as temporary:
             log = Path(temporary) / "requests.log"

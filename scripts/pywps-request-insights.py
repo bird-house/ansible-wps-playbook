@@ -148,6 +148,66 @@ def failure_category(record: dict[str, object]) -> str:
     return "other" if text.strip() else "unknown"
 
 
+def flatten_json(prefix: str, value: object) -> list[tuple[str, str]]:
+    if isinstance(value, dict):
+        result = []
+        for name, child in sorted(value.items()):
+            result.extend(flatten_json(f"{prefix}.{name}", child))
+        return result
+    if isinstance(value, list):
+        result = []
+        for child in value:
+            result.extend(flatten_json(prefix, child))
+        return result
+    return [(prefix, json.dumps(value, ensure_ascii=False, sort_keys=True))]
+
+
+def workflow_coverage(
+    process: str, input_name: str, value: dict[str, object]
+) -> list[tuple[str, str]] | None:
+    workflow_inputs = value.get("inputs")
+    steps = value.get("steps")
+    if not isinstance(workflow_inputs, dict) or not isinstance(steps, dict):
+        return None
+    prefix = f"{process}.{input_name}"
+    result = flatten_json(f"{prefix}.inputs", workflow_inputs)
+    for step in steps.values():
+        if not isinstance(step, dict):
+            continue
+        operation = str(step.get("run") or "unknown")
+        parameters = step.get("in")
+        if isinstance(parameters, dict):
+            result.extend(flatten_json(f"{prefix}.steps.{operation}", parameters))
+    return result
+
+
+def coverage_items(
+    process: str, input_name: str, value: object
+) -> list[tuple[str, str]]:
+    prefix = f"{process}.{input_name}"
+    if isinstance(value, dict) and value.get("type") == "ComplexData":
+        contents = value.get("value")
+        if isinstance(contents, str):
+            try:
+                structured = json.loads(contents)
+            except json.JSONDecodeError:
+                structured = None
+            if isinstance(structured, dict):
+                workflow = workflow_coverage(process, input_name, structured)
+                if workflow is not None:
+                    return workflow
+                return flatten_json(prefix, structured)
+    if isinstance(value, dict):
+        rendered = json.dumps(
+            {item: value.get(item) for item in ("type", "value")},
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+    else:
+        rendered = json.dumps(value, ensure_ascii=False)
+    return [(prefix, rendered)]
+
+
 def aggregate(records: list[dict[str, object]], top: int) -> dict[str, object]:
     outcomes: Counter[str] = Counter()
     processes: dict[str, Counter[str]] = defaultdict(Counter)
@@ -177,17 +237,9 @@ def aggregate(records: list[dict[str, object]], top: int) -> dict[str, object]:
             for name, values in inputs.items():
                 if not isinstance(values, list):
                     continue
-                key = f"{process}.{name}"
                 for value in values:
-                    if isinstance(value, dict):
-                        rendered = json.dumps(
-                            {item: value.get(item) for item in ("type", "value")},
-                            sort_keys=True,
-                            ensure_ascii=False,
-                        )
-                    else:
-                        rendered = json.dumps(value, ensure_ascii=False)
-                    coverage[key][rendered] += 1
+                    for key, rendered in coverage_items(process, str(name), value):
+                        coverage[key][rendered] += 1
 
         if outcome == "failed":
             category = failure_category(record)
