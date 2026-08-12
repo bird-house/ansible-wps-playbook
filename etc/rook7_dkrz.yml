@@ -32,8 +32,6 @@ roocs_profile: dkrz
 # collectd
 collectd_disk_enabled: true
 collectd_disk_mount: /mnt/rook_disk7
-collectd_memory_enabled: true
-collectd_interface_enabled: true
 # recovery
 wps_job_control_recovery_enabled: true
 wps_missing_status_recovery_enabled: true
