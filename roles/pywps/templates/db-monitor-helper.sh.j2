@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+# Read-only operator wrapper for pywps-db-monitor.py.
+
+set -euo pipefail
+
+fail() {
+    echo "[ERROR] $*" >&2
+    exit 1
+}
+
+usage() {
+    local exit_code=${1:-2}
+    echo "Usage: db-monitor SERVICE_NAME START/END [--identifier PROCESS] [--json]" >&2
+    exit "$exit_code"
+}
+
+main() {
+    if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+        usage 0
+    fi
+    [[ $# -ge 2 ]] || usage
+    if [[ ! $1 =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        usage
+    fi
+
+    local app=$1
+    local time_range=$2
+    shift 2
+
+    local python="{{ conda_envs_dir }}/$app/bin/python"
+    local config_file="/etc/pywps/$app.cfg"
+    local monitor_script="{{ cron_script_dir }}/pywps-db-monitor.py"
+
+    [[ -x $python ]] || fail "Python not found or not executable: $python"
+    [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"
+    [[ -x $monitor_script ]] \
+        || fail "PyWPS database monitor not found or not executable: $monitor_script"
+
+    exec "$python" "$monitor_script" \
+        --config "$config_file" "$time_range" "$@"
+}
+
+main "$@"

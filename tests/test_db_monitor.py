@@ -1,0 +1,145 @@
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import os
+import sys
+import time
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from unittest import mock
+
+
+SCRIPT = Path(__file__).parents[1] / "scripts" / "pywps-db-monitor.py"
+SPEC = importlib.util.spec_from_file_location("pywps_db_monitor", SCRIPT)
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+sys.modules[SPEC.name] = MODULE
+SPEC.loader.exec_module(MODULE)
+UTC = timezone.utc
+
+
+class DatabaseMonitorTests(unittest.TestCase):
+    def setUp(self):
+        self.statuses = argparse.Namespace(
+            ACCEPTED=0,
+            STARTED=1,
+            PAUSED=2,
+            SUCCEEDED=4,
+            FAILED=5,
+        )
+        self.period = MODULE.TimeRange(
+            datetime(2026, 8, 1, tzinfo=UTC),
+            datetime(2026, 8, 6, 23, 59, 59, 999999, tzinfo=UTC),
+            "2026-08-01/2026-08-06",
+        )
+
+    def record(self, **overrides):
+        values = dict(
+            uuid="123e4567-e89b-42d3-a456-426614174000",
+            operation="execute",
+            identifier="orchestrate",
+            time_start=datetime(2026, 8, 2, 10, tzinfo=UTC),
+            time_end=datetime(2026, 8, 2, 10, 1, tzinfo=UTC),
+            status=4,
+            message="done",
+        )
+        values.update(overrides)
+        return argparse.Namespace(**values)
+
+    def test_date_range_includes_entire_end_date(self):
+        period = MODULE.parse_time_range("2026-08-01/2026-08-06")
+        self.assertEqual(period.start.astimezone().date().isoformat(), "2026-08-01")
+        self.assertEqual(period.end.astimezone().date().isoformat(), "2026-08-06")
+        self.assertEqual(period.end.microsecond, 999999)
+
+    def test_rejects_reversed_and_malformed_ranges(self):
+        with self.assertRaisesRegex(ValueError, "one '/'"):
+            MODULE.parse_time_range("2026-08-01")
+        with self.assertRaisesRegex(ValueError, "must not be after"):
+            MODULE.parse_time_range("2026-08-07/2026-08-06")
+
+    def test_aggregates_statuses_processes_durations_and_errors(self):
+        records = [
+            self.record(),
+            self.record(
+                uuid="223e4567-e89b-42d3-a456-426614174000",
+                time_start=datetime(2026, 8, 3, 10, tzinfo=UTC),
+                time_end=datetime(2026, 8, 3, 10, 2, tzinfo=UTC),
+                status=5,
+                message="Dataset unavailable",
+            ),
+            self.record(
+                uuid="323e4567-e89b-42d3-a456-426614174000",
+                identifier="subset",
+                time_start=datetime(2026, 8, 4, 10, tzinfo=UTC),
+                time_end=datetime(2026, 8, 4, 10, 3, tzinfo=UTC),
+                status=5,
+                message="Dataset unavailable",
+            ),
+            self.record(
+                uuid="423e4567-e89b-42d3-a456-426614174000",
+                time_start=datetime(2026, 8, 5, 10, tzinfo=UTC),
+                time_end=None,
+                status=1,
+                message="running",
+            ),
+            self.record(time_start=datetime(2026, 7, 31, tzinfo=UTC)),
+        ]
+
+        report = MODULE.summarize(records, self.statuses, self.period)
+
+        self.assertEqual(report["requests"]["total"], 4)
+        self.assertEqual(report["requests"]["successful"], 1)
+        self.assertEqual(report["requests"]["failed"], 2)
+        self.assertEqual(report["requests"]["running"], 1)
+        self.assertEqual(report["requests"]["success_rate_percent"], 33.33)
+        self.assertEqual(report["duration_seconds"]["total"], 360)
+        self.assertEqual([item["identifier"] for item in report["processes"]], [
+            "orchestrate",
+            "subset",
+        ])
+        self.assertEqual(report["errors"][0]["count"], 2)
+        self.assertEqual(report["errors"][0]["message"], "Dataset unavailable")
+
+    def test_error_message_json_encoding_keeps_report_one_line_per_error(self):
+        report = MODULE.summarize(
+            [self.record(status=5, message="first line\nsecond line")],
+            self.statuses,
+            self.period,
+        )
+        with mock.patch("sys.stdout") as stdout:
+            MODULE.print_report(report)
+        output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
+        self.assertIn('"first line\\nsecond line"', output)
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
+    def test_naive_uuid1_time_uses_writer_offset(self):
+        previous_timezone = os.environ.get("TZ")
+        os.environ["TZ"] = "UTC"
+        time.tzset()
+        try:
+            record = self.record(
+                uuid="843b6f0e-94f4-11f1-aca4-fa163e934c9b",
+                time_start=datetime(2026, 8, 10, 21, 48, 53, 662211),
+            )
+            self.assertEqual(
+                MODULE.database_timestamp(record, record.time_start),
+                datetime(2026, 8, 10, 19, 48, 53, 662211, tzinfo=UTC),
+            )
+        finally:
+            if previous_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_timezone
+            time.tzset()
+
+    def test_json_default_serializes_datetimes(self):
+        value = json.dumps({"at": self.period.start}, default=MODULE.json_default)
+        self.assertEqual(value, '{"at": "2026-08-01T00:00:00+00:00"}')
+
+
+if __name__ == "__main__":
+    unittest.main()

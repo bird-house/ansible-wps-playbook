@@ -4,6 +4,9 @@
 
 Changes:
 
+- add a read-only `db-monitor` helper for explicit PyWPS request time ranges,
+  with aggregate status, duration, per-process, and grouped error-message
+  reporting in text or JSON
 - enable all ordered PyWPS recovery layers and all collectd monitoring except
   deployment-specific disk metrics by default
 - stop Slurm jobs after 25 minutes, reconcile stale XML/database state after

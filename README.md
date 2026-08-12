@@ -627,6 +627,25 @@ with:
 sudo /var/lib/pywps/statistics SERVICE_NAME
 ```
 
+### Summarize historical PyWPS database activity
+
+The read-only `db-monitor` operator command aggregates database requests for an
+explicit range. It reports every job state, success rate, request and duration
+statistics, per-process totals, and failed messages grouped with their count
+and first and last occurrence:
+
+```sh
+sudo /var/lib/pywps/db-monitor rook 2026-08-01/2026-08-06
+```
+
+Date-only endpoints include the complete local calendar day. ISO timestamps,
+including `Z` or explicit UTC offsets, are also accepted. Add
+`--identifier orchestrate` to select one process or `--json` for structured
+output. The range selects `execute` requests by their start time; non-final
+requests are included, and completed-job duration uses the full elapsed time.
+The command queries only a timezone-safe range candidate rather than loading
+the complete PyWPS table.
+
 ### Recover repeatedly polled missing status documents
 
 The ordered recovery run inspects recent Nginx access logs for WPS
