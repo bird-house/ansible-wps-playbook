@@ -634,6 +634,34 @@ with:
 sudo /var/lib/pywps/statistics SERVICE_NAME
 ```
 
+### Inspect individual XML requests
+
+An independent, read-only helper scans final status XML documents hourly at
+minute 2, immediately before the normal minute-3 output cleanup. It appends one
+JSON line per completed request to
+`/var/log/pywps/SERVICE_NAME-requests.log`, including the process, input values
+or references when present in the XML, approximate duration, success or
+failure, and OWS exception details. A small state file prevents the same
+retained XML document being recorded again on the next hourly scan.
+
+```yaml
+wps_job_inspect_enabled: true
+wps_job_inspect_schedule:
+  minute: "2"
+  hour: "*"
+```
+
+Inspect all final XML documents currently retained for a service without
+changing the log or state file:
+
+```sh
+sudo /var/lib/pywps/inspect-jobs SERVICE_NAME
+```
+
+The duration is derived from a version-1 job UUID when available, otherwise
+from the XML `Status` creation time, and the status file modification time. It
+is therefore an operational estimate rather than a database-quality timing.
+
 ### Summarize historical PyWPS database activity
 
 The read-only `db-monitor` operator command aggregates database requests for an

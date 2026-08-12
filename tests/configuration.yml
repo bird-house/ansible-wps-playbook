@@ -48,6 +48,10 @@
           - wps_job_statistics_schedule.minute == '4'
           - wps_job_statistics_schedule.hour == '*'
           - wps_job_statistics_enabled
+          - wps_job_inspect_schedule | type_debug == 'dict'
+          - wps_job_inspect_schedule.minute == '2'
+          - wps_job_inspect_schedule.hour == '*'
+          - wps_job_inspect_enabled
           - wps_job_control_schedule.minute == '*/5'
           - wps_job_control_recovery_schedule.minute == '1-56/5'
           - wps_job_control_schedule.hour == '*'

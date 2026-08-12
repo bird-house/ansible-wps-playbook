@@ -65,6 +65,7 @@
       - wps_job_control_schedule | type_debug == 'dict'
       - wps_job_control_recovery_schedule | type_debug == 'dict'
       - wps_job_statistics_schedule | type_debug == 'dict'
+      - wps_job_inspect_schedule | type_debug == 'dict'
       - wps_job_control_long_running_minutes | float > 0
       - wps_job_control_stale_after_minutes | float > 0
       - wps_job_control_database_stale_after_minutes | float > 0
@@ -126,6 +127,22 @@
   ansible.builtin.template:
     src: ./templates/db-monitor-helper.sh.j2
     dest: "{{ cron_script_dir }}/db-monitor"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install PyWPS XML inspection script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scripts/pywps-xml-inspect.py"
+    dest: "{{ cron_script_dir }}/pywps-xml-inspect.py"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install PyWPS XML inspection command
+  ansible.builtin.template:
+    src: ./templates/xml-inspect-helper.sh.j2
+    dest: "{{ cron_script_dir }}/inspect-jobs"
     owner: root
     group: root
     mode: "0755"
@@ -389,6 +406,26 @@
       --config /etc/pywps/{{ item.name }}.cfg statistics
     cron_file: ansible_pywps
     disabled: "{{ cron_disabled }}"
+    state: present
+  loop: "{{ wps_services }}"
+
+- name: Schedule hourly PyWPS XML request inspection
+  ansible.builtin.cron:
+    name: "record hourly PyWPS XML requests for {{ item.name }}"
+    minute: "{{ wps_job_inspect_schedule.minute | default('2') }}"
+    hour: "{{ wps_job_inspect_schedule.hour | default('*') }}"
+    day: "{{ wps_job_inspect_schedule.day | default('*') }}"
+    month: "{{ wps_job_inspect_schedule.month | default('*') }}"
+    weekday: "{{ wps_job_inspect_schedule.weekday | default('*') }}"
+    user: root
+    job: >-
+      /usr/bin/python3 {{ cron_script_dir }}/pywps-xml-inspect.py
+      --config /etc/pywps/{{ item.name }}.cfg
+      --service {{ item.name }}
+      --state-file {{ cron_script_dir }}/.{{ item.name }}-xml-inspect-state.json
+      --log-file {{ wps_log_dir }}/{{ item.name }}-requests.log
+    cron_file: ansible_pywps
+    disabled: "{{ (cron_disabled | bool) or not (wps_job_inspect_enabled | bool) }}"
     state: present
   loop: "{{ wps_services }}"
 
