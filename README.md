@@ -141,7 +141,8 @@ checks.
 to an exact version. Normal development, CI, and deployments therefore use the
 same dependencies. Each dependency is installed and retried separately, so a
 transient download failure does not redownload every successfully installed
-dependency.
+dependency. A dependency already installed at its pinned version is skipped;
+missing dependencies and changed pins are downloaded and installed.
 
 Updating dependencies is an explicit, tested change:
 

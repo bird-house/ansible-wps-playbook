@@ -49,6 +49,23 @@ read_requirements() {
     ' requirements.yml
 }
 
+installed_version() {
+    local kind=$1
+    local name=$2
+    local metadata
+
+    if [[ $kind == role ]]; then
+        metadata="roles/$name/meta/.galaxy_install_info"
+        [[ -f $metadata ]] || return 0
+        awk '$1 == "version:" { print $2; exit }' "$metadata"
+        return
+    fi
+
+    metadata="ansible_collections/${name//.//}/MANIFEST.json"
+    [[ -f $metadata ]] || return 0
+    awk -F '"' '/"version"[[:space:]]*:/ { print $4; exit }' "$metadata"
+}
+
 install_requirements() {
     local kind=$1
     local section=$2
@@ -56,6 +73,7 @@ install_requirements() {
     local requirements
     local name
     local version
+    local current_version
 
     requirements=$(read_requirements "$section")
     if [[ -z $requirements ]]; then
@@ -64,6 +82,11 @@ install_requirements() {
     fi
 
     while IFS=$'\t' read -r name version; do
+        current_version=$(installed_version "$kind" "$name")
+        if [[ $current_version == "$version" ]]; then
+            echo "- $name ($version) is already installed, skipping."
+            continue
+        fi
         retry ansible-galaxy "$kind" install --force "${name}${separator}${version}"
     done <<< "$requirements"
 }

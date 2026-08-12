@@ -16,6 +16,21 @@ class AnsibleDependencyInstallerTest(unittest.TestCase):
             binary_path.mkdir()
             log_path = temporary_path / "galaxy.log"
             failure_marker = temporary_path / "failed-once"
+            (temporary_path / "requirements.yml").write_text(
+                (ROOT / "requirements.yml").read_text()
+            )
+
+            installed_role = (
+                temporary_path
+                / "roles"
+                / "andrewrothstein.miniconda"
+                / "meta"
+            )
+            installed_role.mkdir(parents=True)
+            (installed_role / ".galaxy_install_info").write_text(
+                "install_date: Tue Aug 12 00:00:00 2026\n"
+                "version: v6.4.1\n"
+            )
 
             galaxy = binary_path / "ansible-galaxy"
             galaxy.write_text(
@@ -42,8 +57,8 @@ class AnsibleDependencyInstallerTest(unittest.TestCase):
                 }
             )
             result = subprocess.run(
-                ["bash", "scripts/install-ansible-dependencies.sh"],
-                cwd=ROOT,
+                ["bash", str(ROOT / "scripts/install-ansible-dependencies.sh")],
+                cwd=temporary_path,
                 env=environment,
                 capture_output=True,
                 text=True,
@@ -61,7 +76,12 @@ class AnsibleDependencyInstallerTest(unittest.TestCase):
                 calls.count(
                     "role install --force andrewrothstein.miniconda,v6.4.1"
                 ),
-                1,
+                0,
+            )
+            self.assertIn(
+                "andrewrothstein.miniconda (v6.4.1) is already installed, "
+                "skipping.",
+                result.stdout,
             )
             self.assertEqual(
                 calls.count(
