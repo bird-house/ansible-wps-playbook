@@ -48,6 +48,10 @@
           - wps_job_statistics_schedule.minute == '4'
           - wps_job_statistics_schedule.hour == '*'
           - wps_job_statistics_enabled
+          - wps_job_inspect_schedule | type_debug == 'dict'
+          - wps_job_inspect_schedule.minute == '2'
+          - wps_job_inspect_schedule.hour == '*'
+          - wps_job_inspect_enabled
           - wps_job_control_schedule.minute == '*/5'
           - wps_job_control_recovery_schedule.minute == '1-56/5'
           - wps_job_control_schedule.hour == '*'
@@ -184,6 +188,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/pywps/templates/db-monitor-helper.sh.j2') }}
+        test_request_insights_helper: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/pywps/templates/request-insights-helper.sh.j2') }}
         test_slurm_top: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -354,6 +362,10 @@
           - >-
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
+          - "'request-insights SERVICE_NAME' in test_request_insights_helper"
+          - >-
+            'logs=("/var/log/pywps/$service-requests.log"*)'
+            in test_request_insights_helper
           - >-
             '--config "$config_file" "$mode" "${script_options[@]}" "$@"'
             in test_job_control_helper

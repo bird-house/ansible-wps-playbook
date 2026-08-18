@@ -634,6 +634,93 @@ with:
 sudo /var/lib/pywps/statistics SERVICE_NAME
 ```
 
+### Inspect individual XML requests
+
+An independent, read-only helper scans final status XML documents hourly at
+minute 2, immediately before the normal minute-3 output cleanup. It appends one
+JSON line per completed request to
+`/var/log/pywps/SERVICE_NAME-requests.log`, including the process, input values
+or references when present in the XML, approximate duration, success or
+failure, and OWS exception details. A small state file prevents the same
+retained XML document being recorded again on the next hourly scan.
+
+For failed jobs, the inspector also looks for the matching PyWPS job dump and
+captures the tail of `job-error.txt` when that work directory still exists.
+This lets the insights report classify a generic XML failure using concrete
+Slurm OOM or timeout evidence. Work directories may be cleaned before the
+hourly scan; failures without surviving evidence remain unclassified rather
+than being guessed from their duration.
+
+```yaml
+wps_job_inspect_enabled: true
+wps_job_inspect_schedule:
+  minute: "2"
+  hour: "*"
+```
+
+Inspect all final XML documents currently retained for a service without
+changing the log or state file:
+
+```sh
+sudo /var/lib/pywps/inspect-jobs SERVICE_NAME
+```
+
+The duration is derived from a version-1 job UUID when available, otherwise
+from the XML `Status` creation time, and the status file modification time. It
+is therefore an operational estimate rather than a database-quality timing.
+
+Aggregate the current and rotated request logs with:
+
+```sh
+sudo /var/lib/pywps/request-insights SERVICE_NAME
+sudo /var/lib/pywps/request-insights SERVICE_NAME \
+  --from 2026-08-01 --to 2026-08-12
+sudo /var/lib/pywps/request-insights SERVICE_NAME --process subset --json
+sudo /var/lib/pywps/request-insights SERVICE_NAME --sort failed
+```
+
+`request-insights` selects `orchestrate` by default. Use `--all-processes` for
+the whole-service view, or `--process PROCESS` to select another process.
+Collections are ordered alphabetically by default. Use `--sort requests`,
+`--sort successful`, or `--sort failed` for descending frequency; names break
+ties deterministically.
+
+The report groups requests by process, summarizes median, 95th-percentile and
+maximum durations, and lists the most frequently requested values for every
+process/input pair. JSON `ComplexData` is expanded into useful dotted coverage
+dimensions. Orchestrate workflows receive dedicated dimensions such as
+`orchestrate.workflow.inputs.tas` and
+`orchestrate.workflow.steps.subset.time`, with generated step names collapsed
+to their `run` operation. Derived references such as `subset_tas_1/output` are
+not counted as source collections. Failures are grouped into `memory`,
+`timeout`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and `unknown`, followed by
+concise root-cause messages and example job IDs for log or incident follow-up.
+Repeated Python tracebacks are reduced to their actionable exception. Memory
+detection recognizes common OOM, cgroup and Python
+allocation errors; timeout detection recognizes Slurm time-limit cancellation,
+wall-clock, deadline, timed-out, and stale no-update recovery messages. Both
+plain and gzip-compressed logrotate files are accepted, and duplicate job IDs
+across rotations are ignored. `--top` controls the number of values and
+messages shown.
+
+When orchestrate records are present, a dedicated production-data section
+resolves workflow aliases such as `inputs/tas` to their complete collection
+identifiers. It expands `time` ranges and `time_components` into inclusive year
+coverage, reports the requested ranges per collection, and associates each
+failed workflow with its collection, failure category, message, and example
+job IDs. Failures are grouped separately by requested year coverage and time
+range so problems affecting different periods are not merged. The section
+explicitly counts workflows without retained input lineage.
+
+Failure-category totals always include every selected failed job, so rare
+memory and timeout events remain visible even when `--top` limits the detailed
+collection/period groups. The report states when groups were omitted; increase
+`--top` to inspect more of them.
+
+Because `orchestrate` is the default selection, its text report omits the
+generic coverage and failure sections that would duplicate the production-data
+view. They remain available with `--all-processes` or another `--process`.
+
 ### Summarize historical PyWPS database activity
 
 The read-only `db-monitor` operator command aggregates database requests for an

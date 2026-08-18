@@ -4,6 +4,10 @@
 
 Changes:
 
+- add an hourly XML request inspector which records per-job process, inputs,
+  estimated duration, outcome, and failure details before output cleanup
+- aggregate current and rotated request-inspection logs into process, input
+  coverage, duration, and categorized memory/timeout failure reports
 - apply Slurm, XML, and database timeouts only to actively running jobs so
   pending, accepted, queued, paused, and unknown jobs survive queue pressure
 - add a read-only `db-monitor` helper for optional year, month, date, or exact

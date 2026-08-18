@@ -232,6 +232,14 @@ wps_job_statistics_schedule:
   day: "*"
   month: "*"
   weekday: "*"
+# Record one JSON line for each completed status XML before hourly cleanup.
+wps_job_inspect_enabled: true
+wps_job_inspect_schedule:
+  minute: "2"
+  hour: "*"
+  day: "*"
+  month: "*"
+  weekday: "*"
 wps_job_control_schedule:
   minute: "*/5"
   hour: "*"
