@@ -1,7 +1,11 @@
 ---
 - name: Include base installation tasks
   include_tasks: base.yml
+  tags:
+    - update
 
 - name: Include web service tasks
   include_tasks: webservice.yml
   when: wps_webservice_enabled
+  tags:
+    - update

@@ -11,6 +11,8 @@ help:
 	@echo "  roles-update"
 	@echo "              to reinstall edited dependency pins and test."
 	@echo "  play        to run ansible playbook."
+	@echo "  quick       to run all tasks except Conda tasks."
+	@echo "  update      to update WPS sources, configuration, and cron jobs."
 	@echo "  lint        to lint YAML, Ansible, and test shell scripts."
 	@echo "  check       to run an Ansible syntax check."
 	@echo "  config-check"
@@ -32,6 +34,11 @@ roles-update: test
 quick: roles
 	echo "Installing PyWPS application with Ansible [skip conda tasks] ..."
 	ansible-playbook -c local --skip-tags conda -i hosts playbook.yml
+
+.PHONY: update
+update: roles
+	echo "Updating PyWPS sources, configuration, and cron jobs with Ansible ..."
+	ansible-playbook -c local --tags update --skip-tags conda -i hosts playbook.yml
 
 .PHONY: play
 play: roles

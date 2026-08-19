@@ -3,13 +3,31 @@
   include_tasks: clean.yml
 
 - name: Include cron tasks
-  include_tasks: cronjob.yml
+  ansible.builtin.include_tasks:
+    file: cronjob.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update
 
 - name: Include web service configuration tasks
-  include_tasks: webservice_config.yml
+  ansible.builtin.include_tasks:
+    file: webservice_config.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update
 
 - name: Include log rotation tasks
-  include_tasks: logrotate.yml
+  ansible.builtin.include_tasks:
+    file: logrotate.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update
 
 - name: Include SELinux tasks
   include_tasks: selinux.yml
@@ -26,8 +44,14 @@
   when: db_install_sqlite
 
 - name: Include file server tasks
-  include_tasks: fileserver.yml
+  ansible.builtin.include_tasks:
+    file: fileserver.yml
+    apply:
+      tags:
+        - update
   when: fs_enabled
+  tags:
+    - update
 
 - name: Assure PyWPS running at end of playbook
   command: /bin/true
@@ -36,6 +60,7 @@
   tags:
     - pywps
     - conf
+    - update
 
 - name: Assure nginx running at end of playbook
   command: /bin/true
@@ -44,3 +69,4 @@
   tags:
     - nginx
     - conf
+    - update
