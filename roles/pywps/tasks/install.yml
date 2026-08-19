@@ -1,0 +1,39 @@
+---
+- name: Check WPS application environments
+  ansible.builtin.stat:
+    path: "{{ conda_envs_dir }}/{{ item.name }}/bin/python"
+  loop: "{{ wps_services }}"
+  register: pywps_application_environments
+  tags:
+    - pywps
+    - application
+
+- name: Require existing WPS application environments
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      The Conda environment for {{ item.item.name }} does not exist at
+      {{ conda_envs_dir }}/{{ item.item.name }}. Run make play to create it
+      before using a focused update.
+  loop: "{{ pywps_application_environments.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  tags:
+    - pywps
+    - application
+
+- name: Install WPS application package
+  ansible.builtin.command:
+    argv: >-
+      {{ [conda_envs_dir + '/' + item.name + '/bin/python',
+          '-m', 'pip', 'install']
+         + (['--no-deps', '--force-reinstall']
+            if 'conda' in ansible_skip_tags else [])
+         + ['.'] }}
+  args:
+    chdir: "{{ src_dir }}/{{ item.name }}"
+  loop: "{{ wps_services }}"
+  tags:
+    - pywps
+    - application

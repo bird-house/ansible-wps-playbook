@@ -11,6 +11,15 @@
 - name: Include Conda tasks
   include_tasks: conda.yml
 
+- name: Include WPS application installation tasks
+  ansible.builtin.include_tasks:
+    file: install.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update
+
 - name: Include folder tasks
   ansible.builtin.include_tasks:
     file: folders.yml
