@@ -46,6 +46,11 @@ db_port: 5432
 db_user: pywps
 db_password: pywps
 
+# Web-service configuration paths are defined here as well as by the upstream
+# roles so focused tagged updates do not depend on their installation tasks.
+nginx_conf_path: /etc/nginx/conf.d
+supervisor_config_path: /etc/supervisor
+
 # nginx fileserver
 fs_enabled: false
 fs_host: localhost
