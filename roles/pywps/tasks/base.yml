@@ -1,12 +1,39 @@
 ---
 - name: Include source tasks
-  include_tasks: source.yml
+  ansible.builtin.include_tasks:
+    file: source.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update
 
 - name: Include Conda tasks
   include_tasks: conda.yml
 
+- name: Include WPS application installation tasks
+  ansible.builtin.include_tasks:
+    file: install.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update
+
 - name: Include folder tasks
-  include_tasks: folders.yml
+  ansible.builtin.include_tasks:
+    file: folders.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update
 
 - name: Include configuration tasks
-  include_tasks: config.yml
+  ansible.builtin.include_tasks:
+    file: config.yml
+    apply:
+      tags:
+        - update
+  tags:
+    - update

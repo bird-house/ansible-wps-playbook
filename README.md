@@ -215,6 +215,21 @@ host:
 make play
 ```
 
+During development, update the WPS source checkouts, reinstall the application
+packages in their existing Conda environments, refresh PyWPS/ROOCS and web
+service configuration, cron jobs and helper scripts, then restart the affected
+services with:
+
+```sh
+make update
+```
+
+The application reinstall uses pip's `--no-deps` option and does not resolve or
+install dependencies. This focused update does not run Conda, operating-system,
+database, Slurm, collectd, Supervisor installation, or Nginx installation
+tasks. Use `make quick` to run the complete deployment except Conda tasks, and
+`make play` after dependency or infrastructure changes.
+
 For the DKRZ ROOCS profile, clisops reads data in Dask chunks limited to
 `128MiB` and splits written output at `2GB` by default. The read limit is
 deliberately well below a 4 GB Slurm job limit, because a process can hold

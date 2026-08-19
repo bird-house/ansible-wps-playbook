@@ -70,19 +70,6 @@
     - pywps
     - conda
 
-- name: Install WPS package.
-  ansible.builtin.command:
-    argv: >-
-      {{ [conda_envs_dir + '/' + item.name + '/bin/python',
-          '-m', 'pip', 'install', '.'] }}
-  args:
-    chdir: "{{ src_dir }}/{{ item.name }}"
-  with_items: "{{ wps_services }}"
-  when: pywps_conda_env.changed or pywps_conda_env_spec.changed
-  tags:
-    - pywps
-    - conda
-
 - name: Install additional pip packages.
   ansible.builtin.command:
     argv: >-

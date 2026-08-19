@@ -88,6 +88,8 @@
           - wps_pip_packages == []
           - wps_cache_valid == '10m'
           - wps_health_cache_valid == '30s'
+          - nginx_conf_path == '/etc/nginx/conf.d'
+          - supervisor_config_path == '/etc/supervisor'
           - roocs_chunk_memory_limit == '128MiB'
           - roocs_file_size_limit == '2GB'
           - roocs_profile is none

@@ -4,6 +4,9 @@
 
 Changes:
 
+- add a focused `make update` deployment path which reinstalls WPS application
+  sources without dependency resolution, refreshes PyWPS/ROOCS configuration
+  and cron jobs, and restarts services without Conda or infrastructure roles
 - add an hourly XML request inspector which records per-job process, inputs,
   estimated duration, outcome, and failure details before output cleanup
 - aggregate current and rotated request-inspection logs into process, input
