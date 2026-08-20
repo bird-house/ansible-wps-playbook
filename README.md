@@ -457,6 +457,8 @@ command directory to their shell configuration:
 export PATH="/opt/wps-tools/bin:$PATH"
 ```
 
+Routine maintainer commands are `insights`, `smoke`, and, when Slurm is
+enabled, `qtop`. Specialist and state-changing commands remain under `sbin/`.
 The playbook deliberately does not add either tool directory to the global
 `PATH`, and administrative commands remain explicitly addressed through
 `/opt/wps-tools/sbin`.

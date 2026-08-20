@@ -593,10 +593,15 @@
 - name: Copy smoke test script
   ansible.builtin.template:
     src: smoke.sh.j2
-    dest: "{{ wps_tools_sbin_dir }}/smoke"
+    dest: "{{ wps_tools_bin_dir }}/smoke"
     owner: root
     group: root
-    mode: "0744"
+    mode: "0755"
+
+- name: Remove obsolete administrative smoke command
+  ansible.builtin.file:
+    path: "{{ wps_tools_sbin_dir }}/smoke"
+    state: absent
 
 - name: Remove tools from the legacy PyWPS state directory
   ansible.builtin.file:

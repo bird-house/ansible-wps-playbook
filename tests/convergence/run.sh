@@ -105,13 +105,16 @@ docker exec "$container_name" bash -c '
   for directory in /opt/wps-tools/{bin,sbin,scripts} /var/lib/pywps/state; do
     test "$(stat --format="%a:%U:%G" "$directory")" = "755:root:root"
   done
-  test -x /opt/wps-tools/bin/insights
-  for command in monitor recover stats db-report restart-pywps smoke; do
+  for command in insights smoke; do
+    test -x "/opt/wps-tools/bin/$command"
+  done
+  for command in monitor recover stats db-report restart-pywps; do
     test -x "/opt/wps-tools/sbin/$command"
   done
   test ! -e /opt/wps-tools/bin/db-monitor
   test ! -e /opt/wps-tools/bin/inspect-jobs
   test ! -e /opt/wps-tools/sbin/statistics
+  test ! -e /opt/wps-tools/sbin/smoke
   for script in pywps-job-control.py pywps-db-report.py \
     pywps-xml-inspect.py pywps-request-insights.py; do
     test -x "/opt/wps-tools/scripts/$script"
