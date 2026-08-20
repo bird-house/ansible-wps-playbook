@@ -72,6 +72,20 @@
     group: root
     mode: "0755"
 
+- name: Inspect WPS statistics path before directory migration
+  ansible.builtin.stat:
+    path: "{{ wps_tools_statistics_dir }}"
+    follow: false
+  register: wps_tools_statistics_path
+
+- name: Remove legacy statistics command before directory migration
+  ansible.builtin.file:
+    path: "{{ wps_tools_statistics_dir }}"
+    state: absent
+  when:
+    - wps_tools_statistics_path.stat.exists
+    - not (wps_tools_statistics_path.stat.isdir | default(false))
+
 - name: Create WPS statistics directory
   ansible.builtin.file:
     path: "{{ wps_tools_statistics_dir }}"
@@ -644,7 +658,6 @@
     - insights
     - monitor
     - recover
-    - statistics
     - recover-all
     - recover-polling
     - recover-stalled-jobs.py

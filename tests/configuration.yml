@@ -230,6 +230,9 @@
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
+        test_wps_tools_tasks: >-
+          {{ lookup('ansible.builtin.file',
+                    playbook_dir + '/../roles/wps_tools/tasks/main.yml') }}
         test_pywps_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/pywps.cfg.j2') }}
@@ -418,6 +421,10 @@
           - "'ConstrainRAMSpace=yes' in test_slurm_cgroup_config"
           - "'ConstrainSwapSpace=yes' in test_slurm_cgroup_config"
           - "'set -euo pipefail' in test_restart_script"
+          - >-
+            'Remove legacy statistics command before directory migration'
+            in test_wps_tools_tasks
+          - "'    - statistics\n' not in test_wps_tools_tasks"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"
           - "'Found orphaned or zombie Gunicorn processes' in test_restart_script"
