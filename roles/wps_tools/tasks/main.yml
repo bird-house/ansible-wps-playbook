@@ -201,13 +201,10 @@
     group: root
     mode: "0755"
 
-- name: Install PyWPS XML inspection command
-  ansible.builtin.template:
-    src: xml-inspect-helper.sh.j2
-    dest: "{{ wps_tools_bin_dir }}/inspect-jobs"
-    owner: root
-    group: root
-    mode: "0755"
+- name: Remove obsolete XML inspection shortcut
+  ansible.builtin.file:
+    path: "{{ wps_tools_bin_dir }}/inspect-jobs"
+    state: absent
 
 - name: Install PyWPS request-insights script
   ansible.builtin.copy:

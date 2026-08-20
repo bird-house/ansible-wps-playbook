@@ -257,10 +257,6 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/wps_tools/templates/stats-helper.sh.j2') }}
-        test_xml_inspect_helper: >-
-          {{ lookup('ansible.builtin.template',
-                    playbook_dir
-                    + '/../roles/wps_tools/templates/xml-inspect-helper.sh.j2') }}
         test_slurm_top: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -463,9 +459,6 @@
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_job_control_helper
-          - >-
-            '/opt/wps-tools/scripts/pywps-xml-inspect.py'
-            in test_xml_inspect_helper
           - "'db-report SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_report_helper"
           - "'--failures' in test_db_report_helper"
           - "'--top N' in test_db_report_helper"

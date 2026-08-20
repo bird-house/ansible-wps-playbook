@@ -745,7 +745,7 @@ wps_tools_event_keep_days: 42
 wps_tools_statistics_keep_days: 0  # zero means unlimited
 ```
 
-### Inspect individual XML requests
+### Collect completed XML requests
 
 An independent, read-only helper scans final status XML documents every five
 minutes by default, starting at minute 2. This includes a run immediately
@@ -772,13 +772,6 @@ wps_tools_inspect_schedule:
 
 The schedule accepts normal cron fields. For example, use `2-52/10` for a
 ten-minute interval that retains the pre-cleanup minute-2 run.
-
-Inspect all final XML documents currently retained for a service without
-changing the log or state file:
-
-```sh
-sudo /opt/wps-tools/bin/inspect-jobs SERVICE_NAME
-```
 
 The duration is derived from a version-1 job UUID when available, otherwise
 from the XML `Status` creation time, and the status file modification time. It
