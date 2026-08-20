@@ -131,7 +131,7 @@ slurm_job_monitor_log_file: "{{ wps_log_dir }}/slurm-job-monitor.log"
 slurm_job_monitor_alert_file: "{{ wps_run_dir }}/slurm-red-alert.json"
 # Small interactive Slurm queue overview.
 slurm_job_status_script: "{{ cron_script_dir }}/slurm-job-status.py"
-slurm_top_script: "{{ cron_script_dir }}/slurm-top"
+slurm_top_script: "{{ cron_script_dir }}/qtop"
 
 # miniconda: we need to use Miniforge! See extra_vars.yml
 miniconda_parent_dir: "{{ prefix }}"

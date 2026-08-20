@@ -209,7 +209,7 @@ def render(jobs: Sequence[Job], usage: dict[str, int | None]) -> str:
 def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Show pending/running Slurm jobs and batch-step peak RSS.",
-        epilog="For a live display, use the installed slurm-top command.",
+        epilog="For a live display, use the installed qtop command.",
     )
     parser.add_argument(
         "--user",

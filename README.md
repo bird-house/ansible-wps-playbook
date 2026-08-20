@@ -970,11 +970,11 @@ sudo /usr/local/sbin/slurm-job-monitor \
 
 For a compact live view of pending and running jobs, including each running
 batch step's peak resident memory and its percentage of the requested memory,
-use the interactive `slurm-top` command. It batches the accounting lookup, so
+use the interactive `qtop` command. It batches the accounting lookup, so
 each refresh makes one `squeue` and at most one `sstat` request:
 
 ```sh
-/var/lib/pywps/slurm-top
+/var/lib/pywps/qtop
 ```
 
 The command refreshes every second and defaults to `slurm_job_monitor_user`.

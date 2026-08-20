@@ -246,6 +246,14 @@
     mode: "0755"
   when: slurm_enabled | bool
 
+- name: Remove legacy Slurm live-view shortcuts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ cron_script_dir }}/slurm-top"
+    - "{{ cron_script_dir }}/top"
+
 - name: Install Slurm live-view shortcut
   ansible.builtin.template:
     src: ./templates/slurm-top.sh.j2
