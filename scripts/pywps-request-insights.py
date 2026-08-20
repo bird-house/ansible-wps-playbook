@@ -89,8 +89,12 @@ MISSING_DATETIME_RE = re.compile(
     r"cftime\.[A-Za-z0-9_]+\s*\(?\s*([12][0-9]{3})\s*,",
     re.IGNORECASE,
 )
-TIME_COMPONENTS_RE = re.compile(
-    r"Cannot create TimeComponentsParameter from:\s*(.+)",
+TIME_COMPONENTS_PREFIX_RE = re.compile(
+    r"Cannot create TimeComponentsParameter from:\s*",
+    re.IGNORECASE,
+)
+TRACEBACK_BOUNDARY_RE = re.compile(
+    r"\s+(?:During handling of the above exception|Traceback \(most recent call last\))",
     re.IGNORECASE,
 )
 
@@ -407,9 +411,11 @@ def concise_failure_message(message: str) -> str:
         years = sorted({int(year) for year in MISSING_DATETIME_RE.findall(normalized)})
         if years:
             return "Requested years not found in dataset: " + ",".join(map(str, years))
-    time_components = TIME_COMPONENTS_RE.search(normalized)
+    time_components = list(TIME_COMPONENTS_PREFIX_RE.finditer(normalized))
     if time_components:
-        return f"Invalid time components: {time_components.group(1)}"
+        value = normalized[time_components[-1].end() :]
+        value = TRACEBACK_BOUNDARY_RE.split(value, maxsplit=1)[0].strip()
+        return f"Invalid time components: {value}"
     exceptions = re.findall(
         r"(?:ProcessError|ValueError|MemoryError|TimeoutError):\s*"
         r"(.+?)(?=\s+During handling|\s+Traceback|$)",
@@ -652,8 +658,8 @@ def format_timestamp(value: object) -> str:
     return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def print_detail_field(label: str, value: str) -> None:
-    prefix = f"    {label}: "
+def print_detail_field(label: str, value: str, *, indent: int = 4) -> None:
+    prefix = f"{' ' * indent}{label}: "
     print(
         textwrap.fill(
             value,
@@ -736,20 +742,31 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
             print(heading)
             if not orchestrate["failures"]:
                 print("  No failures.")
-            for index, failure in enumerate(orchestrate["failures"]):
-                if index:
+            failures_by_collection: dict[str, list[dict[str, object]]] = {}
+            for failure in orchestrate["failures"]:
+                failures_by_collection.setdefault(failure["collection"], []).append(failure)
+            for collection_index, (collection, collection_failures) in enumerate(
+                failures_by_collection.items()
+            ):
+                if collection_index:
                     print()
-                count = failure["count"]
-                request_label = "request" if count == 1 else "requests"
-                print(f"  [{failure['category']}] {count} {request_label}")
-                print_detail_field("Dataset", failure["collection"])
-                print_detail_field(
-                    "Selection",
-                    f"years={failure['years']}  "
-                    f"time={','.join(failure['time_ranges']) or 'unknown'}",
-                )
-                print_detail_field("Reason", failure["message"])
-                print_detail_field("Jobs", ", ".join(failure["example_jobs"]))
+                print_detail_field("Dataset", collection, indent=2)
+                for failure_index, failure in enumerate(collection_failures):
+                    if failure_index:
+                        print()
+                    count = failure["count"]
+                    request_label = "request" if count == 1 else "requests"
+                    print(f"    [{failure['category']}] {count} {request_label}")
+                    print_detail_field(
+                        "Selection",
+                        f"years={failure['years']}  "
+                        f"time={','.join(failure['time_ranges']) or 'unknown'}",
+                        indent=6,
+                    )
+                    print_detail_field("Reason", failure["message"], indent=6)
+                    print_detail_field(
+                        "Jobs", ", ".join(failure["example_jobs"]), indent=6
+                    )
 
     if set(report["processes"]) != {"orchestrate"}:
         print("\nRequested-data coverage")

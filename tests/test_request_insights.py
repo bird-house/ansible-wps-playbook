@@ -391,11 +391,11 @@ class RequestInsightsTests(unittest.TestCase):
             detailed_text.index("c3s-cmip6.example.tas"),
             detailed_text.index("Failure details"),
         )
-        self.assertIn("  [timeout] 1 request", detailed_text)
-        self.assertIn("    Dataset: c3s-cmip6.example.tas", detailed_text)
-        self.assertIn("    Selection: years=2050  time=2050/2050", detailed_text)
-        self.assertIn("    Reason: Job cancelled due to time limit", detailed_text)
-        self.assertIn("    Jobs: 1", detailed_text)
+        self.assertIn("  Dataset: c3s-cmip6.example.tas", detailed_text)
+        self.assertIn("    [timeout] 1 request", detailed_text)
+        self.assertIn("      Selection: years=2050  time=2050/2050", detailed_text)
+        self.assertIn("      Reason: Job cancelled due to time limit", detailed_text)
+        self.assertIn("      Jobs: 1", detailed_text)
 
     def test_classifies_common_time_selection_failures(self):
         no_timesteps = record(
@@ -424,6 +424,16 @@ class RequestInsightsTests(unittest.TestCase):
                 "Cannot create TimeComponentsParameter from: month:oct,nov,dez"
             ),
             "Invalid time components: month:oct,nov,dez",
+        )
+        self.assertEqual(
+            MODULE.concise_failure_message(
+                'raise InvalidParameterValue(f"Cannot create TimeComponentsParameter '
+                'from: {self.input}") clisops.exceptions.InvalidParameterValue: '
+                "Cannot create TimeComponentsParameter from: "
+                "month:oct,nov,dec;year:2016,2017 During handling of the above "
+                "exception, another exception occurred: Traceback (most recent call last)"
+            ),
+            "Invalid time components: month:oct,nov,dec;year:2016,2017",
         )
 
     def test_collection_sorting_by_name_and_frequency(self):
