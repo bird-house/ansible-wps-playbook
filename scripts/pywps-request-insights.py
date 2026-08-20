@@ -50,7 +50,8 @@ FAILURE_PATTERNS = (
         "spatial",
         re.compile(
             r"not within (?:the )?(?:longitude|latitude) bounds|longitude frame|"
-            r"outside (?:the )?(?:spatial|longitude|latitude) bounds|invalid bounding box",
+            r"outside (?:the )?(?:spatial|longitude|latitude) bounds|invalid bounding box|"
+            r"\b(?:longitude|latitude)\b",
             re.IGNORECASE,
         ),
     ),

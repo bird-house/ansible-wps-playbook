@@ -727,6 +727,7 @@ Orchestrate workflows receive dedicated dimensions such as
 to their `run` operation. Derived references such as `subset_tas_1/output` are
 not counted as source collections. Failures are grouped into `memory`,
 `timeout`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and `unknown`.
+Failures mentioning longitude or latitude are classified as `spatial`.
 Detailed output includes concise root-cause messages and example job IDs for
 log or incident follow-up.
 Repeated Python tracebacks are reduced to their actionable exception. Memory

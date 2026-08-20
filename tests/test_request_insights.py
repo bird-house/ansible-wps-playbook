@@ -234,6 +234,19 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertEqual(MODULE.failure_category(item), "spatial")
 
+    def test_longitude_meridian_failure_is_spatial(self):
+        item = record(
+            "1",
+            "failed",
+            "Input longitude bounds -10. 35. cross the 0 degree meridian but "
+            "dataset longitudes are all positive.",
+        )
+        self.assertEqual(MODULE.failure_category(item), "spatial")
+
+    def test_generic_latitude_failure_is_spatial(self):
+        item = record("1", "failed", "Could not normalize the latitude coordinate")
+        self.assertEqual(MODULE.failure_category(item), "spatial")
+
     def test_runtime_diagnostic_overrides_generic_xml_failure_category(self):
         item = record("1", "failed", "Process failed, please check server error log")
         item["diagnostics"] = [
