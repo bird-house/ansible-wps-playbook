@@ -391,6 +391,11 @@ class RequestInsightsTests(unittest.TestCase):
             detailed_text.index("c3s-cmip6.example.tas"),
             detailed_text.index("Failure details"),
         )
+        self.assertIn("  [timeout] 1 request", detailed_text)
+        self.assertIn("    Dataset: c3s-cmip6.example.tas", detailed_text)
+        self.assertIn("    Selection: years=2050  time=2050/2050", detailed_text)
+        self.assertIn("    Reason: Job cancelled due to time limit", detailed_text)
+        self.assertIn("    Jobs: 1", detailed_text)
 
     def test_classifies_common_time_selection_failures(self):
         no_timesteps = record(
@@ -405,6 +410,21 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertEqual(MODULE.failure_category(no_timesteps), "no-data")
         self.assertEqual(MODULE.failure_category(invalid_components), "input")
+        self.assertEqual(
+            MODULE.concise_failure_message(
+                "Requested datetimes include some not found in the dataset: "
+                "cftime.DatetimeNoLeap(2050, 1, 1) "
+                "cftime.DatetimeNoLeap(2015, 1, 1) "
+                "cftime.DatetimeNoLeap(2050, 1, 1)"
+            ),
+            "Requested years not found in dataset: 2015,2050",
+        )
+        self.assertEqual(
+            MODULE.concise_failure_message(
+                "Cannot create TimeComponentsParameter from: month:oct,nov,dez"
+            ),
+            "Invalid time components: month:oct,nov,dez",
+        )
 
     def test_collection_sorting_by_name_and_frequency(self):
         records = []

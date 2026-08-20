@@ -9,6 +9,7 @@ import json
 import re
 import statistics
 import sys
+import textwrap
 from collections import Counter, defaultdict
 from datetime import datetime, time, timezone
 from pathlib import Path
@@ -82,6 +83,14 @@ SLURM_TIME_LIMIT_RE = re.compile(
 )
 SLURM_OOM_MESSAGE_RE = re.compile(
     r"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\)[^.]*\.?",
+    re.IGNORECASE,
+)
+MISSING_DATETIME_RE = re.compile(
+    r"cftime\.[A-Za-z0-9_]+\s*\(?\s*([12][0-9]{3})\s*,",
+    re.IGNORECASE,
+)
+TIME_COMPONENTS_RE = re.compile(
+    r"Cannot create TimeComponentsParameter from:\s*(.+)",
     re.IGNORECASE,
 )
 
@@ -394,6 +403,13 @@ def concise_failure_message(message: str) -> str:
     no_data = NO_DATA_RE.search(normalized)
     if no_data:
         return no_data.group(0)
+    if "Requested datetimes include some not found in the dataset" in normalized:
+        years = sorted({int(year) for year in MISSING_DATETIME_RE.findall(normalized)})
+        if years:
+            return "Requested years not found in dataset: " + ",".join(map(str, years))
+    time_components = TIME_COMPONENTS_RE.search(normalized)
+    if time_components:
+        return f"Invalid time components: {time_components.group(1)}"
     exceptions = re.findall(
         r"(?:ProcessError|ValueError|MemoryError|TimeoutError):\s*"
         r"(.+?)(?=\s+During handling|\s+Traceback|$)",
@@ -467,11 +483,10 @@ def aggregate_orchestrate(
                 for value, count in collection_ranges[collection].most_common(top)
             ],
         }
-    failure_items = list(failures.items())
-    if sort_by == "name":
-        failure_items.sort(key=lambda item: item[0])
-    else:
-        failure_items.sort(key=lambda item: (-item[1], item[0]))
+    failure_items = sorted(
+        failures.items(),
+        key=lambda item: (-item[1], item[0][3], item[0][0], item[0][1:3], item[0][4]),
+    )
     failure_report = [
         {
             "count": count,
@@ -637,6 +652,20 @@ def format_timestamp(value: object) -> str:
     return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
+def print_detail_field(label: str, value: str) -> None:
+    prefix = f"    {label}: "
+    print(
+        textwrap.fill(
+            value,
+            width=100,
+            initial_indent=prefix,
+            subsequent_indent=" " * len(prefix),
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+    )
+
+
 def print_report(report: dict[str, object], *, details: bool = False) -> None:
     period = report["period"]
     outcomes = report["outcomes"]
@@ -707,14 +736,20 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
             print(heading)
             if not orchestrate["failures"]:
                 print("  No failures.")
-            for failure in orchestrate["failures"]:
-                jobs = ",".join(failure["example_jobs"])
-                print(
-                    f"  {failure['count']:>5} [{failure['category']}] "
-                    f"{failure['collection']}: years={failure['years']} "
-                    f"time={','.join(failure['time_ranges']) or 'unknown'} "
-                    f"reason={failure['message']} jobs={jobs}"
+            for index, failure in enumerate(orchestrate["failures"]):
+                if index:
+                    print()
+                count = failure["count"]
+                request_label = "request" if count == 1 else "requests"
+                print(f"  [{failure['category']}] {count} {request_label}")
+                print_detail_field("Dataset", failure["collection"])
+                print_detail_field(
+                    "Selection",
+                    f"years={failure['years']}  "
+                    f"time={','.join(failure['time_ranges']) or 'unknown'}",
                 )
+                print_detail_field("Reason", failure["message"])
+                print_detail_field("Jobs", ", ".join(failure["example_jobs"]))
 
     if set(report["processes"]) != {"orchestrate"}:
         print("\nRequested-data coverage")

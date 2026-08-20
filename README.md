@@ -709,8 +709,10 @@ The default report is a compact operational overview: request outcomes,
 median, 95th-percentile and maximum durations, retained workflow metadata,
 failure-category totals, and one line per requested dataset. A process table
 is shown only when multiple processes are selected. Use `--details` to append
-grouped failure messages and example job IDs, or `--json` for the complete
-machine-readable report.
+grouped failure blocks with their dataset, selection, concise reason and
+example job IDs, or `--json` for the complete machine-readable report. The
+most frequent detailed groups are shown first, and verbose `cftime` datetime
+representations are reduced to their requested years.
 
 JSON `ComplexData` is expanded into useful dotted coverage dimensions.
 Orchestrate workflows receive dedicated dimensions such as
