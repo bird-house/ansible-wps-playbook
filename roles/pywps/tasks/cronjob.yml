@@ -155,10 +155,15 @@
     group: root
     mode: "0755"
 
-- name: Install PyWPS request-insights command
+- name: Remove legacy PyWPS request-insights command
+  ansible.builtin.file:
+    path: "{{ cron_script_dir }}/request-insights"
+    state: absent
+
+- name: Install PyWPS insights command
   ansible.builtin.template:
     src: ./templates/request-insights-helper.sh.j2
-    dest: "{{ cron_script_dir }}/request-insights"
+    dest: "{{ cron_script_dir }}/insights"
     owner: root
     group: root
     mode: "0755"

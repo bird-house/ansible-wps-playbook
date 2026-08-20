@@ -364,7 +364,7 @@
           - >-
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
-          - "'request-insights SERVICE_NAME' in test_request_insights_helper"
+          - "'insights SERVICE_NAME' in test_request_insights_helper"
           - >-
             'logs=("/var/log/pywps/$service-requests.log"*)'
             in test_request_insights_helper

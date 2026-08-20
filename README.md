@@ -687,14 +687,14 @@ is therefore an operational estimate rather than a database-quality timing.
 Aggregate the current and rotated request logs with:
 
 ```sh
-sudo /var/lib/pywps/request-insights SERVICE_NAME
-sudo /var/lib/pywps/request-insights SERVICE_NAME \
+sudo /var/lib/pywps/insights SERVICE_NAME
+sudo /var/lib/pywps/insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
-sudo /var/lib/pywps/request-insights SERVICE_NAME --process subset --json
-sudo /var/lib/pywps/request-insights SERVICE_NAME --sort failed
+sudo /var/lib/pywps/insights SERVICE_NAME --process subset --json
+sudo /var/lib/pywps/insights SERVICE_NAME --sort failed
 ```
 
-`request-insights` selects `orchestrate` by default. Use `--all-processes` for
+`insights` selects `orchestrate` by default. Use `--all-processes` for
 the whole-service view, or `--process PROCESS` to select another process.
 Collections are ordered alphabetically by default. Use `--sort requests`,
 `--sort successful`, or `--sort failed` for descending frequency; names break
