@@ -134,6 +134,19 @@ class PywpsJobStatusTests(unittest.TestCase):
         self.assertIn("Active jobs — all ages (1)", text)
         self.assertIn("12345678", text)
 
+    def test_active_age_ignores_a_recorded_end_time(self):
+        now = datetime(2026, 8, 20, 20, tzinfo=timezone.utc)
+        started = now - timedelta(hours=3)
+        job = record(
+            "active",
+            "subset",
+            Status.ACCEPTED,
+            started,
+            started + timedelta(milliseconds=83),
+        )
+
+        self.assertEqual(MODULE.active_age_seconds(job, now), 3 * 60 * 60)
+
 
 if __name__ == "__main__":
     unittest.main()

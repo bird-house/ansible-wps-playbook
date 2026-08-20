@@ -89,15 +89,13 @@ def status_name(value: object, wps_status: object) -> str:
     return "other"
 
 
-def elapsed_seconds(record: object, now: datetime) -> float | None:
+def active_age_seconds(record: object, now: datetime) -> float | None:
     started_value = getattr(record, "time_start", None)
     if started_value is None:
         return None
     started = database_timestamp(record, started_value)
-    ended_value = getattr(record, "time_end", None)
-    ended = database_timestamp(record, ended_value) if ended_value else now
-    elapsed = (ended - started).total_seconds()
-    return elapsed if elapsed >= 0 else None
+    age = (now - started).total_seconds()
+    return age if age >= 0 else None
 
 
 def completed_duration_seconds(record: object) -> float | None:
@@ -160,7 +158,7 @@ def summarize(
                     process_durations[identifier].append(duration)
 
         if state in ACTIVE_STATES:
-            age = elapsed_seconds(record, now)
+            age = active_age_seconds(record, now)
             active_jobs.append(
                 {
                     "job_id": str(getattr(record, "uuid", None) or "unknown"),
