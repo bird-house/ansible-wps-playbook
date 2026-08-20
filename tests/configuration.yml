@@ -363,7 +363,7 @@
           - "'mode=statistics' in test_job_control_helper"
           - "'script_options=(--layer' not in test_job_control_helper"
           - "'--status-counts' not in test_job_control_helper"
-          - test_job_control_helper.count('script_options=(--show-summaries)') == 3
+          - test_job_control_helper.count('script_options=(--human-readable)') == 3
           - >-
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
@@ -377,7 +377,7 @@
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_job_control_helper
-          - "'db-monitor SERVICE_NAME [[START][/END]]' in test_db_monitor_helper"
+          - "'db-monitor SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_monitor_helper"
           - >-
             'monitor_script="/var/lib/pywps/pywps-db-monitor.py"'
             in test_db_monitor_helper

@@ -40,15 +40,15 @@ main() {
     case $command_name in
         monitor)
             mode=monitor
-            script_options=(--show-summaries)
+            script_options=(--human-readable)
             ;;
         recover)
             mode=recover
-            script_options=(--show-summaries)
+            script_options=(--human-readable)
             ;;
         statistics)
             mode=statistics
-            script_options=(--show-summaries)
+            script_options=(--human-readable)
             ;;
         *)
             fail "Unsupported command name: $command_name"

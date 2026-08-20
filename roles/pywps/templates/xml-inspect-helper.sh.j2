@@ -16,5 +16,10 @@ fi
 
 service=$1
 shift
+config_file="/etc/pywps/$service.cfg"
+if [[ ! -f $config_file ]]; then
+    echo "PyWPS configuration not found: $config_file" >&2
+    exit 1
+fi
 exec /usr/bin/python3 "{{ cron_script_dir }}/pywps-xml-inspect.py" \
-    --config "/etc/pywps/$service.cfg" --service "$service" "$@"
+    --config "$config_file" --service "$service" "$@"

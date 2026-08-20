@@ -11,7 +11,7 @@ fail() {
 
 usage() {
     local exit_code=${1:-2}
-    echo "Usage: db-monitor SERVICE_NAME [[START][/END]] [--identifier PROCESS] [--json]" >&2
+    echo "Usage: db-monitor SERVICE_NAME [[START][/END] | --from START --to END] [--identifier PROCESS] [--json]" >&2
     exit "$exit_code"
 }
 

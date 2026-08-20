@@ -522,10 +522,20 @@ installed helper:
 sudo /var/lib/pywps/monitor SERVICE_NAME
 ```
 
-The helper checks all three layers and prints their quick summaries to the
-terminal. It does not calculate the complete database status aggregate. The
+The helper checks all three layers and prints a compact operator report with
+one line per layer, an overall result, and the detailed log path. It does not
+calculate the complete database status aggregate. The
 five-minute scheduled monitor performs the same all-layer check and remains
 quiet on the cron console unless it encounters a critical error.
+
+```text
+PyWPS monitor — rook
+XML: checked=8  stalled=0  long-running=0  errors=0
+Database: checked=12  stalled=1  long-running=2  errors=0
+Polling: checked=0  stalled=0  long-running=0  errors=0
+Result: attention required
+Details: /var/log/pywps/rook-job-monitor.log
+```
 
 Recover stalled jobs with the single ordered operator command:
 
