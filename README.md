@@ -390,6 +390,40 @@ wps_temp_keep_hours: 12
 The playbook converts the hour values to the minutes consumed by the cleanup
 commands.
 
+### PyWPS maintenance tool layout
+
+Ansible-managed maintenance tools are kept separate from PyWPS runtime state:
+
+```text
+/opt/wps-tools/
+├── bin/       # routine, read-only maintainer commands
+├── sbin/      # administrative and privileged commands
+└── scripts/   # implementation used by commands and cron
+
+/var/lib/pywps/
+├── cache/
+├── db/
+├── job-incidents/
+└── state/
+```
+
+The locations are controlled by `wps_tools_dir`,
+`wps_tools_bin_dir`, `wps_tools_sbin_dir`,
+`wps_tools_script_dir`, and `pywps_state_dir`. The deployment migrates XML
+inspection state into `state/` before removing the old hidden state files and
+root-level tools from `/var/lib/pywps`.
+
+Maintainers who prefer short interactive commands can add only the read-only
+command directory to their shell configuration:
+
+```sh
+export PATH="/opt/wps-tools/bin:$PATH"
+```
+
+The playbook deliberately does not add either tool directory to the global
+`PATH`, and administrative commands remain explicitly addressed through
+`/opt/wps-tools/sbin`.
+
 ### Configure scheduled service restarts
 
 Scheduled PyWPS restarts are disabled by default. Systems that need periodic
@@ -404,7 +438,7 @@ The script remains installed when the schedule is disabled and can still be
 run manually with an explicit `--force`:
 
 ```sh
-/var/lib/pywps/restart-pywps.sh --force SERVICE_NAME
+/opt/wps-tools/sbin/restart-pywps --force SERVICE_NAME
 ```
 
 ### Monitor and recover stalled jobs
@@ -519,7 +553,7 @@ operation, reach cron mail. Run a manual read-only check for a service with the
 installed helper:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME
+sudo /opt/wps-tools/sbin/monitor SERVICE_NAME
 ```
 
 The helper checks all three layers and prints a compact operator report with
@@ -540,7 +574,7 @@ Details: /var/log/pywps/rook-job-monitor.log
 Recover stalled jobs with the single ordered operator command:
 
 ```sh
-sudo /var/lib/pywps/recover SERVICE_NAME
+sudo /opt/wps-tools/sbin/recover SERVICE_NAME
 ```
 
 Recovery always runs XML, database, and polling in that order under one
@@ -572,14 +606,15 @@ and each cron entry uses that service's Conda environment and configuration.
 Command-line options override those defaults, for example:
 
 ```sh
-sudo /var/lib/pywps/monitor SERVICE_NAME --stale-after-minutes 720
-sudo /var/lib/pywps/recover SERVICE_NAME --stale-after-minutes 720
-sudo /var/lib/pywps/recover SERVICE_NAME --database-stale-after-minutes 720
-sudo /var/lib/pywps/recover SERVICE_NAME --limit 500
+sudo /opt/wps-tools/sbin/monitor SERVICE_NAME --stale-after-minutes 720
+sudo /opt/wps-tools/sbin/recover SERVICE_NAME --stale-after-minutes 720
+sudo /opt/wps-tools/sbin/recover SERVICE_NAME --database-stale-after-minutes 720
+sudo /opt/wps-tools/sbin/recover SERVICE_NAME --limit 500
 ```
 
-The concise commands installed in `/var/lib/pywps` are `monitor`, `recover`,
-and `statistics`. The deployed implementation is `pywps-job-control.py`.
+The administrative commands installed in `/opt/wps-tools/sbin` are
+`monitor`, `recover`, and `statistics`. Their implementation is installed in
+`/opt/wps-tools/scripts`.
 
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
 diagnosis, invoke `pywps-job-control.py` with that service's deployed Conda
@@ -659,7 +694,7 @@ minimum-size threshold as the other service logs. Run the same report manually
 with:
 
 ```sh
-sudo /var/lib/pywps/statistics SERVICE_NAME
+sudo /opt/wps-tools/sbin/statistics SERVICE_NAME
 ```
 
 ### Inspect individual XML requests
@@ -694,7 +729,7 @@ Inspect all final XML documents currently retained for a service without
 changing the log or state file:
 
 ```sh
-sudo /var/lib/pywps/inspect-jobs SERVICE_NAME
+sudo /opt/wps-tools/bin/inspect-jobs SERVICE_NAME
 ```
 
 The duration is derived from a version-1 job UUID when available, otherwise
@@ -704,12 +739,12 @@ is therefore an operational estimate rather than a database-quality timing.
 Aggregate the current and rotated request logs with:
 
 ```sh
-sudo /var/lib/pywps/insights SERVICE_NAME
-sudo /var/lib/pywps/insights SERVICE_NAME \
+sudo /opt/wps-tools/bin/insights SERVICE_NAME
+sudo /opt/wps-tools/bin/insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
-sudo /var/lib/pywps/insights SERVICE_NAME --process subset --json
-sudo /var/lib/pywps/insights SERVICE_NAME --sort failed
-sudo /var/lib/pywps/insights SERVICE_NAME --details --top 20
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --process subset --json
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --sort failed
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --details --top 20
 ```
 
 `insights` selects `orchestrate` by default. Use `--all-processes` for
@@ -779,12 +814,12 @@ totals, and failed messages grouped with their count and first and last
 occurrence:
 
 ```sh
-sudo /var/lib/pywps/db-monitor rook 2026-08-01/2026-08-06
-sudo /var/lib/pywps/db-monitor rook 2026-08
-sudo /var/lib/pywps/db-monitor rook 2026
-sudo /var/lib/pywps/db-monitor rook 2026-08/
-sudo /var/lib/pywps/db-monitor rook /2026-08
-sudo /var/lib/pywps/db-monitor rook --from 2026-01 --to 2026-08
+sudo /opt/wps-tools/bin/db-monitor rook 2026-08-01/2026-08-06
+sudo /opt/wps-tools/bin/db-monitor rook 2026-08
+sudo /opt/wps-tools/bin/db-monitor rook 2026
+sudo /opt/wps-tools/bin/db-monitor rook 2026-08/
+sudo /opt/wps-tools/bin/db-monitor rook /2026-08
+sudo /opt/wps-tools/bin/db-monitor rook --from 2026-01 --to 2026-08
 ```
 
 One year, month, or date selects that complete local calendar period. A slash
@@ -1003,7 +1038,7 @@ timestamp and one of `pending-queue-full`, `slurm-capacity-unavailable`, or
 Inspect the current queue manually without making changes:
 
 ```sh
-sudo /usr/local/sbin/slurm-job-monitor \
+sudo /opt/wps-tools/scripts/slurm-job-monitor.py \
   --user wps --long-running-minutes 10 --pending-critical 20
 ```
 
@@ -1013,13 +1048,13 @@ use the interactive `qtop` command. It batches the accounting lookup, so
 each refresh makes one `squeue` and at most one `sstat` request:
 
 ```sh
-/var/lib/pywps/qtop
+/opt/wps-tools/bin/qtop
 ```
 
 The command refreshes every second and defaults to `slurm_job_monitor_user`.
 Pass `--user USER` to select another account, or set `SLURM_TOP_INTERVAL` to
-change the refresh interval. The shortcut and its `slurm-job-status.py` backend
-live alongside the other monitoring scripts in `/var/lib/pywps`. `MAX RSS` is
+change the refresh interval. The shortcut lives in `/opt/wps-tools/bin` and
+its `slurm-job-status.py` backend in `/opt/wps-tools/scripts`. `MAX RSS` is
 Slurm's high-water mark for the batch step rather than an instantaneous or
 whole-job aggregate. A dash means accounting data is not yet available, which
 is normal just after a job starts or finishes.

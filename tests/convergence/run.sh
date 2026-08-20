@@ -102,6 +102,25 @@ docker exec "$container_name" bash -c '
   test "$(stat --format="%a:%U:%G" /etc/pywps/tiny.cfg)" = "640:root:wps"
   test "$(stat --format="%a:%U:%G" /var/lib/pywps/cache/tiny)" = "755:wps:wps"
   test "$(stat --format="%a:%U:%G" /etc/gunicorn/tiny.py)" = "640:root:wps"
+  for directory in /opt/wps-tools/{bin,sbin,scripts} /var/lib/pywps/state; do
+    test "$(stat --format="%a:%U:%G" "$directory")" = "755:root:root"
+  done
+  for command in insights inspect-jobs db-monitor; do
+    test -x "/opt/wps-tools/bin/$command"
+  done
+  for command in monitor recover statistics restart-pywps smoke; do
+    test -x "/opt/wps-tools/sbin/$command"
+  done
+  for script in pywps-job-control.py pywps-db-monitor.py \
+    pywps-xml-inspect.py pywps-request-insights.py; do
+    test -x "/opt/wps-tools/scripts/$script"
+  done
+  test ! -e /var/lib/pywps/monitor
+  test ! -e /var/lib/pywps/pywps-job-control.py
+
+  printf "%s\n" "{\"legacy\": true}" \
+    > /var/lib/pywps/.tiny-xml-inspect-state.json
+  rm -f /var/lib/pywps/state/tiny-xml-inspect.json
 
   ansible-playbook \
     --inventory tests/convergence/hosts \
@@ -115,4 +134,7 @@ docker exec "$container_name" bash -c '
   systemctl is-active --quiet postgresql
   wait_for_tiny_wps
   test "$(curl --fail --silent http://localhost:8080/health2)" = "ROOK_HEALTH_OK"
+  test "$(cat /var/lib/pywps/state/tiny-xml-inspect.json)" = \
+    "{\"legacy\": true}"
+  test ! -e /var/lib/pywps/.tiny-xml-inspect-state.json
 '

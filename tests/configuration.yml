@@ -69,6 +69,11 @@
           - wps_job_control_recovery_limit | int == 100
           - wps_job_incident_archive_enabled
           - wps_job_incident_archive_dir == '/var/lib/pywps/job-incidents'
+          - pywps_state_dir == '/var/lib/pywps/state'
+          - wps_tools_dir == '/opt/wps-tools'
+          - wps_tools_bin_dir == '/opt/wps-tools/bin'
+          - wps_tools_sbin_dir == '/opt/wps-tools/sbin'
+          - wps_tools_script_dir == '/opt/wps-tools/scripts'
           - wps_job_incident_keep_days == 30
           - wps_job_incident_keep_minutes | int == 43200
           - >-
@@ -134,9 +139,13 @@
           - slurm_job_monitor_user == 'wps'
           - slurm_job_monitor_long_running_minutes | int == 10
           - slurm_job_monitor_pending_critical == 20
-          - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
-          - slurm_job_status_script == '/var/lib/pywps/slurm-job-status.py'
-          - slurm_top_script == '/var/lib/pywps/qtop'
+          - >-
+            slurm_job_monitor_script
+            == '/opt/wps-tools/scripts/slurm-job-monitor.py'
+          - >-
+            slurm_job_status_script
+            == '/opt/wps-tools/scripts/slurm-job-status.py'
+          - slurm_top_script == '/opt/wps-tools/bin/qtop'
           - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
           - >-
             slurm_job_monitor_log_file
@@ -197,6 +206,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/pywps/templates/request-insights-helper.sh.j2') }}
+        test_xml_inspect_helper: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/pywps/templates/xml-inspect-helper.sh.j2') }}
         test_slurm_top: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -365,9 +378,15 @@
           - "'--status-counts' not in test_job_control_helper"
           - test_job_control_helper.count('script_options=(--human-readable)') == 3
           - >-
+            'job_control_script="/opt/wps-tools/scripts/pywps-job-control.py"'
+            in test_job_control_helper
+          - >-
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
           - "'insights SERVICE_NAME' in test_request_insights_helper"
+          - >-
+            '/opt/wps-tools/scripts/pywps-request-insights.py'
+            in test_request_insights_helper
           - >-
             'logs=("/var/log/pywps/$service-requests.log"*)'
             in test_request_insights_helper
@@ -377,9 +396,12 @@
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_job_control_helper
+          - >-
+            '/opt/wps-tools/scripts/pywps-xml-inspect.py'
+            in test_xml_inspect_helper
           - "'db-monitor SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_monitor_helper"
           - >-
-            'monitor_script="/var/lib/pywps/pywps-db-monitor.py"'
+            'monitor_script="/opt/wps-tools/scripts/pywps-db-monitor.py"'
             in test_db_monitor_helper
           - >-
             'exec "$python" "$monitor_script"'
@@ -387,7 +409,9 @@
           - >-
             '--config "$config_file" "${range_option[@]}" "$@"'
             in test_db_monitor_helper
-          - "'status_script=\"/var/lib/pywps/slurm-job-status.py\"' in test_slurm_top"
+          - >-
+            'status_script="/opt/wps-tools/scripts/slurm-job-status.py"'
+            in test_slurm_top
           - "'status_options=(--user \"wps\")' in test_slurm_top"
           - >-
             'exec watch -n "$interval" -- "$status_script"'

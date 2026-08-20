@@ -10,7 +10,11 @@ service_group: "{{ service_user }}"
 service_groups: "{{ service_group }}"
 # service_gid: 100
 service_user_home: /var/lib/pywps
-cron_script_dir: "{{ service_user_home }}"
+pywps_state_dir: "{{ service_user_home }}/state"
+wps_tools_dir: /opt/wps-tools
+wps_tools_bin_dir: "{{ wps_tools_dir }}/bin"
+wps_tools_sbin_dir: "{{ wps_tools_dir }}/sbin"
+wps_tools_script_dir: "{{ wps_tools_dir }}/scripts"
 
 # collectd host monitoring (Red Hat family version 9 only)
 collectd_enabled: true
@@ -129,13 +133,13 @@ slurm_job_monitor_user: "{{ wps_user }}"
 # Warn well before Slurm reaches the hard timeout.
 slurm_job_monitor_long_running_minutes: "{{ job_long_running_minutes }}"
 slurm_job_monitor_pending_critical: 20
-slurm_job_monitor_script: /usr/local/sbin/slurm-job-monitor
+slurm_job_monitor_script: "{{ wps_tools_script_dir }}/slurm-job-monitor.py"
 slurm_job_monitor_lock_file: /run/lock/slurm-job-monitor.lock
 slurm_job_monitor_log_file: "{{ wps_log_dir }}/slurm-job-monitor.log"
 slurm_job_monitor_alert_file: "{{ wps_run_dir }}/slurm-red-alert.json"
 # Small interactive Slurm queue overview.
-slurm_job_status_script: "{{ cron_script_dir }}/slurm-job-status.py"
-slurm_top_script: "{{ cron_script_dir }}/qtop"
+slurm_job_status_script: "{{ wps_tools_script_dir }}/slurm-job-status.py"
+slurm_top_script: "{{ wps_tools_bin_dir }}/qtop"
 
 # miniconda: we need to use Miniforge! See extra_vars.yml
 miniconda_parent_dir: "{{ prefix }}"
