@@ -224,7 +224,7 @@ cron_enabled: false
 cron_disabled: "{{ cron_enabled | bool == false }}"
 cron_mailto: root
 cron_user: root
-wps_restart_enabled: true
+wps_restart_enabled: false
 wps_restart_schedule: daily
 # Rotate PyWPS logs after one day only when they exceed this size.
 wps_logrotate_min_size: 10M

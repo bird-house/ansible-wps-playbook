@@ -40,6 +40,7 @@
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
           - wps_restart_schedule in ['hourly', 'daily']
+          - not wps_restart_enabled
           - wps_logrotate_min_size == '10M'
           - wps_logrotate_rotations == 7
           - wps_job_control_schedule | type_debug == 'dict'
@@ -349,7 +350,7 @@
           - "'kill $gunicorn_pids' not in test_restart_script"
           - "'Found orphaned or zombie Gunicorn processes' in test_restart_script"
           - "'cleanup_orphaned_processes=false' in test_restart_script"
-          - "'restart_enabled=true' in test_restart_script"
+          - "'restart_enabled=false' in test_restart_script"
           - "'restart-pywps [--force] SERVICE_NAME' in test_restart_script"
           - "'Sending TERM to orphaned Gunicorn process' in test_restart_script"
           - "'set -euo pipefail' in test_smoke_script"

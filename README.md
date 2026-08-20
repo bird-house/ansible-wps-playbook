@@ -392,16 +392,16 @@ commands.
 
 ### Configure scheduled service restarts
 
-PyWPS services restart daily by default when cron is enabled. Scheduled
-restarts can be disabled, or the schedule changed to hourly:
+Scheduled PyWPS restarts are disabled by default. Systems that need periodic
+restarts can enable the daily schedule or change it to hourly:
 
 ```yaml
-wps_restart_enabled: true
+wps_restart_enabled: false
 wps_restart_schedule: daily  # hourly or daily
 ```
 
-Set `wps_restart_enabled: false` to disable the cron entry. The script
-remains available and can still be run manually:
+The script remains installed when the schedule is disabled and can still be
+run manually with an explicit `--force`:
 
 ```sh
 /var/lib/pywps/restart-pywps.sh --force SERVICE_NAME
