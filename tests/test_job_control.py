@@ -830,7 +830,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "monitor_enabled = false\n"
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
-            "statistics_enabled = true\n"
             f"event_log = {self.root / 'logs' / 'alpha-events.jsonl'}\n"
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
@@ -877,7 +876,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertFalse(settings.monitor_enabled)
         self.assertTrue(settings.recovery_enabled)
         self.assertTrue(settings.missing_status_recovery_enabled)
-        self.assertTrue(settings.statistics_enabled)
         self.assertEqual(
             settings.event_log, self.root / "logs" / "alpha-events.jsonl"
         )
@@ -919,11 +917,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "--layer",
             "database",
             "--show-summaries",
-            "--status-counts",
         ])
         self.assertEqual(selected_layers.layers, ["xml", "database"])
         self.assertTrue(selected_layers.show_summaries)
-        self.assertTrue(selected_layers.status_counts)
 
         human = MODULE.parse_args([
             "--config",
@@ -932,18 +928,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "--human-readable",
         ])
         self.assertTrue(human.human_readable)
-
-        statistics = MODULE.parse_args([
-            "--config",
-            str(config),
-            "statistics",
-        ])
-        self.assertEqual(statistics.layers, ["xml", "database"])
-        self.assertTrue(statistics.status_counts)
-        self.assertEqual(
-            statistics.log_file,
-            self.root / "logs" / "alpha-stats.log",
-        )
 
         overridden_monitor = MODULE.parse_args([
             "--config",
@@ -978,6 +962,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
             ["monitor", "--hours", "3.5"],
             ["monitor", "--stale-after-hours", "6"],
             ["monitor", "--min-poll-age-minutes", "5"],
+            ["monitor", "--status-counts"],
+            ["statistics"],
         ):
             with self.subTest(arguments=arguments), mock.patch(
                 "sys.stderr", new=io.StringIO()
@@ -1001,7 +987,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(summaries[0].errors, 1)
         self.assertEqual((summaries[1].checked, summaries[1].stalled), (2, 1))
 
-    def test_operation_flags_select_monitor_recovery_and_statistics(self):
+    def test_operation_flags_select_monitor_and_recovery(self):
         settings = self.settings("monitor", ["xml", "database"])
         settings.monitor_enabled = False
         self.assertFalse(MODULE.operation_is_enabled(settings))
@@ -1020,12 +1006,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertTrue(MODULE.operation_is_enabled(settings))
         settings.missing_status_recovery_enabled = True
         self.assertTrue(MODULE.layer_is_enabled(settings, "polling"))
-
-        settings.mode = "statistics"
-        settings.statistics_enabled = False
-        self.assertFalse(MODULE.operation_is_enabled(settings))
-        settings.statistics_enabled = True
-        self.assertTrue(MODULE.operation_is_enabled(settings))
 
     def test_disabled_polling_recovery_does_not_skip_other_layers(self):
         settings = self.settings("recover", ["xml", "polling"])
@@ -1205,114 +1185,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         warning = MODULE.logging.LogRecord(
             "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
         )
-        status_summary = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
-        )
-        current_status = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
-        )
         self.assertTrue(handler.filter(summary))
-        self.assertTrue(handler.filter(status_summary))
-        self.assertTrue(handler.filter(current_status))
         self.assertFalse(handler.filter(finding))
         self.assertTrue(handler.filter(warning))
-
-    def test_statistics_log_keeps_only_current_status_and_warnings(self):
-        log_file = self.root / "statistics.log"
-        with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
-            MODULE.configure_logging(log_file, statistics_only=True)
-
-        handlers = basic_config.call_args.kwargs["handlers"]
-        stream_handler = next(
-            handler
-            for handler in handlers
-            if type(handler) is MODULE.logging.StreamHandler
-        )
-        file_handler = next(
-            handler
-            for handler in handlers
-            if isinstance(handler, MODULE.logging.FileHandler)
-        )
-        self.assertEqual(stream_handler.level, MODULE.logging.CRITICAL)
-        summary = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "summary layer=xml", (), None
-        )
-        finding = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "layer=xml job=1", (), None
-        )
-        status_summary = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
-        )
-        current_status = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
-        )
-        warning = MODULE.logging.LogRecord(
-            "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
-        )
-        self.assertFalse(file_handler.filter(summary))
-        self.assertFalse(file_handler.filter(status_summary))
-        self.assertTrue(file_handler.filter(current_status))
-        self.assertFalse(file_handler.filter(finding))
-        self.assertTrue(file_handler.filter(warning))
-        file_handler.close()
-
-    def test_statistics_logs_one_current_status_line_with_unique_stalled_jobs(self):
-        settings = self.settings("statistics", ["xml", "database"])
-        logger = mock.Mock()
-        counts = {
-            "total": 58,
-            "accepted": 3,
-            "running": 12,
-            "successful": 11,
-            "failed": 13,
-            "dismissed": 0,
-            "unmapped": 19,
-        }
-        xml = MODULE.LayerSummary(
-            "xml",
-            checked=40,
-            stalled=2,
-            stalled_jobs={JOB_UUID, OTHER_JOB_UUID},
-        )
-        database = MODULE.LayerSummary(
-            "database",
-            checked=2,
-            stalled=2,
-            stalled_jobs={OTHER_JOB_UUID, THIRD_JOB_UUID},
-            status_counts=counts,
-            long_running=2,
-            long_running_jobs={JOB_UUID, OTHER_JOB_UUID},
-        )
-
-        summaries = MODULE.execute_layers(
-            settings,
-            self.now,
-            logger,
-            runners={
-                "xml": lambda *_args: xml,
-                "database": lambda *_args: database,
-            },
-        )
-        MODULE.log_current_status(summaries, logger)
-
-        logger.info.assert_called_once_with(
-            "current_status total=%s accepted=%s running=%s successful=%s "
-            "failed=%s dismissed=%s unmapped=%s long_running=%d stalled=%d "
-            "xml_stalled=%d database_stalled=%d xml_documents=%d errors=%d",
-            58,
-            3,
-            12,
-            11,
-            13,
-            0,
-            19,
-            2,
-            3,
-            2,
-            2,
-            40,
-            0,
-        )
 
     def test_operator_report_is_compact_and_human_readable(self):
         settings = self.settings("monitor", ["xml", "database"])
@@ -1335,34 +1210,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "Result: attention required\n"
             "Details: /var/log/pywps/rook-job-monitor.log\n",
         )
-
-    def test_statistics_operator_report_includes_request_statuses(self):
-        settings = self.settings("statistics", ["xml", "database"])
-        settings.service_name = "rook"
-        summaries = [
-            MODULE.LayerSummary("xml", checked=4),
-            MODULE.LayerSummary(
-                "database",
-                checked=10,
-                status_counts={
-                    "total": 10,
-                    "accepted": 1,
-                    "running": 2,
-                    "successful": 5,
-                    "failed": 2,
-                    "dismissed": 0,
-                    "unmapped": 0,
-                },
-            ),
-        ]
-        output = io.StringIO()
-        with mock.patch("sys.stdout", output):
-            MODULE.print_operator_report(settings, summaries)
-        self.assertIn(
-            "Requests: total=10  accepted=1  running=2  success=5  failures=2",
-            output.getvalue(),
-        )
-        self.assertIn("Result: complete", output.getvalue())
 
     def test_database_status_summary_uses_ogc_api_processes_vocabulary(self):
         statuses = argparse.Namespace(

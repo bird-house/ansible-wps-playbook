@@ -59,8 +59,6 @@ monitor_enabled = {{ wps_tools_job_control_monitor_enabled | bool | lower }}
 recovery_enabled = {{ wps_tools_job_control_recovery_enabled | bool | lower }}
 # Create failure XML for repeated Nginx 404 status polling.
 missing_status_recovery_enabled = {{ wps_tools_missing_status_recovery_enabled | bool | lower }}
-# Write a complete hourly job statistics report.
-statistics_enabled = {{ wps_tools_statistics_enabled | bool | lower }}
 long_running_minutes = {{ wps_tools_job_control_long_running_minutes }}
 stale_after_minutes = {{ wps_tools_job_control_stale_after_minutes }}
 database_stale_after_minutes = {{ wps_tools_job_control_database_stale_after_minutes }}

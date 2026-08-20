@@ -147,7 +147,7 @@
           - >-
             slurm_job_timeout_minutes | int
             < wps_tools_job_control_database_stale_after_minutes | float
-          - wps_tools_slurm_monitor_enabled
+          - not wps_tools_slurm_monitor_enabled
           - wps_tools_slurm_monitor_schedule.minute == '*/5'
           - wps_tools_slurm_monitor_user == 'wps'
           - wps_tools_slurm_monitor_long_running_minutes | int == 10
@@ -525,7 +525,7 @@
           - "'monitor_enabled = true' in test_pywps_config"
           - "'recovery_enabled = true' in test_pywps_config"
           - "'missing_status_recovery_enabled = true' in test_pywps_config"
-          - "'statistics_enabled = true' in test_pywps_config"
+          - "'statistics_enabled' not in test_pywps_config"
           - >-
             'event_log = /var/log/pywps/alpha-events.jsonl'
             in test_pywps_config

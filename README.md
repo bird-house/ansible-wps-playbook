@@ -543,7 +543,6 @@ The playbook renders the operation switches into every service configuration:
 monitor_enabled = true
 recovery_enabled = true
 missing_status_recovery_enabled = true
-statistics_enabled = true
 event_log = /var/log/pywps/SERVICE_NAME-events.jsonl
 incident_archive_enabled = true
 incident_archive_dir = /var/lib/pywps/job-incidents/SERVICE_NAME
@@ -676,8 +675,6 @@ remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery defaults for every selected layer. Polling recovery uses
 its separate default of `wps_tools_missing_status_recovery_limit`, which is 20.
-The underlying `--status-counts` option enables a complete database aggregate
-for explicit low-level invocations.
 
 ### Preserve failed-job evidence
 
@@ -1054,14 +1051,14 @@ accounting or `slurmdbd`. Slurm starts the runtime limit only after resources
 are allocated and the job enters `RUNNING`; time spent `PENDING` under load does
 not consume the limit.
 
-An independent read-only monitor makes one `squeue` request for `PENDING` and
-`RUNNING` jobs owned by the configured PyWPS Unix account. It is enabled by
-default whenever Slurm and cron are enabled, and can still be disabled
-explicitly. Because every PyWPS service uses the same account on the dedicated
-VM, Ansible creates one cron entry rather than one per service.
+An optional read-only monitor makes one `squeue` request for `PENDING` and
+`RUNNING` jobs owned by the configured PyWPS Unix account. It is disabled by
+default; enable it when unattended queue, node, and partition alerts are
+useful. Because every PyWPS service uses the same account on the dedicated VM,
+Ansible creates one cron entry rather than one per service.
 
 ```yaml
-wps_tools_slurm_monitor_enabled: true  # enabled by default when Slurm is enabled
+wps_tools_slurm_monitor_enabled: false
 wps_tools_slurm_monitor_schedule:
   minute: "*/5"
   hour: "*"

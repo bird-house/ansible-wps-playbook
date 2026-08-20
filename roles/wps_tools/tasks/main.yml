@@ -335,6 +335,12 @@
     - "{{ wps_tools_slurm_top_script }}"
   when: not (slurm_enabled | bool)
 
+- name: Remove stale Slurm alert when monitoring is disabled
+  ansible.builtin.file:
+    path: "{{ wps_tools_slurm_monitor_alert_file }}"
+    state: absent
+  when: not (wps_tools_slurm_monitor_enabled | bool)
+
 - name: Remove obsolete Slurm job-control cron entry
   ansible.builtin.cron:
     name: control overdue Slurm jobs

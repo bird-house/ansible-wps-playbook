@@ -168,8 +168,9 @@ slurm_munge_key: /etc/munge/munge.key
 slurm_configure_munge: false
 # Slurm limits running allocation time; pending queue time is not counted.
 slurm_job_timeout_minutes: "{{ job_timeout_minutes }}"
-# Report host-wide Slurm queue pressure and long-running jobs by default.
-wps_tools_slurm_monitor_enabled: true
+# Optional host-wide Slurm queue and availability alerting. qtop and Slurm's
+# hard job limits remain available when this scheduled monitor is disabled.
+wps_tools_slurm_monitor_enabled: false
 wps_tools_slurm_monitor_schedule:
   minute: "*/5"
   hour: "*"
