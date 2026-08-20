@@ -37,7 +37,7 @@ main() {
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"
-    local monitor_script="{{ cron_script_dir }}/pywps-db-monitor.py"
+    local monitor_script="{{ wps_tools_script_dir }}/pywps-db-monitor.py"
 
     [[ -x $python ]] || fail "Python not found or not executable: $python"
     [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"

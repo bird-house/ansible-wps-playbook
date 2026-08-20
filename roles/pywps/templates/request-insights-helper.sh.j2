@@ -22,5 +22,5 @@ if [[ -z ${logs[0]:-} ]]; then
     echo "No request logs found for service: $service" >&2
     exit 1
 fi
-exec /usr/bin/python3 "{{ cron_script_dir }}/pywps-request-insights.py" \
+exec /usr/bin/python3 "{{ wps_tools_script_dir }}/pywps-request-insights.py" \
     "${logs[@]}" "$@"
