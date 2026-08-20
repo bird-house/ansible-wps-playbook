@@ -55,8 +55,8 @@
           - wps_job_control_schedule.minute == '*/5'
           - wps_job_control_recovery_schedule.minute == '1-56/5'
           - wps_job_control_schedule.hour == '*'
-          - job_long_running_minutes | float == 1
-          - wps_job_control_long_running_minutes | float == 1
+          - job_long_running_minutes | float == 10
+          - wps_job_control_long_running_minutes | float == 10
           - wps_job_control_stale_after_minutes | float == 30
           - wps_job_control_database_stale_after_minutes | float == 30
           - wps_job_control_database_status_window_hours | float == 24
@@ -129,7 +129,7 @@
           - slurm_job_monitor_enabled
           - slurm_job_monitor_schedule.minute == '*/5'
           - slurm_job_monitor_user == 'wps'
-          - slurm_job_monitor_long_running_minutes | int == 1
+          - slurm_job_monitor_long_running_minutes | int == 10
           - slurm_job_monitor_pending_critical == 20
           - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
           - slurm_job_status_script == '/var/lib/pywps/slurm-job-status.py'
@@ -430,7 +430,7 @@
           - "'missing_status_recovery_enabled = true' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers =' not in test_pywps_config"
-          - "'long_running_minutes = 1' in test_pywps_config"
+          - "'long_running_minutes = 10' in test_pywps_config"
           - "'stale_after_minutes = 30' in test_pywps_config"
           - "'database_stale_after_minutes = 30' in test_pywps_config"
           - "'database_status_window_hours = 24' in test_pywps_config"

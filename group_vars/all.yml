@@ -58,7 +58,7 @@ fs_port: 6000
 
 # Shared long-running threshold. The WPS and Slurm settings below inherit this
 # value but remain independently overridable in deployment inventories.
-job_long_running_minutes: 1
+job_long_running_minutes: 10
 
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm

@@ -415,7 +415,7 @@ polling recovery layers are enabled by default:
 
 ```yaml
 cron_enabled: true
-job_long_running_minutes: 1
+job_long_running_minutes: 10
 wps_job_control_monitor_enabled: true
 wps_job_control_recovery_enabled: true
 wps_missing_status_recovery_enabled: true
@@ -438,7 +438,7 @@ but it preserves failed XML documents in the incident archive. When recovery
 is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 polling recovery can still be disabled independently when it is not wanted.
-The database layer reports `started` requests as long-running after one minute
+The database layer reports `started` requests as long-running after ten minutes
 by default, based on their request start time. Accepted, queued, paused, and
 unknown requests are not timed out because their age may be queue wait rather
 than execution time. This is an early warning only.
@@ -956,14 +956,14 @@ slurm_job_monitor_pending_critical: 20
 slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
 ```
 
-The long-running warning defaults to one minute. Both WPS job control and the
+The long-running warning defaults to ten minutes. Both WPS job control and the
 Slurm monitor inherit `job_long_running_minutes`. Either can be overridden
 independently without changing the global value:
 
 ```yaml
-job_long_running_minutes: 1
-wps_job_control_long_running_minutes: 2
-slurm_job_monitor_long_running_minutes: 5
+job_long_running_minutes: 10
+wps_job_control_long_running_minutes: 15
+slurm_job_monitor_long_running_minutes: 20
 ```
 
 The default queue threshold
@@ -986,7 +986,7 @@ Inspect the current queue manually without making changes:
 
 ```sh
 sudo /usr/local/sbin/slurm-job-monitor \
-  --user wps --long-running-minutes 1 --pending-critical 20
+  --user wps --long-running-minutes 10 --pending-critical 20
 ```
 
 For a compact live view of pending and running jobs, including each running
