@@ -651,27 +651,31 @@ sudo /var/lib/pywps/statistics SERVICE_NAME
 
 ### Inspect individual XML requests
 
-An independent, read-only helper scans final status XML documents hourly at
-minute 2, immediately before the normal minute-3 output cleanup. It appends one
-JSON line per completed request to
+An independent, read-only helper scans final status XML documents every five
+minutes by default, starting at minute 2. This includes a run immediately
+before the normal hourly minute-3 output cleanup. It appends one JSON line per
+completed request to
 `/var/log/pywps/SERVICE_NAME-requests.log`, including the process, input values
 or references when present in the XML, approximate duration, success or
 failure, and OWS exception details. A small state file prevents the same
-retained XML document being recorded again on the next hourly scan.
+retained XML document being recorded again on the next scan.
 
 For failed jobs, the inspector also looks for the matching PyWPS job dump and
 captures the tail of `job-error.txt` when that work directory still exists.
 This lets the insights report classify a generic XML failure using concrete
 Slurm OOM or timeout evidence. Work directories may be cleaned before the
-hourly scan; failures without surviving evidence remain unclassified rather
+next scan; failures without surviving evidence remain unclassified rather
 than being guessed from their duration.
 
 ```yaml
 wps_job_inspect_enabled: true
 wps_job_inspect_schedule:
-  minute: "2"
+  minute: "2-57/5"
   hour: "*"
 ```
+
+The schedule accepts normal cron fields. For example, use `2-52/10` for a
+ten-minute interval that retains the pre-cleanup minute-2 run.
 
 Inspect all final XML documents currently retained for a service without
 changing the log or state file:

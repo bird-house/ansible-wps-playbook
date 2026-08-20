@@ -438,10 +438,18 @@
     state: present
   loop: "{{ wps_services }}"
 
-- name: Schedule hourly PyWPS XML request inspection
+- name: Remove legacy hourly PyWPS XML request inspection schedule
   ansible.builtin.cron:
     name: "record hourly PyWPS XML requests for {{ item.name }}"
-    minute: "{{ wps_job_inspect_schedule.minute | default('2') }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Schedule PyWPS XML request inspection
+  ansible.builtin.cron:
+    name: "record PyWPS XML requests for {{ item.name }}"
+    minute: "{{ wps_job_inspect_schedule.minute | default('2-57/5') }}"
     hour: "{{ wps_job_inspect_schedule.hour | default('*') }}"
     day: "{{ wps_job_inspect_schedule.day | default('*') }}"
     month: "{{ wps_job_inspect_schedule.month | default('*') }}"
