@@ -393,9 +393,10 @@ wps_service_cpus: auto
 ```
 
 The automatic reserve is one CPU on hosts with up to four logical CPUs and two
-on larger hosts. It is reduced when necessary so Slurm always retains at least
-one CPU. A deployment can constrain the detected host capacity with one
-positive integer:
+on larger hosts. The default Slurm capacity is also capped by allocatable
+memory, with at least 4096 MiB reserved for each concurrent job. Both limits
+are reduced when necessary so Slurm retains at least one slot. A deployment can
+constrain the detected host capacity with one positive integer:
 
 ```yaml
 wps_cpus: 8
@@ -404,7 +405,9 @@ wps_cpus: 8
 `wps_service_cpus`, `slurm_cpus`, and `gunicorn_workers` remain independently
 overridable for hosts that need different scheduler or web-service tuning.
 The service reserve accepts `auto` or a non-negative integer smaller than the
-host capacity.
+host capacity. `slurm_min_job_memory_mb` changes the memory floor used by the
+automatic Slurm calculation; an explicit `slurm_cpus` override must still leave
+at least that much default memory per job.
 
 ### Configure output and temporary-file retention
 
@@ -991,18 +994,19 @@ wps_services:
     drmaa_native_specification: ""
 ```
 
-By default, Slurm advertises the CPU count resolved from `wps_cpus` minus the
-`wps_service_cpus` reserve, and also treats memory as a consumable resource.
-Twenty percent of physical RAM is reserved for the OS and host services. Jobs
-that do not request memory receive an equal share of the remaining RAM based
-on `slurm_cpus`, and cgroups enforce the allocation so a worker cannot trigger
-a host-wide OOM. Memory-heavy deployments can raise the default allocation;
-this keeps all Slurm CPUs available but admits fewer heavy jobs at once:
+By default, Slurm advertises the smaller of the CPU capacity remaining after
+the `wps_service_cpus` reserve and the number of 4096 MiB jobs that fit in its
+allocatable memory. Twenty percent of physical RAM is reserved for the OS and
+host services. Jobs that do not request memory receive an equal share of the
+remaining RAM based on `slurm_cpus`, and cgroups enforce the allocation so a
+worker cannot trigger a host-wide OOM. Memory-heavy deployments can raise the
+minimum used for automatic sizing or the actual default allocation:
 
 ```yaml
 wps_cpus: 8
 wps_service_cpus: 2
 slurm_system_memory_reserve_percent: 20
+slurm_min_job_memory_mb: 4096
 slurm_default_job_memory_mb: 20000
 ```
 

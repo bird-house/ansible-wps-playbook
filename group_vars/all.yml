@@ -104,24 +104,29 @@ wps_service_cpus_resolved: >-
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
-slurm_cpus: >-
-  {{
-    [
-      (wps_cpus_resolved | int) - (wps_service_cpus_resolved | int),
-      1
-    ] | max
-  }}
-slurm_drmaa_version: 1.1.4
-slurm_roles: ['controller', 'exec']
-# Keep host services outside Slurm's allocatable memory. Jobs receive an equal
-# share by default, while deployments with memory-heavy workloads can raise
-# the per-job allocation and let Slurm run fewer jobs concurrently.
+# Keep host services outside Slurm's allocatable memory. Automatic CPU/job
+# capacity also leaves at least this much allocatable RAM per concurrent job.
 slurm_system_memory_reserve_percent: 20
+slurm_min_job_memory_mb: 4096
 slurm_real_memory_mb: >-
   {{
     ((ansible_memtotal_mb | int)
      * (100 - (slurm_system_memory_reserve_percent | int)) / 100) | int
   }}
+slurm_cpus: >-
+  {{
+    [
+      [
+        (wps_cpus_resolved | int) - (wps_service_cpus_resolved | int),
+        (slurm_real_memory_mb | int) // (slurm_min_job_memory_mb | int)
+      ] | min,
+      1
+    ] | max
+  }}
+slurm_drmaa_version: 1.1.4
+slurm_roles: ['controller', 'exec']
+# Jobs receive an equal share by default. Memory-heavy deployments can raise
+# the per-job allocation and let Slurm run fewer jobs concurrently.
 slurm_default_job_memory_mb: >-
   {{
     [

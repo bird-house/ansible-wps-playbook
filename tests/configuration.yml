@@ -120,6 +120,7 @@
           - "'dkrz' in roocs_project_path_profiles"
           - not slurm_configure_munge
           - slurm_system_memory_reserve_percent | int == 20
+          - slurm_min_job_memory_mb | int == 4096
           - slurm_real_memory_mb | int == 51200
           - slurm_default_job_memory_mb | int == 17066
           - slurm_max_job_memory_mb | int == 51200
@@ -207,6 +208,18 @@
       vars:
         wps_cpus: 3
         wps_service_cpus: 0
+
+    - name: Check automatic Slurm memory capacity
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - slurm_real_memory_mb | int == 12800
+          - wps_service_cpus_resolved | int == 2
+          - slurm_cpus | int == 3
+          - slurm_default_job_memory_mb | int == 4266
+      vars:
+        ansible_memtotal_mb: 16000
+        wps_cpus: 8
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
