@@ -68,10 +68,24 @@ job_timeout_grace_minutes: 5
 # independently overridable in deployment inventories.
 job_long_running_minutes: 10
 
+# Shared processing capacity. "auto" uses the logical CPU count reported by
+# Ansible. Set a positive integer to advertise less capacity, or override the
+# derived Slurm and Gunicorn settings independently below.
+wps_cpus: auto
+wps_cpus_resolved: >-
+  {{
+    (ansible_processor_vcpus
+     | default(ansible_processor_nproc)
+     | default(ansible_processor_count)
+     | default(1))
+    if (wps_cpus | string | lower) == 'auto'
+    else (wps_cpus | int)
+  }}
+
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
-slurm_cpus: 4
+slurm_cpus: "{{ wps_cpus_resolved }}"
 slurm_drmaa_version: 1.1.4
 slurm_roles: ['controller', 'exec']
 # Keep host services outside Slurm's allocatable memory. Jobs receive an equal
@@ -86,7 +100,10 @@ slurm_real_memory_mb: >-
 slurm_default_job_memory_mb: >-
   {{
     [
-      ((slurm_real_memory_mb | int) // (slurm_cpus | int)),
+      (
+        (slurm_real_memory_mb | int)
+        // ([slurm_cpus | int, 1] | max)
+      ),
       1
     ] | max
   }}
@@ -198,7 +215,7 @@ ssl_certs_cert_path: "{{ ssl_certs_path }}/{{ ssl_certs_common_name }}.pem"
 
 # gunicorn
 # https://docs.gunicorn.org/en/stable/settings.html
-gunicorn_workers: 9  # rule of thumb: 2 * CPUs + 1
+gunicorn_workers: "{{ (wps_cpus_resolved | int) * 2 + 1 }}"
 gunicorn_worker_connections: 1000
 gunicorn_worker_class: 'gevent'  # "sync" or "gevent", needs gevent
 gunicorn_timeout: 30
@@ -317,9 +334,9 @@ wps_cache_valid: "10m"
 wps_health_cache_valid: "30s"
 wps_log_dir: /var/log/pywps
 wps_http_log_dir: /var/log/nginx
-wps_outputs_keep_hours: 12
+wps_outputs_keep_hours: 6
 wps_outputs_keep_minutes: "{{ (wps_outputs_keep_hours | int) * 60 }}"
-wps_temp_keep_hours: 12
+wps_temp_keep_hours: 6
 wps_temp_keep_minutes: "{{ (wps_temp_keep_hours | int) * 60 }}"
 wps_services: []
   # - name: emu

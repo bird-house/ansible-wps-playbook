@@ -375,16 +375,37 @@ ln -s etc/custom-production.yml custom.yml
 > Do not commit database passwords, private keys, or other deployment secrets.
 > Store secrets in Ansible Vault or another untracked variables file.
 
+### Configure processing CPUs
+
+By default, Ansible uses the server's detected logical CPU count for WPS
+capacity:
+
+```yaml
+wps_cpus: auto
+```
+
+The resolved count is exposed as `wps_cpus_resolved`. Slurm advertises that
+many CPUs, while the Gunicorn default follows the existing `2 * CPUs + 1`
+rule. A deployment can constrain both defaults with one positive integer:
+
+```yaml
+wps_cpus: 8
+```
+
+`slurm_cpus` and `gunicorn_workers` remain independently overridable for hosts
+that need different scheduler or web-service tuning. Values other than `auto`
+or a positive integer fail validation.
+
 ### Configure output and temporary-file retention
 
 When the cleanup cron jobs are enabled, they run hourly at minute 3 and remove
-PyWPS outputs and temporary process directories older than 12 hours. Enable
+PyWPS outputs and temporary process directories older than six hours. Enable
 the jobs and configure their retention periods with:
 
 ```yaml
 cron_enabled: true
-wps_outputs_keep_hours: 12
-wps_temp_keep_hours: 12
+wps_outputs_keep_hours: 6
+wps_temp_keep_hours: 6
 ```
 
 The playbook converts the hour values to the minutes consumed by the cleanup
@@ -942,16 +963,16 @@ wps_services:
     drmaa_native_specification: ""
 ```
 
-By default, Slurm advertises all configured CPUs but also treats memory as a
-consumable resource. Twenty percent of physical RAM is reserved for the OS and
-host services. Jobs that do not request memory receive an equal share of the
-remaining RAM based on `slurm_cpus`, and cgroups enforce the allocation so a
-worker cannot trigger a host-wide OOM. Memory-heavy deployments can raise the
-default allocation; this keeps all CPUs available but admits fewer heavy jobs
-at once:
+By default, Slurm advertises the CPU count resolved from `wps_cpus` and also
+treats memory as a consumable resource. Twenty percent of physical RAM is
+reserved for the OS and host services. Jobs that do not request memory receive
+an equal share of the remaining RAM based on `slurm_cpus`, and cgroups enforce
+the allocation so a worker cannot trigger a host-wide OOM. Memory-heavy
+deployments can raise the default allocation; this keeps all CPUs available
+but admits fewer heavy jobs at once:
 
 ```yaml
-slurm_cpus: 8
+wps_cpus: 8
 slurm_system_memory_reserve_percent: 20
 slurm_default_job_memory_mb: 20000
 ```

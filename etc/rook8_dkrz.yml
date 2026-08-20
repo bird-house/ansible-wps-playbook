@@ -12,17 +12,13 @@ service_gid: 399
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
-wps_outputs_keep_hours: 6
-wps_temp_keep_hours: 6
 # conda
 conda_env_use_spec: true
-gunicorn_workers: 25
 # slurm
 slurm_enabled: true
-slurm_cpus: 12
 # Rook workers commonly need 15-18 GiB. With roughly 64 GiB installed and the
 # default 20% system reserve, this admits two ordinary workers at a time while
-# preserving all eight CPUs for smaller or explicitly sized jobs.
+# preserving all detected CPUs for smaller or explicitly sized jobs.
 # slurm_default_job_memory_mb: 4000
 # access control
 wps_enable_acl: true
@@ -35,9 +31,6 @@ roocs_profile: dkrz
 # collectd
 collectd_disk_enabled: true
 collectd_disk_mount: /mnt/rook_disk8
-# recovery
-wps_tools_job_control_recovery_enabled: true
-wps_tools_missing_status_recovery_enabled: true
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git

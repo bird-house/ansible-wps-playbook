@@ -13,6 +13,7 @@
     ansible_default_ipv4:
       interface: eth0
     ansible_memtotal_mb: 64000
+    ansible_processor_vcpus: 4
     test_primary_service:
       name: alpha
       hostname: alpha.example.test
@@ -33,6 +34,8 @@
       ansible.builtin.assert:
         quiet: true
         that:
+          - wps_outputs_keep_hours | int == 6
+          - wps_temp_keep_hours | int == 6
           - >-
             (wps_outputs_keep_minutes | int) ==
             ((wps_outputs_keep_hours | int) * 60)
@@ -59,6 +62,9 @@
           - job_long_running_minutes | float == 10
           - job_timeout_minutes | float == 90
           - job_timeout_grace_minutes | float == 5
+          - wps_cpus == 'auto'
+          - wps_cpus_resolved | int == 4
+          - gunicorn_workers | int == 9
           - wps_tools_job_control_long_running_minutes | float == 10
           - wps_tools_job_control_stale_after_minutes | float == 95
           - wps_tools_job_control_database_stale_after_minutes | float == 95
@@ -173,6 +179,16 @@
           - >-
             collectd_hourly_summary_output
             == '/var/log/collectd-hourly-summary.log'
+
+    - name: Check explicit WPS CPU override
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - wps_cpus_resolved | int == 3
+          - slurm_cpus | int == 3
+          - gunicorn_workers | int == 7
+      vars:
+        wps_cpus: 3
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -332,6 +348,7 @@
           - "'[test]' in test_pywps_config"
           - "'enabled = true' in test_pywps_config"
           - "'unix:///run/pywps/alpha.sock' in test_gunicorn_config"
+          - "'workers = 9' in test_gunicorn_config"
           - "'graceful_timeout = 30' in test_gunicorn_config"
           - "'max_requests = 1000' in test_gunicorn_config"
           - "'max_requests_jitter = 100' in test_gunicorn_config"

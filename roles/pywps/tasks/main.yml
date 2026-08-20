@@ -1,4 +1,17 @@
 ---
+- name: Validate WPS CPU settings
+  ansible.builtin.assert:
+    that:
+      - >-
+        (wps_cpus | string | lower) == 'auto'
+        or (wps_cpus | string) is match('^[1-9][0-9]*$')
+      - wps_cpus_resolved | int > 0
+      - gunicorn_workers | int > 0
+    quiet: true
+    fail_msg: >-
+      wps_cpus must be "auto" or a positive integer, and the resolved CPU and
+      Gunicorn worker counts must be positive.
+
 - name: Include base installation tasks
   include_tasks: base.yml
   tags:

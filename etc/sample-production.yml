@@ -26,8 +26,9 @@ wps_enable_https: true
 ssl_certs_cert_path: /etc/ssl/wps.example.org/wps.example.org.pem
 ssl_certs_privkey_path: /etc/ssl/wps.example.org/wps.example.org.key
 
-# Tune these values for the CPUs and workload available on the target.
-gunicorn_workers: 5
+# CPU capacity is detected automatically. Set a positive integer to constrain
+# both Slurm and the derived Gunicorn worker count.
+wps_cpus: auto
 gunicorn_timeout: 120
 
 wps_services:
