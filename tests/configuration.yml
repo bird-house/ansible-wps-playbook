@@ -143,7 +143,7 @@
           - slurm_cgroup_config.AllowedRAMSpace | int == 100
           - slurm_cgroup_config.AllowedSwapSpace | int == 0
           - slurm_nodes[0].RealMemory | int == 51200
-          - slurm_partitions[0].DefMemPerNode | int == 12800
+          - slurm_partitions[0].DefMemPerNode | int == 17066
           - slurm_partitions[0].MaxMemPerNode | int == 51200
           - slurm_job_timeout_minutes | int == 90
           - slurm_partitions[0].DefaultTime | int == 90
