@@ -716,7 +716,9 @@ by total frequency. Within each category, datasets and selection groups are
 ordered by frequency. The `--top` allowance is distributed across categories
 so one noisy cause does not hide every other cause. Verbose `cftime` datetime
 representations are reduced to their requested years, and traceback text is
-removed from recognized root causes.
+removed from recognized root causes. Human-readable reasons are limited to 300
+characters and end in `[..]` when truncated; JSON output retains the complete
+message.
 
 JSON `ComplexData` is expanded into useful dotted coverage dimensions.
 Orchestrate workflows receive dedicated dimensions such as
@@ -730,10 +732,11 @@ log or incident follow-up.
 Repeated Python tracebacks are reduced to their actionable exception. Memory
 detection recognizes common OOM, cgroup and Python
 allocation errors; timeout detection recognizes Slurm time-limit cancellation,
-wall-clock, deadline, timed-out, and stale no-update recovery messages. Both
-plain and gzip-compressed logrotate files are accepted, and duplicate job IDs
-across rotations are ignored. `--top` controls the number of values and
-detailed failure groups retained.
+wall-clock, deadline, timed-out, and stale no-update recovery messages. The
+root-cause reducer also extracts plain Slurm cancellation lines from verbose
+diagnostic output. Both plain and gzip-compressed logrotate files are accepted,
+and duplicate job IDs across rotations are ignored. `--top` controls the number
+of values and detailed failure groups retained.
 
 When orchestrate records are present, a dedicated production-data section
 resolves workflow aliases such as `inputs/tas` to their complete collection

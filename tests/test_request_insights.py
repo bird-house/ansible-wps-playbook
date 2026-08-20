@@ -210,6 +210,21 @@ class RequestInsightsTests(unittest.TestCase):
             "2026-08-12T19:59:13 DUE TO TIME LIMIT ***",
         )
 
+    def test_scheduler_cancellation_discards_preceding_diagnostics(self):
+        item = record(
+            "1",
+            "failed",
+            "[rook-diagnostic] selected_vars=time dtype=object "
+            "[rook-diagnostic] before direct xarray delayed write "
+            "slurmstepd: error: *** JOB 28327 ON localhost CANCELLED AT "
+            "2026-08-19T21:01:02 ***",
+        )
+        self.assertEqual(
+            MODULE.primary_failure_message(item),
+            "slurmstepd: error: *** JOB 28327 ON localhost CANCELLED AT "
+            "2026-08-19T21:01:02 ***",
+        )
+
     def test_longitude_domain_failure_is_spatial(self):
         item = record(
             "1",
@@ -311,6 +326,12 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertIn("Duration: median=1.0m  p95=1.0m  max=1.0m", text)
         self.assertNotIn("outcomes=", text)
+
+    def test_detail_messages_are_limited_without_changing_short_messages(self):
+        self.assertEqual(MODULE.truncate_detail_message("short reason"), "short reason")
+        shortened = MODULE.truncate_detail_message("x" * 400)
+        self.assertEqual(len(shortened), MODULE.MAX_DETAIL_MESSAGE_LENGTH)
+        self.assertTrue(shortened.endswith(" [..]"))
 
     def test_orchestrate_text_uses_one_line_per_collection(self):
         workflow = {

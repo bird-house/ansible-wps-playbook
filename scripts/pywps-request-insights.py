@@ -18,6 +18,8 @@ from typing import Iterable, TextIO
 
 UTC = timezone.utc
 DETAIL_CATEGORY_PRIORITY = ("memory", "timeout")
+MAX_DETAIL_MESSAGE_LENGTH = 300
+TRUNCATION_MARKER = " [..]"
 FAILURE_PATTERNS = (
     (
         "memory",
@@ -80,6 +82,10 @@ NO_DATA_RE = re.compile(
 )
 SLURM_TIME_LIMIT_RE = re.compile(
     r"slurmstepd: error: \*{3} JOB .+? DUE TO TIME LIMIT \*{3}",
+    re.IGNORECASE,
+)
+SLURM_CANCELLATION_RE = re.compile(
+    r"slurmstepd: error: \*{3} JOB .+? CANCELLED AT .+? \*{3}",
     re.IGNORECASE,
 )
 SLURM_OOM_MESSAGE_RE = re.compile(
@@ -411,6 +417,9 @@ def concise_failure_message(message: str) -> str:
     time_limit = SLURM_TIME_LIMIT_RE.search(normalized)
     if time_limit:
         return time_limit.group(0)
+    cancellation = SLURM_CANCELLATION_RE.search(normalized)
+    if cancellation:
+        return cancellation.group(0)
     oom = SLURM_OOM_MESSAGE_RE.search(normalized)
     if oom:
         return oom.group(0)
@@ -684,6 +693,14 @@ def format_timestamp(value: object) -> str:
     return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
+def truncate_detail_message(value: object) -> str:
+    message = str(value)
+    if len(message) <= MAX_DETAIL_MESSAGE_LENGTH:
+        return message
+    retained = MAX_DETAIL_MESSAGE_LENGTH - len(TRUNCATION_MARKER)
+    return f"{message[:retained].rstrip()}{TRUNCATION_MARKER}"
+
+
 def print_detail_field(label: str, value: str, *, indent: int = 4) -> None:
     prefix = f"{' ' * indent}{label}: "
     print(
@@ -805,7 +822,11 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
                             f"time={','.join(failure['time_ranges']) or 'unknown'}",
                             indent=8,
                         )
-                        print_detail_field("Reason", failure["message"], indent=8)
+                        print_detail_field(
+                            "Reason",
+                            truncate_detail_message(failure["message"]),
+                            indent=8,
+                        )
                         print_detail_field(
                             "Jobs", ", ".join(failure["example_jobs"]), indent=8
                         )
@@ -835,7 +856,7 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
                 jobs = ",".join(item["example_jobs"])
                 print(
                     f"    {item['count']:>5} [{item['category']}] "
-                    f"{item['message']}{suffix} jobs={jobs}"
+                    f"{truncate_detail_message(item['message'])}{suffix} jobs={jobs}"
                 )
 
 
