@@ -15,6 +15,8 @@ from datetime import datetime, time, timezone
 from pathlib import Path
 from typing import Iterable, TextIO
 
+from wps_tools_events import MEMORY_FAILURE_RE, TIMEOUT_FAILURE_RE
+
 
 UTC = timezone.utc
 DETAIL_CATEGORY_PRIORITY = ("memory", "timeout")
@@ -23,20 +25,11 @@ TRUNCATION_MARKER = " [..]"
 FAILURE_PATTERNS = (
     (
         "memory",
-        re.compile(
-            r"\b(?:oom|oom-kill|memoryerror)\b|out of memory|cannot allocate memory|"
-            r"memory (?:limit|allocation)|exceeded[^\n]*memory",
-            re.IGNORECASE,
-        ),
+        MEMORY_FAILURE_RE,
     ),
     (
         "timeout",
-        re.compile(
-            r"timed?\s*out|time(?: |-)?limit|deadline exceeded|walltime|wall clock|"
-            r"cancelled[^\n]*time|no (?:status|database) update[^\n]*minutes|"
-            r"exceeded[^\n]*(?:run|execution) time",
-            re.IGNORECASE,
-        ),
+        TIMEOUT_FAILURE_RE,
     ),
     (
         "no-data",
@@ -809,29 +802,39 @@ def print_report(
                 f"max={format_duration(duration['max_seconds'])}"
             )
 
+    orchestrate_only = set(report["processes"]) == {"orchestrate"}
     orchestrate = report["orchestrate"]
     if orchestrate is not None:
+        if not orchestrate_only:
+            print("\nOrchestrate data")
+        indent = "" if orchestrate_only else "  "
         print(
-            f"Metadata: available={orchestrate['jobs_with_workflow_lineage']} "
+            f"{indent}Metadata: available={orchestrate['jobs_with_workflow_lineage']} "
             f" missing={orchestrate['jobs_without_workflow_lineage']}"
         )
-        print("\nFailure causes")
-        if not orchestrate["failure_categories"]:
-            print("  No failures.")
-        for category, count in orchestrate["failure_categories"].items():
-            print(f"  {category}: {count}")
-        print(f"\nDatasets ({len(orchestrate['collections'])})")
+        if orchestrate_only:
+            print("\nFailure causes")
+            if not orchestrate["failure_categories"]:
+                print("  No failures.")
+            for category, count in orchestrate["failure_categories"].items():
+                print(f"  {category}: {count}")
+        dataset_indent = "" if orchestrate_only else "  "
+        item_indent = "  " if orchestrate_only else "    "
+        print(f"\n{dataset_indent}Datasets ({len(orchestrate['collections'])})")
         if not orchestrate["collections"]:
-            print("  No datasets were identified in the retained request metadata.")
+            print(
+                f"{item_indent}No datasets were identified in the retained "
+                "request metadata."
+            )
         for collection, values in orchestrate["collections"].items():
             outcomes = values["outcomes"]
             print(
-                f"  {collection}: requests={values['requests']} "
+                f"{item_indent}{collection}: requests={values['requests']} "
                 f"success={outcomes.get('successful', 0)} "
                 f"failures={outcomes.get('failed', 0)} "
                 f"years={values['year_coverage']}"
             )
-        if failure_details:
+        if failure_details and orchestrate_only:
             shown = len(orchestrate["failures"])
             groups = orchestrate["failure_group_count"]
             heading = "\nFailure details"
@@ -886,7 +889,7 @@ def print_report(
                             "Jobs", ", ".join(failure["example_jobs"]), indent=8
                         )
 
-    if set(report["processes"]) != {"orchestrate"}:
+    if not orchestrate_only:
         if coverage:
             print("\nRequested-data coverage")
             if not report["coverage"]:

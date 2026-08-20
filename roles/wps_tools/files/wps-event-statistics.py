@@ -8,14 +8,13 @@ import csv
 import fcntl
 import json
 import os
-import re
 import statistics
 import tempfile
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from wps_tools_events import open_jsonl
+from wps_tools_events import MEMORY_FAILURE_RE, TIMEOUT_FAILURE_RE, open_jsonl
 
 
 UTC = timezone.utc
@@ -36,10 +35,6 @@ FIELDS = (
     "long_running_jobs",
     "operation_errors",
 )
-MEMORY_RE = re.compile(r"\b(?:oom|oom-kill|memoryerror)\b|out of memory", re.I)
-TIMEOUT_RE = re.compile(r"timed?\s*out|time(?: |-)?limit|walltime|deadline", re.I)
-
-
 def parse_timestamp(value: object) -> datetime | None:
     if not isinstance(value, str):
         return None
@@ -130,6 +125,7 @@ def daily_rows(records: list[dict[str, object]], service: str) -> dict[str, dict
             if isinstance(item.get("duration_seconds"), (int, float))
         ]
         failed = [item for item in requests if item.get("outcome") == "failed"]
+        failed_diagnostics = [diagnostic_text(item) for item in failed]
         recovered = {
             str(item["job_id"])
             for item in operations
@@ -151,8 +147,13 @@ def daily_rows(records: list[dict[str, object]], service: str) -> dict[str, dict
             "duration_median_seconds": round(statistics.median(durations), 3) if durations else "",
             "duration_p95_seconds": round(percentile(durations, 0.95), 3) if durations else "",
             "duration_max_seconds": round(max(durations), 3) if durations else "",
-            "memory_failures": sum(bool(MEMORY_RE.search(diagnostic_text(item))) for item in failed),
-            "timeout_failures": sum(bool(TIMEOUT_RE.search(diagnostic_text(item))) for item in failed),
+            "memory_failures": sum(
+                bool(MEMORY_FAILURE_RE.search(text)) for text in failed_diagnostics
+            ),
+            "timeout_failures": sum(
+                not MEMORY_FAILURE_RE.search(text) and bool(TIMEOUT_FAILURE_RE.search(text))
+                for text in failed_diagnostics
+            ),
             "recovered_jobs": len(recovered),
             "long_running_jobs": len(long_running),
             "operation_errors": sum(

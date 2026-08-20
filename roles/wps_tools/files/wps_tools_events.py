@@ -16,6 +16,17 @@ from typing import Iterable, TextIO
 UTC = timezone.utc
 SCHEMA_VERSION = 1
 FIELD_RE = re.compile(r"(?:^|\s)([A-Za-z_][A-Za-z0-9_-]*)=(\S+)")
+MEMORY_FAILURE_RE = re.compile(
+    r"\b(?:oom|oom-kill|memoryerror)\b|out of memory|cannot allocate memory|"
+    r"memory (?:limit|allocation)|exceeded[^\n]*memory",
+    re.IGNORECASE,
+)
+TIMEOUT_FAILURE_RE = re.compile(
+    r"timed?\s*out|time(?: |-)?limit|deadline exceeded|walltime|wall clock|"
+    r"cancelled[^\n]*time|no (?:status|database) update[^\n]*minutes|"
+    r"exceeded[^\n]*(?:run|execution) time",
+    re.IGNORECASE,
+)
 
 
 def now_text() -> str:

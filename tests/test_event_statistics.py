@@ -51,16 +51,21 @@ class EventStatisticsTests(unittest.TestCase):
             request("one", "successful"),
             request("two", "failed", "Detected an oom-kill event"),
             request("three", "failed", "Cancelled due to time limit"),
+            request(
+                "four",
+                "failed",
+                "stalled-job recovery found no database update for at least 30 minutes",
+            ),
             operation("job-recovered", "two"),
             operation("job-long-running", "four"),
             operation("job-long-running", "four"),
         ]
         row = MODULE.daily_rows(records, "rook")["2026-08-19"]
-        self.assertEqual(row["requests"], "3")
+        self.assertEqual(row["requests"], "4")
         self.assertEqual(row["successful"], "1")
-        self.assertEqual(row["failed"], "2")
+        self.assertEqual(row["failed"], "3")
         self.assertEqual(row["memory_failures"], "1")
-        self.assertEqual(row["timeout_failures"], "1")
+        self.assertEqual(row["timeout_failures"], "2")
         self.assertEqual(row["recovered_jobs"], "1")
         self.assertEqual(row["long_running_jobs"], "1")
 

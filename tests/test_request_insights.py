@@ -18,6 +18,7 @@ SCRIPT = (
     / "files"
     / "pywps-request-insights.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("pywps_request_insights", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -436,6 +437,19 @@ class RequestInsightsTests(unittest.TestCase):
             MODULE.print_report(report, coverage=True)
         self.assertIn("Requested-data coverage", expanded.getvalue())
         self.assertIn("subset.dataset: uses=1 distinct=1", expanded.getvalue())
+
+    def test_all_processes_labels_orchestrate_data_without_duplicate_causes(self):
+        orchestrate = dict(record("1", "failed", "Detected an oom-kill event"))
+        orchestrate["process"] = "orchestrate"
+        report = MODULE.aggregate([orchestrate, record("2")], top=10)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(report)
+        text = output.getvalue()
+        self.assertIn("Orchestrate data\n  Metadata:", text)
+        self.assertIn("\n  Datasets (0)", text)
+        self.assertIn("All-process failure causes", text)
+        self.assertNotIn("\nFailure causes\n", text)
 
     def test_detail_messages_are_limited_without_changing_short_messages(self):
         self.assertEqual(MODULE.truncate_detail_message("short reason"), "short reason")
