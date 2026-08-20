@@ -711,7 +711,10 @@ failure-category totals, and one line per requested dataset. A process table
 is shown only when multiple processes are selected. Use `--details` to append
 failure blocks grouped by dataset, with their selection, concise reason and
 example job IDs, or `--json` for the complete machine-readable report. The
-most frequent detailed groups are shown first, verbose `cftime` datetime
+detailed view shows `memory` and `timeout` first, then the remaining categories
+by total frequency. Within each category, datasets and selection groups are
+ordered by frequency. The `--top` allowance is distributed across categories
+so one noisy cause does not hide every other cause. Verbose `cftime` datetime
 representations are reduced to their requested years, and traceback text is
 removed from recognized root causes.
 

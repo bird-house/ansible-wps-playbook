@@ -391,11 +391,12 @@ class RequestInsightsTests(unittest.TestCase):
             detailed_text.index("c3s-cmip6.example.tas"),
             detailed_text.index("Failure details"),
         )
-        self.assertIn("  Dataset: c3s-cmip6.example.tas", detailed_text)
-        self.assertIn("    [timeout] 1 request", detailed_text)
-        self.assertIn("      Selection: years=2050  time=2050/2050", detailed_text)
-        self.assertIn("      Reason: Job cancelled due to time limit", detailed_text)
-        self.assertIn("      Jobs: 1", detailed_text)
+        self.assertIn("  Timeout (1 failure)", detailed_text)
+        self.assertIn("    Dataset: c3s-cmip6.example.tas", detailed_text)
+        self.assertIn("      1 request", detailed_text)
+        self.assertIn("        Selection: years=2050  time=2050/2050", detailed_text)
+        self.assertIn("        Reason: Job cancelled due to time limit", detailed_text)
+        self.assertIn("        Jobs: 1", detailed_text)
 
     def test_classifies_common_time_selection_failures(self):
         no_timesteps = record(
@@ -434,6 +435,13 @@ class RequestInsightsTests(unittest.TestCase):
                 "exception, another exception occurred: Traceback (most recent call last)"
             ),
             "Invalid time components: month:oct,nov,dec;year:2016,2017",
+        )
+
+    def test_detail_categories_prioritize_operational_failures(self):
+        counts = {"no-data": 22, "memory": 9, "input": 6, "other": 4, "timeout": 3}
+        self.assertEqual(
+            MODULE.detail_category_order(counts),
+            ["memory", "timeout", "no-data", "input", "other"],
         )
 
     def test_collection_sorting_by_name_and_frequency(self):

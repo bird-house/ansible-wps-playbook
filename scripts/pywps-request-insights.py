@@ -17,6 +17,7 @@ from typing import Iterable, TextIO
 
 
 UTC = timezone.utc
+DETAIL_CATEGORY_PRIORITY = ("memory", "timeout")
 FAILURE_PATTERNS = (
     (
         "memory",
@@ -205,6 +206,15 @@ def failure_category(record: dict[str, object]) -> str:
     if GENERIC_FAILURE_RE.match(text.strip()):
         return "unknown"
     return "other" if text.strip() else "unknown"
+
+
+def detail_category_order(counts: dict[str, int] | Counter[str]) -> list[str]:
+    prioritized = [name for name in DETAIL_CATEGORY_PRIORITY if counts.get(name, 0)]
+    remaining = sorted(
+        (name for name in counts if name not in DETAIL_CATEGORY_PRIORITY),
+        key=lambda name: (-counts[name], name),
+    )
+    return prioritized + remaining
 
 
 def flatten_json(prefix: str, value: object) -> list[tuple[str, str]]:
@@ -489,10 +499,26 @@ def aggregate_orchestrate(
                 for value, count in collection_ranges[collection].most_common(top)
             ],
         }
-    failure_items = sorted(
-        failures.items(),
-        key=lambda item: (-item[1], item[0][3], item[0][0], item[0][1:3], item[0][4]),
-    )
+    failures_by_category = defaultdict(list)
+    for item in failures.items():
+        failures_by_category[item[0][3]].append(item)
+    for items in failures_by_category.values():
+        items.sort(key=lambda item: (-item[1], item[0][0], item[0][1:3], item[0][4]))
+    category_order = detail_category_order(failure_categories)
+    failure_items = []
+    group_index = 0
+    while len(failure_items) < top:
+        added = False
+        for category in category_order:
+            items = failures_by_category[category]
+            if group_index < len(items):
+                failure_items.append(items[group_index])
+                added = True
+                if len(failure_items) == top:
+                    break
+        if not added:
+            break
+        group_index += 1
     failure_report = [
         {
             "count": count,
@@ -742,31 +768,47 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
             print(heading)
             if not orchestrate["failures"]:
                 print("  No failures.")
-            failures_by_collection: dict[str, list[dict[str, object]]] = {}
+            failures_by_category: dict[str, list[dict[str, object]]] = {}
             for failure in orchestrate["failures"]:
-                failures_by_collection.setdefault(failure["collection"], []).append(failure)
-            for collection_index, (collection, collection_failures) in enumerate(
-                failures_by_collection.items()
+                failures_by_category.setdefault(failure["category"], []).append(failure)
+            for category_index, category in enumerate(
+                detail_category_order(orchestrate["failure_categories"])
             ):
-                if collection_index:
+                category_failures = failures_by_category.get(category, [])
+                if not category_failures:
+                    continue
+                if category_index:
                     print()
-                print_detail_field("Dataset", collection, indent=2)
-                for failure_index, failure in enumerate(collection_failures):
-                    if failure_index:
+                category_total = orchestrate["failure_categories"][category]
+                failure_label = "failure" if category_total == 1 else "failures"
+                print(f"  {category.capitalize()} ({category_total} {failure_label})")
+                failures_by_collection: dict[str, list[dict[str, object]]] = {}
+                for failure in category_failures:
+                    failures_by_collection.setdefault(failure["collection"], []).append(
+                        failure
+                    )
+                for collection_index, (collection, collection_failures) in enumerate(
+                    failures_by_collection.items()
+                ):
+                    if collection_index:
                         print()
-                    count = failure["count"]
-                    request_label = "request" if count == 1 else "requests"
-                    print(f"    [{failure['category']}] {count} {request_label}")
-                    print_detail_field(
-                        "Selection",
-                        f"years={failure['years']}  "
-                        f"time={','.join(failure['time_ranges']) or 'unknown'}",
-                        indent=6,
-                    )
-                    print_detail_field("Reason", failure["message"], indent=6)
-                    print_detail_field(
-                        "Jobs", ", ".join(failure["example_jobs"]), indent=6
-                    )
+                    print_detail_field("Dataset", collection, indent=4)
+                    for failure_index, failure in enumerate(collection_failures):
+                        if failure_index:
+                            print()
+                        count = failure["count"]
+                        request_label = "request" if count == 1 else "requests"
+                        print(f"      {count} {request_label}")
+                        print_detail_field(
+                            "Selection",
+                            f"years={failure['years']}  "
+                            f"time={','.join(failure['time_ranges']) or 'unknown'}",
+                            indent=8,
+                        )
+                        print_detail_field("Reason", failure["message"], indent=8)
+                        print_detail_field(
+                            "Jobs", ", ".join(failure["example_jobs"]), indent=8
+                        )
 
     if set(report["processes"]) != {"orchestrate"}:
         print("\nRequested-data coverage")
