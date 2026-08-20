@@ -37,7 +37,8 @@ FAILURE_PATTERNS = (
     (
         "no-data",
         re.compile(
-            r"no valid data points|no data (?:found|available)|empty (?:subset|selection)",
+            r"no valid data points|no data (?:found|available)|empty (?:subset|selection)|"
+            r"no timesteps? (?:are )?matching (?:the )?selection criteria",
             re.IGNORECASE,
         ),
     ),
@@ -53,7 +54,8 @@ FAILURE_PATTERNS = (
         "input",
         re.compile(
             r"invalid (?:input|parameter)|missing (?:input|parameter)|not found|"
-            r"unavailable|permission denied|access denied",
+            r"unavailable|permission denied|access denied|"
+            r"cannot create TimeComponentsParameter",
             re.IGNORECASE,
         ),
     ),
@@ -506,8 +508,12 @@ def aggregate(
     failure_messages: Counter[tuple[str, str, str, str]] = Counter()
     failure_jobs: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
     timestamps = []
+    services = set()
 
     for record in records:
+        service = record.get("service")
+        if isinstance(service, str) and service:
+            services.add(service)
         outcome = str(record.get("outcome") or "unknown")
         process = str(record.get("process") or "unknown")
         outcomes[outcome] += 1
@@ -591,6 +597,7 @@ def aggregate(
         for key, count in failure_messages.most_common(top)
     ]
     return {
+        "services": sorted(services),
         "period": {
             "first": min(timestamps).isoformat() if timestamps else None,
             "last": max(timestamps).isoformat() if timestamps else None,
@@ -622,53 +629,67 @@ def format_timestamp(value: object) -> str:
     if not isinstance(value, str):
         return "n/a"
     try:
-        return datetime.fromisoformat(value).isoformat(timespec="seconds")
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def print_report(report: dict[str, object]) -> None:
+def print_report(report: dict[str, object], *, details: bool = False) -> None:
     period = report["period"]
     outcomes = report["outcomes"]
     failures = int(outcomes.get("failed", 0))
     successful = int(outcomes.get("successful", 0))
     total = int(report["requests"])
     rate = (successful / total * 100) if total else 0
-    print("PyWPS request insights")
+    services = report.get("services", [])
+    service_suffix = f" — {services[0]}" if len(services) == 1 else ""
+    print(f"PyWPS request insights{service_suffix}")
     print(
         f"Period: {format_timestamp(period['first'])} "
         f"to {format_timestamp(period['last'])}"
     )
-    print(f"Requests: {total}  successful={successful}  failed={failures}  success_rate={rate:.1f}%")
+    print(
+        f"\nRequests: {total}  success={successful}  failures={failures} "
+        f" success_rate={rate:.1f}%"
+    )
+    duration = report["durations"].get("all", {})
+    print(
+        f"Duration: median={format_duration(duration.get('median_seconds'))} "
+        f" p95={format_duration(duration.get('p95_seconds'))} "
+        f" max={format_duration(duration.get('max_seconds'))}"
+    )
 
-    print("\nProcesses")
-    for name, values in report["processes"].items():
-        duration = values["durations"]
-        process_outcomes = values["outcomes"]
-        print(
-            f"  {name}: requests={values['requests']} "
-            f"success={process_outcomes.get('successful', 0)} "
-            f"failures={process_outcomes.get('failed', 0)} "
-            f"median={format_duration(duration['median_seconds'])} "
-            f"p95={format_duration(duration['p95_seconds'])} "
-            f"max={format_duration(duration['max_seconds'])}"
-        )
+    if len(report["processes"]) > 1:
+        print("\nProcesses")
+        for name, values in report["processes"].items():
+            duration = values["durations"]
+            process_outcomes = values["outcomes"]
+            print(
+                f"  {name}: requests={values['requests']} "
+                f"success={process_outcomes.get('successful', 0)} "
+                f"failures={process_outcomes.get('failed', 0)} "
+                f"median={format_duration(duration['median_seconds'])} "
+                f"p95={format_duration(duration['p95_seconds'])} "
+                f"max={format_duration(duration['max_seconds'])}"
+            )
 
     orchestrate = report["orchestrate"]
     if orchestrate is not None:
-        print("\nOrchestrate production data")
         print(
-            f"  requests={orchestrate['requests']} "
-            f"workflow_lineage={orchestrate['jobs_with_workflow_lineage']} "
-            f"missing_lineage={orchestrate['jobs_without_workflow_lineage']}"
+            f"Metadata: available={orchestrate['jobs_with_workflow_lineage']} "
+            f" missing={orchestrate['jobs_without_workflow_lineage']}"
         )
-        print("  Failure causes (unique jobs)")
+        print("\nFailure causes")
         if not orchestrate["failure_categories"]:
-            print("    No orchestrate failures.")
+            print("  No failures.")
         for category, count in orchestrate["failure_categories"].items():
-            print(f"    {category}: {count}")
+            print(f"  {category}: {count}")
+        print(f"\nDatasets ({len(orchestrate['collections'])})")
         if not orchestrate["collections"]:
-            print("  No requested collections were retained in XML lineage.")
+            print("  No datasets were identified in the retained request metadata.")
         for collection, values in orchestrate["collections"].items():
             outcomes = values["outcomes"]
             print(
@@ -677,22 +698,23 @@ def print_report(report: dict[str, object]) -> None:
                 f"failures={outcomes.get('failed', 0)} "
                 f"years={values['year_coverage']}"
             )
-        shown = len(orchestrate["failures"])
-        groups = orchestrate["failure_group_count"]
-        heading = "  Failed data"
-        if shown < groups:
-            heading += f" (showing {shown} of {groups} groups; increase --top to see more)"
-        print(heading)
-        if not orchestrate["failures"]:
-            print("    No orchestrate failures.")
-        for failure in orchestrate["failures"]:
-            jobs = ",".join(failure["example_jobs"])
-            print(
-                f"    {failure['count']:>5} [{failure['category']}] "
-                f"{failure['collection']}: years={failure['years']} "
-                f"time={','.join(failure['time_ranges']) or 'unknown'} "
-                f"reason={failure['message']} jobs={jobs}"
-            )
+        if details:
+            shown = len(orchestrate["failures"])
+            groups = orchestrate["failure_group_count"]
+            heading = "\nFailure details"
+            if shown < groups:
+                heading += f" (showing {shown} of {groups} groups; increase --top to see more)"
+            print(heading)
+            if not orchestrate["failures"]:
+                print("  No failures.")
+            for failure in orchestrate["failures"]:
+                jobs = ",".join(failure["example_jobs"])
+                print(
+                    f"  {failure['count']:>5} [{failure['category']}] "
+                    f"{failure['collection']}: years={failure['years']} "
+                    f"time={','.join(failure['time_ranges']) or 'unknown'} "
+                    f"reason={failure['message']} jobs={jobs}"
+                )
 
     if set(report["processes"]) != {"orchestrate"}:
         print("\nRequested-data coverage")
@@ -703,22 +725,24 @@ def print_report(report: dict[str, object]) -> None:
             for item in values["top_values"]:
                 print(f"    {item['count']:>5}  {item['value']}")
 
-        print("\nFailure causes")
+        heading = "All-process failure causes" if orchestrate is not None else "Failure causes"
+        print(f"\n{heading}")
         if not report["failure_categories"]:
             print("  No failures.")
         for category, count in report["failure_categories"].items():
             percentage = (count / failures * 100) if failures else 0
             print(f"  {category}: {count} ({percentage:.1f}%)")
-        for item in report["failure_messages"]:
-            details = " ".join(
-                value for value in (item["code"], item["locator"]) if value
-            )
-            suffix = f" ({details})" if details else ""
-            jobs = ",".join(item["example_jobs"])
-            print(
-                f"    {item['count']:>5} [{item['category']}] "
-                f"{item['message']}{suffix} jobs={jobs}"
-            )
+        if details:
+            for item in report["failure_messages"]:
+                context = " ".join(
+                    value for value in (item["code"], item["locator"]) if value
+                )
+                suffix = f" ({context})" if context else ""
+                jobs = ",".join(item["example_jobs"])
+                print(
+                    f"    {item['count']:>5} [{item['category']}] "
+                    f"{item['message']}{suffix} jobs={jobs}"
+                )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -738,6 +762,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="include every process instead of only orchestrate",
     )
     parser.add_argument("--top", type=int, default=10, help="values/messages per section")
+    parser.add_argument(
+        "--details",
+        action="store_true",
+        help="include grouped failure messages and example job IDs",
+    )
     parser.add_argument(
         "--sort",
         choices=("name", "requests", "successful", "failed"),
@@ -775,7 +804,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print_report(report)
+        print_report(report, details=args.details)
     for error in errors:
         print(error, file=sys.stderr)
     return 1 if errors else 0

@@ -286,10 +286,13 @@ class RequestInsightsTests(unittest.TestCase):
         output = io.StringIO()
         with redirect_stdout(output):
             MODULE.print_report(report)
-        self.assertIn("PyWPS request insights", output.getvalue())
-        self.assertIn("Orchestrate production data", output.getvalue())
-        self.assertNotIn("Requested-data coverage", output.getvalue())
-        self.assertNotIn("\nFailure causes", output.getvalue())
+        text = output.getvalue()
+        self.assertIn("PyWPS request insights — rook", text)
+        self.assertIn("Metadata: available=0  missing=1", text)
+        self.assertIn("Datasets (0)", text)
+        self.assertNotIn("Processes", text)
+        self.assertNotIn("Requested-data coverage", text)
+        self.assertNotIn("All-process failure causes", text)
 
     def test_text_uses_compact_timestamps_and_outcomes(self):
         item = dict(record("1"), process="orchestrate")
@@ -299,11 +302,14 @@ class RequestInsightsTests(unittest.TestCase):
             MODULE.print_report(MODULE.aggregate([item], top=10))
         text = output.getvalue()
         self.assertIn(
-            "Period: 2026-08-01T10:00:00+00:00 "
-            "to 2026-08-01T10:00:00+00:00",
+            "Period: 2026-08-01 10:00 UTC to 2026-08-01 10:00 UTC",
             text,
         )
-        self.assertIn("orchestrate: requests=1 success=1 failures=0", text)
+        self.assertIn(
+            "Requests: 1  success=1  failures=0  success_rate=100.0%",
+            text,
+        )
+        self.assertIn("Duration: median=1.0m  p95=1.0m  max=1.0m", text)
         self.assertNotIn("outcomes=", text)
 
     def test_orchestrate_text_uses_one_line_per_collection(self):
@@ -376,7 +382,29 @@ class RequestInsightsTests(unittest.TestCase):
             MODULE.print_report(MODULE.aggregate([item], top=10))
         text = output.getvalue()
         self.assertLess(text.index("Failure causes"), text.index("c3s-cmip6.example.tas"))
-        self.assertLess(text.index("c3s-cmip6.example.tas"), text.index("Failed data"))
+        self.assertNotIn("Failure details", text)
+        detailed = io.StringIO()
+        with redirect_stdout(detailed):
+            MODULE.print_report(MODULE.aggregate([item], top=10), details=True)
+        detailed_text = detailed.getvalue()
+        self.assertLess(
+            detailed_text.index("c3s-cmip6.example.tas"),
+            detailed_text.index("Failure details"),
+        )
+
+    def test_classifies_common_time_selection_failures(self):
+        no_timesteps = record(
+            "1",
+            "failed",
+            "No timesteps are matching the selection criteria.",
+        )
+        invalid_components = record(
+            "2",
+            "failed",
+            "Cannot create TimeComponentsParameter from: month:oct,nov,dez",
+        )
+        self.assertEqual(MODULE.failure_category(no_timesteps), "no-data")
+        self.assertEqual(MODULE.failure_category(invalid_components), "input")
 
     def test_collection_sorting_by_name_and_frequency(self):
         records = []

@@ -696,6 +696,7 @@ sudo /var/lib/pywps/insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
 sudo /var/lib/pywps/insights SERVICE_NAME --process subset --json
 sudo /var/lib/pywps/insights SERVICE_NAME --sort failed
+sudo /var/lib/pywps/insights SERVICE_NAME --details --top 20
 ```
 
 `insights` selects `orchestrate` by default. Use `--all-processes` for
@@ -704,37 +705,43 @@ Collections are ordered alphabetically by default. Use `--sort requests`,
 `--sort successful`, or `--sort failed` for descending frequency; names break
 ties deterministically.
 
-The report groups requests by process, summarizes median, 95th-percentile and
-maximum durations, and lists the most frequently requested values for every
-process/input pair. JSON `ComplexData` is expanded into useful dotted coverage
-dimensions. Orchestrate workflows receive dedicated dimensions such as
+The default report is a compact operational overview: request outcomes,
+median, 95th-percentile and maximum durations, retained workflow metadata,
+failure-category totals, and one line per requested dataset. A process table
+is shown only when multiple processes are selected. Use `--details` to append
+grouped failure messages and example job IDs, or `--json` for the complete
+machine-readable report.
+
+JSON `ComplexData` is expanded into useful dotted coverage dimensions.
+Orchestrate workflows receive dedicated dimensions such as
 `orchestrate.workflow.inputs.tas` and
 `orchestrate.workflow.steps.subset.time`, with generated step names collapsed
 to their `run` operation. Derived references such as `subset_tas_1/output` are
 not counted as source collections. Failures are grouped into `memory`,
-`timeout`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and `unknown`, followed by
-concise root-cause messages and example job IDs for log or incident follow-up.
+`timeout`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and `unknown`.
+Detailed output includes concise root-cause messages and example job IDs for
+log or incident follow-up.
 Repeated Python tracebacks are reduced to their actionable exception. Memory
 detection recognizes common OOM, cgroup and Python
 allocation errors; timeout detection recognizes Slurm time-limit cancellation,
 wall-clock, deadline, timed-out, and stale no-update recovery messages. Both
 plain and gzip-compressed logrotate files are accepted, and duplicate job IDs
 across rotations are ignored. `--top` controls the number of values and
-messages shown.
+detailed failure groups retained.
 
 When orchestrate records are present, a dedicated production-data section
 resolves workflow aliases such as `inputs/tas` to their complete collection
 identifiers. It expands `time` ranges and `time_components` into inclusive year
-coverage, reports the requested ranges per collection, and associates each
-failed workflow with its collection, failure category, message, and example
-job IDs. Failures are grouped separately by requested year coverage and time
-range so problems affecting different periods are not merged. The section
-explicitly counts workflows without retained input lineage.
+coverage and associates each failed workflow with its collection, failure
+category, message, and example job IDs. With `--details`, failures are grouped
+separately by requested year coverage and time range so problems affecting
+different periods are not merged. The overview explicitly counts requests
+with and without retained workflow metadata.
 
 Failure-category totals always include every selected failed job, so rare
-memory and timeout events remain visible even when `--top` limits the detailed
-collection/period groups. The report states when groups were omitted; increase
-`--top` to inspect more of them.
+memory and timeout events remain visible even when `--top` limits detailed
+collection/period groups. Detailed output states when groups were omitted;
+increase `--top` to inspect more of them.
 
 Because `orchestrate` is the default selection, its text report omits the
 generic coverage and failure sections that would duplicate the production-data
