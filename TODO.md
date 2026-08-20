@@ -49,6 +49,19 @@ by the PyWPS deployment.
 - Consider temporary-work-directory cleanup only after it can be associated
   with a request without risking another active job's files.
 
+### Unified job and resource view
+
+- Add a combined `qtop` and `ptop` maintainer view covering PyWPS database
+  jobs, Slurm state, and memory usage. Correlate jobs with a durable
+  `PyWPS UUID -> Slurm job ID` mapping captured at submission time rather than
+  relying on worker PIDs, which are not stored in the PyWPS database and are
+  short-lived.
+- Show live Slurm `MaxRSS` for running jobs and retain completed-job memory
+  measurements for process-level median, p95, and maximum statistics. Prefer
+  `sacct` when durable accounting is available; otherwise capture the final
+  measurement before it disappears. Keep non-Slurm PyWPS jobs visible with
+  unavailable memory reported clearly rather than inferred.
+
 ### Follow-up release: modernize Slurm conservatively
 
 - Make the AlmaLinux Slurm RPM version reproducible or at least report the
