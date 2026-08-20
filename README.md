@@ -457,7 +457,7 @@ command directory to their shell configuration:
 export PATH="/opt/wps-tools/bin:$PATH"
 ```
 
-Routine maintainer commands are `insights`, `smoke`, and, when Slurm is
+Routine maintainer commands are `insights`, `ptop`, `smoke`, and, when Slurm is
 enabled, `qtop`. Specialist and state-changing commands remain under `sbin/`.
 The playbook deliberately does not add either tool directory to the global
 `PATH`, and administrative commands remain explicitly addressed through
@@ -857,6 +857,20 @@ generic coverage and failure sections that would duplicate the production-data
 view. They remain available with `--all-processes` or another `--process`.
 
 ### Inspect historical PyWPS database activity
+
+For a compact live view of recent database activity and all active jobs, use
+`ptop`. The default window is one hour:
+
+```sh
+/opt/wps-tools/bin/ptop rook
+/opt/wps-tools/bin/ptop rook --window 24h
+```
+
+Windows accept minutes (`30m`), hours (`24h`), or days (`7d`). The request and
+process totals cover jobs started inside that window. The active-job section
+also includes older accepted and running jobs so long jobs do not disappear
+from the display. Set `PTOP_INTERVAL` to change the five-second refresh interval,
+and use `--top N` to change the number of active jobs shown.
 
 The specialist, read-only `db-report` command under `sbin/` aggregates database
 requests for an explicit range. It reports every job state, success rate,

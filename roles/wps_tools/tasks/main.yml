@@ -89,6 +89,8 @@
       - wps_tools_bin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_sbin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_script_dir.startswith(wps_tools_dir + '/')
+      - wps_tools_pywps_status_script.startswith(wps_tools_script_dir + '/')
+      - wps_tools_pywps_top_script.startswith(wps_tools_bin_dir + '/')
       - wps_tools_state_dir.startswith(service_user_home + '/')
       - wps_tools_statistics_dir.startswith(service_user_home + '/')
       - wps_tools_event_keep_days | int > 0
@@ -179,6 +181,22 @@
   ansible.builtin.template:
     src: db-report-helper.sh.j2
     dest: "{{ wps_tools_sbin_dir }}/db-report"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install interactive PyWPS database status script
+  ansible.builtin.copy:
+    src: pywps-job-status.py
+    dest: "{{ wps_tools_pywps_status_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install PyWPS database live-view shortcut
+  ansible.builtin.template:
+    src: pywps-top.sh.j2
+    dest: "{{ wps_tools_pywps_top_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -611,6 +629,7 @@
     - pywps-job-control.py
     - pywps-db-monitor.py
     - pywps-db-report.py
+    - pywps-job-status.py
     - pywps-xml-inspect.py
     - pywps-request-insights.py
     - slurm-job-status.py
@@ -629,6 +648,7 @@
     - slurm-top
     - top
     - qtop
+    - ptop
     - restart-pywps.sh
     - smoke.sh
 

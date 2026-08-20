@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+# Live, read-only view of recent and active PyWPS database jobs.
+
+set -euo pipefail
+
+fail() {
+    echo "[ERROR] $*" >&2
+    exit 1
+}
+
+usage() {
+    local exit_code=${1:-2}
+    echo "Usage: ptop SERVICE_NAME [--window 1h|24h] [--top N]" >&2
+    echo "Set PTOP_INTERVAL to change the refresh interval (default: 5 seconds)." >&2
+    exit "$exit_code"
+}
+
+main() {
+    if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+        usage 0
+    fi
+    [[ $# -ge 1 ]] || usage
+    [[ $1 =~ ^[A-Za-z0-9_.-]+$ ]] || usage
+
+    local app=$1
+    shift
+    if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+        usage 0
+    fi
+
+    local interval=${PTOP_INTERVAL:-5}
+    [[ $interval =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "PTOP_INTERVAL must be a positive number"
+    [[ $interval != 0 && $interval != 0.0 ]] || fail "PTOP_INTERVAL must be positive"
+
+    local python="{{ conda_envs_dir }}/$app/bin/python"
+    local config_file="/etc/pywps/$app.cfg"
+    local status_script="{{ wps_tools_pywps_status_script }}"
+
+    [[ -x $python ]] || fail "Python not found or not executable: $python"
+    [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"
+    [[ -x $status_script ]] || fail "PyWPS status script not found or not executable: $status_script"
+
+    exec watch -n "$interval" -- "$python" "$status_script" \
+        --config "$config_file" --service "$app" "$@"
+}
+
+main "$@"

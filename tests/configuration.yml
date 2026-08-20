@@ -83,6 +83,10 @@
           - wps_tools_bin_dir == '/opt/wps-tools/bin'
           - wps_tools_sbin_dir == '/opt/wps-tools/sbin'
           - wps_tools_script_dir == '/opt/wps-tools/scripts'
+          - >-
+            wps_tools_pywps_status_script
+            == '/opt/wps-tools/scripts/pywps-job-status.py'
+          - wps_tools_pywps_top_script == '/opt/wps-tools/bin/ptop'
           - wps_tools_statistics_dir == '/var/lib/pywps/statistics'
           - wps_tools_event_keep_days | int == 42
           - wps_tools_statistics_keep_days | int == 0
@@ -249,6 +253,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/wps_tools/templates/db-report-helper.sh.j2') }}
+        test_pywps_top: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/wps_tools/templates/pywps-top.sh.j2') }}
         test_request_insights_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -471,6 +479,13 @@
           - >-
             '--config "$config_file" "${range_option[@]}" "$@"'
             in test_db_report_helper
+          - "'Usage: ptop SERVICE_NAME [--window 1h|24h] [--top N]' in test_pywps_top"
+          - >-
+            'status_script="/opt/wps-tools/scripts/pywps-job-status.py"'
+            in test_pywps_top
+          - >-
+            'exec watch -n "$interval" -- "$python" "$status_script"'
+            in test_pywps_top
           - >-
             'status_script="/opt/wps-tools/scripts/slurm-job-status.py"'
             in test_slurm_top
