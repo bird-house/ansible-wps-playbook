@@ -384,11 +384,16 @@
 
 - name: Install WPS statistics command
   ansible.builtin.template:
-    src: statistics-helper.sh.j2
-    dest: "{{ wps_tools_sbin_dir }}/statistics"
+    src: stats-helper.sh.j2
+    dest: "{{ wps_tools_sbin_dir }}/stats"
     owner: root
     group: root
     mode: "0755"
+
+- name: Remove obsolete long statistics command
+  ansible.builtin.file:
+    path: "{{ wps_tools_sbin_dir }}/statistics"
+    state: absent
 
 - name: Remove obsolete recovery commands
   ansible.builtin.file:
@@ -489,7 +494,7 @@
     weekday: "{{ wps_tools_statistics_schedule.weekday | default('*') }}"
     user: root
     job: >-
-      {{ wps_tools_sbin_dir }}/statistics {{ item.name }} --quiet
+      {{ wps_tools_sbin_dir }}/stats {{ item.name }} --quiet
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool)

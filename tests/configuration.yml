@@ -256,7 +256,7 @@
         test_statistics_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/wps_tools/templates/statistics-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/stats-helper.sh.j2') }}
         test_xml_inspect_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -447,7 +447,7 @@
           - >-
             '"/var/log/pywps/$service-requests.log"*'
             in test_request_insights_helper
-          - "'statistics SERVICE_NAME' in test_statistics_helper"
+          - "'stats SERVICE_NAME' in test_statistics_helper"
           - >-
             '/opt/wps-tools/scripts/wps-event-statistics.py'
             in test_statistics_helper

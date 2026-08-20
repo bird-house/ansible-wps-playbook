@@ -657,7 +657,7 @@ sudo /opt/wps-tools/sbin/recover SERVICE_NAME --limit 500
 ```
 
 The administrative commands installed in `/opt/wps-tools/sbin` are
-`monitor`, `recover`, and `statistics`. Their implementations are installed in
+`monitor`, `recover`, and `stats`. Their implementations are installed in
 `/opt/wps-tools/scripts`.
 
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
@@ -734,9 +734,9 @@ Run a friendly summary over the complete retained aggregate, or select a date
 range or JSON output:
 
 ```sh
-sudo /opt/wps-tools/sbin/statistics SERVICE_NAME
-sudo /opt/wps-tools/sbin/statistics SERVICE_NAME --from 2026-08-01 --to 2026-08-31
-sudo /opt/wps-tools/sbin/statistics SERVICE_NAME --json
+sudo /opt/wps-tools/sbin/stats SERVICE_NAME
+sudo /opt/wps-tools/sbin/stats SERVICE_NAME --from 2026-08-01 --to 2026-08-31
+sudo /opt/wps-tools/sbin/stats SERVICE_NAME --json
 ```
 
 Detailed event files rotate daily, are gzip-compressed, and are retained for
