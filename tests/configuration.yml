@@ -40,6 +40,7 @@
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
           - wps_restart_schedule in ['hourly', 'daily']
+          - not wps_restart_enabled
           - wps_logrotate_min_size == '10M'
           - wps_logrotate_rotations == 7
           - wps_job_control_schedule | type_debug == 'dict'
@@ -49,16 +50,18 @@
           - wps_job_statistics_schedule.hour == '*'
           - wps_job_statistics_enabled
           - wps_job_inspect_schedule | type_debug == 'dict'
-          - wps_job_inspect_schedule.minute == '2'
+          - wps_job_inspect_schedule.minute == '2-57/5'
           - wps_job_inspect_schedule.hour == '*'
           - wps_job_inspect_enabled
           - wps_job_control_schedule.minute == '*/5'
           - wps_job_control_recovery_schedule.minute == '1-56/5'
           - wps_job_control_schedule.hour == '*'
-          - job_long_running_minutes | float == 1
-          - wps_job_control_long_running_minutes | float == 1
-          - wps_job_control_stale_after_minutes | float == 30
-          - wps_job_control_database_stale_after_minutes | float == 30
+          - job_long_running_minutes | float == 10
+          - job_timeout_minutes | float == 90
+          - job_timeout_grace_minutes | float == 5
+          - wps_job_control_long_running_minutes | float == 10
+          - wps_job_control_stale_after_minutes | float == 95
+          - wps_job_control_database_stale_after_minutes | float == 95
           - wps_job_control_database_status_window_hours | float == 24
           - >-
             wps_job_control_long_running_minutes | float
@@ -74,9 +77,9 @@
           - wps_job_control_monitor_enabled
           - wps_job_control_recovery_enabled
           - wps_missing_status_recovery_enabled
-          - wps_missing_status_poll_window_minutes == 60
+          - wps_missing_status_poll_window_minutes | int == 190
           - wps_missing_status_min_poll_count == 3
-          - wps_missing_status_min_poll_duration_minutes == 35
+          - wps_missing_status_min_poll_duration_minutes | int == 100
           - wps_missing_status_recovery_limit == 20
           - wps_missing_status_database_guard
           - conda_env_spec_file == 'linux-64.spec'
@@ -117,9 +120,9 @@
           - slurm_nodes[0].RealMemory | int == 51200
           - slurm_partitions[0].DefMemPerNode | int == 12800
           - slurm_partitions[0].MaxMemPerNode | int == 51200
-          - slurm_job_timeout_minutes | int == 25
-          - slurm_partitions[0].DefaultTime | int == 25
-          - slurm_partitions[0].MaxTime | int == 25
+          - slurm_job_timeout_minutes | int == 90
+          - slurm_partitions[0].DefaultTime | int == 90
+          - slurm_partitions[0].MaxTime | int == 90
           - >-
             slurm_job_timeout_minutes | int
             < wps_job_control_stale_after_minutes | float
@@ -129,11 +132,11 @@
           - slurm_job_monitor_enabled
           - slurm_job_monitor_schedule.minute == '*/5'
           - slurm_job_monitor_user == 'wps'
-          - slurm_job_monitor_long_running_minutes | int == 1
+          - slurm_job_monitor_long_running_minutes | int == 10
           - slurm_job_monitor_pending_critical == 20
           - slurm_job_monitor_script == '/usr/local/sbin/slurm-job-monitor'
           - slurm_job_status_script == '/var/lib/pywps/slurm-job-status.py'
-          - slurm_top_script == '/var/lib/pywps/slurm-top'
+          - slurm_top_script == '/var/lib/pywps/qtop'
           - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
           - >-
             slurm_job_monitor_log_file
@@ -331,8 +334,8 @@
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
           - >-
-            'PartitionName=fast Default=YES DefaultTime=25 DefMemPerNode=12800 '
-            'MaxMemPerNode=51200 MaxTime=25 Nodes=localhost'
+            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=12800 '
+            'MaxMemPerNode=51200 MaxTime=90 Nodes=localhost'
             in test_slurm_config
           - >-
             'NodeName=localhost CPUs=4 RealMemory=51200'
@@ -347,7 +350,7 @@
           - "'kill $gunicorn_pids' not in test_restart_script"
           - "'Found orphaned or zombie Gunicorn processes' in test_restart_script"
           - "'cleanup_orphaned_processes=false' in test_restart_script"
-          - "'restart_enabled=true' in test_restart_script"
+          - "'restart_enabled=false' in test_restart_script"
           - "'restart-pywps [--force] SERVICE_NAME' in test_restart_script"
           - "'Sending TERM to orphaned Gunicorn process' in test_restart_script"
           - "'set -euo pipefail' in test_smoke_script"
@@ -360,11 +363,11 @@
           - "'mode=statistics' in test_job_control_helper"
           - "'script_options=(--layer' not in test_job_control_helper"
           - "'--status-counts' not in test_job_control_helper"
-          - test_job_control_helper.count('script_options=(--show-summaries)') == 3
+          - test_job_control_helper.count('script_options=(--human-readable)') == 3
           - >-
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
-          - "'request-insights SERVICE_NAME' in test_request_insights_helper"
+          - "'insights SERVICE_NAME' in test_request_insights_helper"
           - >-
             'logs=("/var/log/pywps/$service-requests.log"*)'
             in test_request_insights_helper
@@ -374,7 +377,7 @@
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_job_control_helper
-          - "'db-monitor SERVICE_NAME [[START][/END]]' in test_db_monitor_helper"
+          - "'db-monitor SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_monitor_helper"
           - >-
             'monitor_script="/var/lib/pywps/pywps-db-monitor.py"'
             in test_db_monitor_helper
@@ -430,9 +433,9 @@
           - "'missing_status_recovery_enabled = true' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
           - "'layers =' not in test_pywps_config"
-          - "'long_running_minutes = 1' in test_pywps_config"
-          - "'stale_after_minutes = 30' in test_pywps_config"
-          - "'database_stale_after_minutes = 30' in test_pywps_config"
+          - "'long_running_minutes = 10' in test_pywps_config"
+          - "'stale_after_minutes = 95' in test_pywps_config"
+          - "'database_stale_after_minutes = 95' in test_pywps_config"
           - "'database_status_window_hours = 24' in test_pywps_config"
           - "'recovery_user = wps' in test_pywps_config"
           - "'recovery_group = wps' in test_pywps_config"
@@ -508,9 +511,9 @@
             'OnCalendar=*-*-* *:05:00' in test_collectd_hourly_summary_timer
           - "'Persistent=true' in test_collectd_hourly_summary_timer"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
-          - "'poll_window_minutes = 60' in test_pywps_config"
+          - "'poll_window_minutes = 190' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"
-          - "'min_poll_duration_minutes = 35' in test_pywps_config"
+          - "'min_poll_duration_minutes = 100' in test_pywps_config"
           - "'missing_status_database_guard = true' in test_pywps_config"
 
     - name: Check rendered alternate configuration

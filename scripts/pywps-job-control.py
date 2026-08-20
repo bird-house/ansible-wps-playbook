@@ -70,13 +70,14 @@ class Settings:
     lock_file: Path
     log_file: Path | None
     show_summaries: bool = False
+    human_readable: bool = False
     limit: int | None = None
     status_counts: bool = False
     output_url: str | None = None
     access_log: Path | None = None
-    poll_window_minutes: float = 180
+    poll_window_minutes: float = 190
     min_poll_count: int = 3
-    min_poll_duration_minutes: float = 150
+    min_poll_duration_minutes: float = 100
     database_guard: bool = True
     monitor_enabled: bool = True
     recovery_enabled: bool = False
@@ -87,8 +88,8 @@ class Settings:
     incident_archive_dir: Path | None = None
     recovery_limit: int = 100
     missing_status_recovery_limit: int = 20
-    long_running_minutes: float = 1
-    database_stale_after_minutes: float = 120
+    long_running_minutes: float = 10
+    database_stale_after_minutes: float = 95
     database_status_window_hours: float = 24
     work_dir: Path | None = None
     recovery_user: str = "wps"
@@ -1403,10 +1404,16 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         metavar="{xml,database,polling}",
         help="select xml, database, or polling; repeat for multiple layers",
     )
-    parser.add_argument(
+    console_output = parser.add_mutually_exclusive_group()
+    console_output.add_argument(
         "--show-summaries",
         action="store_true",
-        help="write every layer summary to the console",
+        help="write structured layer summaries to the console",
+    )
+    console_output.add_argument(
+        "--human-readable",
+        action="store_true",
+        help="write a compact operator report to the console",
     )
     parser.add_argument(
         "--status-counts",
@@ -1416,19 +1423,19 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--long-running-minutes",
         type=float,
-        default=float(control_config.get("long_running_minutes", "1")),
+        default=float(control_config.get("long_running_minutes", "10")),
         help="warn about started database jobs running this many minutes",
     )
     parser.add_argument(
         "--stale-after-minutes",
         type=float,
-        default=float(control_config.get("stale_after_minutes", "120")),
+        default=float(control_config.get("stale_after_minutes", "95")),
         help="consider started XML jobs stalled after this many minutes",
     )
     parser.add_argument(
         "--database-stale-after-minutes",
         type=float,
-        default=float(control_config.get("database_stale_after_minutes", "120")),
+        default=float(control_config.get("database_stale_after_minutes", "95")),
         help="consider started database rows stale after this many minutes",
     )
     parser.add_argument(
@@ -1471,7 +1478,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--poll-window-minutes",
         type=float,
-        default=float(control_config.get("poll_window_minutes", "180")),
+        default=float(control_config.get("poll_window_minutes", "190")),
         help="inspect polling requests from this recent time window",
     )
     parser.add_argument(
@@ -1486,7 +1493,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         default=float(
             control_config.get(
                 "min_poll_duration_minutes",
-                "150",
+                "100",
             )
         ),
         help="require matching polls to span at least this much time",
@@ -1563,6 +1570,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
             )
         ),
         show_summaries=args.show_summaries,
+        human_readable=args.human_readable,
         limit=limit,
         status_counts=args.status_counts,
         output_url=config.get("server", "outputurl", fallback=None),
@@ -1762,6 +1770,63 @@ def log_current_status(
     )
 
 
+def operator_title(settings: Settings) -> str:
+    titles = {
+        "monitor": "PyWPS monitor",
+        "recover": "PyWPS recovery",
+        "statistics": "PyWPS statistics",
+    }
+    return f"{titles[settings.mode]} — {settings.service_name}"
+
+
+def print_operator_report(settings: Settings, summaries: list[LayerSummary]) -> None:
+    print(operator_title(settings))
+    database = next(
+        (summary for summary in summaries if summary.name == "database"), None
+    )
+    if (
+        settings.mode == "statistics"
+        and database is not None
+        and database.status_counts is not None
+    ):
+        counts = database.status_counts
+        print(
+            f"Requests: total={counts['total']}  accepted={counts['accepted']} "
+            f" running={counts['running']}  success={counts['successful']} "
+            f" failures={counts['failed']}  dismissed={counts['dismissed']} "
+            f" unmapped={counts['unmapped']}"
+        )
+    for summary in summaries:
+        layer_label = "XML" if summary.name == "xml" else summary.name.capitalize()
+        fields = [f"checked={summary.checked}", f"stalled={summary.stalled}"]
+        if settings.mode != "recover":
+            fields.append(f"long-running={summary.long_running}")
+        if settings.mode == "recover":
+            fields.append(f"recovered={summary.recovered}")
+        fields.append(f"errors={summary.errors}")
+        print(f"{layer_label}: " + "  ".join(fields))
+
+    errors = sum(summary.errors for summary in summaries)
+    stalled = sum(summary.stalled for summary in summaries)
+    long_running = sum(summary.long_running for summary in summaries)
+    recovered = sum(summary.recovered for summary in summaries)
+    if errors:
+        result = f"completed with {errors} error{'s' if errors != 1 else ''}"
+    elif settings.mode == "recover":
+        result = (
+            f"recovered {recovered} job{'s' if recovered != 1 else ''}"
+            if recovered
+            else "no recovery needed"
+        )
+    elif settings.mode == "monitor" and (stalled or long_running):
+        result = "attention required"
+    else:
+        result = "healthy" if settings.mode == "monitor" else "complete"
+    print(f"Result: {result}")
+    if settings.log_file is not None:
+        print(f"Details: {settings.log_file}")
+
+
 def recover_job_dump_cli(arguments: list[str]) -> int:
     if len(arguments) != 5:
         raise ValueError("invalid internal dump-recovery invocation")
@@ -1820,6 +1885,8 @@ def main(argv: list[str] | None = None) -> int:
                 settings.mode,
                 ",".join(settings.layers),
             )
+            if settings.human_readable:
+                print(f"{operator_title(settings)}\nResult: disabled")
             return 0
         settings.lock_file.parent.mkdir(parents=True, exist_ok=True)
         with settings.lock_file.open("w") as lock:
@@ -1827,12 +1894,16 @@ def main(argv: list[str] | None = None) -> int:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 logger.info("decision=skip reason=another-run-is-active")
+                if settings.human_readable:
+                    print(f"{operator_title(settings)}\nResult: another run is active")
                 return 0
             lock.write(f"{os.getpid()}\n")
             lock.flush()
             summaries = execute_layers(settings, datetime.now(UTC), logger)
             if settings.mode == "statistics":
                 log_current_status(summaries, logger)
+            if settings.human_readable:
+                print_operator_report(settings, summaries)
             return 1 if any(summary.errors for summary in summaries) else 0
     except (OSError, ValueError) as error:
         logging.basicConfig(

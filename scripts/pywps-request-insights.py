@@ -9,6 +9,7 @@ import json
 import re
 import statistics
 import sys
+import textwrap
 from collections import Counter, defaultdict
 from datetime import datetime, time, timezone
 from pathlib import Path
@@ -16,6 +17,9 @@ from typing import Iterable, TextIO
 
 
 UTC = timezone.utc
+DETAIL_CATEGORY_PRIORITY = ("memory", "timeout")
+MAX_DETAIL_MESSAGE_LENGTH = 300
+TRUNCATION_MARKER = " [..]"
 FAILURE_PATTERNS = (
     (
         "memory",
@@ -37,7 +41,8 @@ FAILURE_PATTERNS = (
     (
         "no-data",
         re.compile(
-            r"no valid data points|no data (?:found|available)|empty (?:subset|selection)",
+            r"no valid data points|no data (?:found|available)|empty (?:subset|selection)|"
+            r"no timesteps? (?:are )?matching (?:the )?selection criteria",
             re.IGNORECASE,
         ),
     ),
@@ -45,7 +50,8 @@ FAILURE_PATTERNS = (
         "spatial",
         re.compile(
             r"not within (?:the )?(?:longitude|latitude) bounds|longitude frame|"
-            r"outside (?:the )?(?:spatial|longitude|latitude) bounds|invalid bounding box",
+            r"outside (?:the )?(?:spatial|longitude|latitude) bounds|invalid bounding box|"
+            r"\b(?:longitude|latitude)\b",
             re.IGNORECASE,
         ),
     ),
@@ -53,7 +59,8 @@ FAILURE_PATTERNS = (
         "input",
         re.compile(
             r"invalid (?:input|parameter)|missing (?:input|parameter)|not found|"
-            r"unavailable|permission denied|access denied",
+            r"unavailable|permission denied|access denied|"
+            r"cannot create TimeComponentsParameter",
             re.IGNORECASE,
         ),
     ),
@@ -78,8 +85,24 @@ SLURM_TIME_LIMIT_RE = re.compile(
     r"slurmstepd: error: \*{3} JOB .+? DUE TO TIME LIMIT \*{3}",
     re.IGNORECASE,
 )
+SLURM_CANCELLATION_RE = re.compile(
+    r"slurmstepd: error: \*{3} JOB .+? CANCELLED AT .+? \*{3}",
+    re.IGNORECASE,
+)
 SLURM_OOM_MESSAGE_RE = re.compile(
     r"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\)[^.]*\.?",
+    re.IGNORECASE,
+)
+MISSING_DATETIME_RE = re.compile(
+    r"cftime\.[A-Za-z0-9_]+\s*\(?\s*([12][0-9]{3})\s*,",
+    re.IGNORECASE,
+)
+TIME_COMPONENTS_PREFIX_RE = re.compile(
+    r"Cannot create TimeComponentsParameter from:\s*",
+    re.IGNORECASE,
+)
+TRACEBACK_BOUNDARY_RE = re.compile(
+    r"\s+(?:During handling of the above exception|Traceback \(most recent call last\))",
     re.IGNORECASE,
 )
 
@@ -190,6 +213,15 @@ def failure_category(record: dict[str, object]) -> str:
     if GENERIC_FAILURE_RE.match(text.strip()):
         return "unknown"
     return "other" if text.strip() else "unknown"
+
+
+def detail_category_order(counts: dict[str, int] | Counter[str]) -> list[str]:
+    prioritized = [name for name in DETAIL_CATEGORY_PRIORITY if counts.get(name, 0)]
+    remaining = sorted(
+        (name for name in counts if name not in DETAIL_CATEGORY_PRIORITY),
+        key=lambda name: (-counts[name], name),
+    )
+    return prioritized + remaining
 
 
 def flatten_json(prefix: str, value: object) -> list[tuple[str, str]]:
@@ -386,12 +418,24 @@ def concise_failure_message(message: str) -> str:
     time_limit = SLURM_TIME_LIMIT_RE.search(normalized)
     if time_limit:
         return time_limit.group(0)
+    cancellation = SLURM_CANCELLATION_RE.search(normalized)
+    if cancellation:
+        return cancellation.group(0)
     oom = SLURM_OOM_MESSAGE_RE.search(normalized)
     if oom:
         return oom.group(0)
     no_data = NO_DATA_RE.search(normalized)
     if no_data:
         return no_data.group(0)
+    if "Requested datetimes include some not found in the dataset" in normalized:
+        years = sorted({int(year) for year in MISSING_DATETIME_RE.findall(normalized)})
+        if years:
+            return "Requested years not found in dataset: " + ",".join(map(str, years))
+    time_components = list(TIME_COMPONENTS_PREFIX_RE.finditer(normalized))
+    if time_components:
+        value = normalized[time_components[-1].end() :]
+        value = TRACEBACK_BOUNDARY_RE.split(value, maxsplit=1)[0].strip()
+        return f"Invalid time components: {value}"
     exceptions = re.findall(
         r"(?:ProcessError|ValueError|MemoryError|TimeoutError):\s*"
         r"(.+?)(?=\s+During handling|\s+Traceback|$)",
@@ -465,11 +509,26 @@ def aggregate_orchestrate(
                 for value, count in collection_ranges[collection].most_common(top)
             ],
         }
-    failure_items = list(failures.items())
-    if sort_by == "name":
-        failure_items.sort(key=lambda item: item[0])
-    else:
-        failure_items.sort(key=lambda item: (-item[1], item[0]))
+    failures_by_category = defaultdict(list)
+    for item in failures.items():
+        failures_by_category[item[0][3]].append(item)
+    for items in failures_by_category.values():
+        items.sort(key=lambda item: (-item[1], item[0][0], item[0][1:3], item[0][4]))
+    category_order = detail_category_order(failure_categories)
+    failure_items = []
+    group_index = 0
+    while len(failure_items) < top:
+        added = False
+        for category in category_order:
+            items = failures_by_category[category]
+            if group_index < len(items):
+                failure_items.append(items[group_index])
+                added = True
+                if len(failure_items) == top:
+                    break
+        if not added:
+            break
+        group_index += 1
     failure_report = [
         {
             "count": count,
@@ -506,8 +565,12 @@ def aggregate(
     failure_messages: Counter[tuple[str, str, str, str]] = Counter()
     failure_jobs: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
     timestamps = []
+    services = set()
 
     for record in records:
+        service = record.get("service")
+        if isinstance(service, str) and service:
+            services.add(service)
         outcome = str(record.get("outcome") or "unknown")
         process = str(record.get("process") or "unknown")
         outcomes[outcome] += 1
@@ -591,6 +654,7 @@ def aggregate(
         for key, count in failure_messages.most_common(top)
     ]
     return {
+        "services": sorted(services),
         "period": {
             "first": min(timestamps).isoformat() if timestamps else None,
             "last": max(timestamps).isoformat() if timestamps else None,
@@ -618,65 +682,155 @@ def format_duration(seconds: object) -> str:
     return f"{seconds:.1f}s"
 
 
-def print_report(report: dict[str, object]) -> None:
+def format_timestamp(value: object) -> str:
+    if not isinstance(value, str):
+        return "n/a"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def truncate_detail_message(value: object) -> str:
+    message = str(value)
+    if len(message) <= MAX_DETAIL_MESSAGE_LENGTH:
+        return message
+    retained = MAX_DETAIL_MESSAGE_LENGTH - len(TRUNCATION_MARKER)
+    return f"{message[:retained].rstrip()}{TRUNCATION_MARKER}"
+
+
+def print_detail_field(label: str, value: str, *, indent: int = 4) -> None:
+    prefix = f"{' ' * indent}{label}: "
+    print(
+        textwrap.fill(
+            value,
+            width=100,
+            initial_indent=prefix,
+            subsequent_indent=" " * len(prefix),
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+    )
+
+
+def print_report(report: dict[str, object], *, details: bool = False) -> None:
     period = report["period"]
     outcomes = report["outcomes"]
     failures = int(outcomes.get("failed", 0))
     successful = int(outcomes.get("successful", 0))
     total = int(report["requests"])
     rate = (successful / total * 100) if total else 0
-    print("PyWPS request insights")
-    print(f"Period: {period['first'] or 'n/a'} to {period['last'] or 'n/a'}")
-    print(f"Requests: {total}  successful={successful}  failed={failures}  success_rate={rate:.1f}%")
+    services = report.get("services", [])
+    service_suffix = f" — {services[0]}" if len(services) == 1 else ""
+    print(f"PyWPS request insights{service_suffix}")
+    print(
+        f"Period: {format_timestamp(period['first'])} "
+        f"to {format_timestamp(period['last'])}"
+    )
+    print(
+        f"\nRequests: {total}  success={successful}  failures={failures} "
+        f" success_rate={rate:.1f}%"
+    )
+    duration = report["durations"].get("all", {})
+    print(
+        f"Duration: median={format_duration(duration.get('median_seconds'))} "
+        f" p95={format_duration(duration.get('p95_seconds'))} "
+        f" max={format_duration(duration.get('max_seconds'))}"
+    )
 
-    print("\nProcesses")
-    for name, values in report["processes"].items():
-        duration = values["durations"]
-        print(
-            f"  {name}: requests={values['requests']} outcomes={values['outcomes']} "
-            f"median={format_duration(duration['median_seconds'])} "
-            f"p95={format_duration(duration['p95_seconds'])} "
-            f"max={format_duration(duration['max_seconds'])}"
-        )
+    if len(report["processes"]) > 1:
+        print("\nProcesses")
+        for name, values in report["processes"].items():
+            duration = values["durations"]
+            process_outcomes = values["outcomes"]
+            print(
+                f"  {name}: requests={values['requests']} "
+                f"success={process_outcomes.get('successful', 0)} "
+                f"failures={process_outcomes.get('failed', 0)} "
+                f"median={format_duration(duration['median_seconds'])} "
+                f"p95={format_duration(duration['p95_seconds'])} "
+                f"max={format_duration(duration['max_seconds'])}"
+            )
 
     orchestrate = report["orchestrate"]
     if orchestrate is not None:
-        print("\nOrchestrate production data")
         print(
-            f"  requests={orchestrate['requests']} "
-            f"workflow_lineage={orchestrate['jobs_with_workflow_lineage']} "
-            f"missing_lineage={orchestrate['jobs_without_workflow_lineage']}"
+            f"Metadata: available={orchestrate['jobs_with_workflow_lineage']} "
+            f" missing={orchestrate['jobs_without_workflow_lineage']}"
         )
+        print("\nFailure causes")
+        if not orchestrate["failure_categories"]:
+            print("  No failures.")
+        for category, count in orchestrate["failure_categories"].items():
+            print(f"  {category}: {count}")
+        print(f"\nDatasets ({len(orchestrate['collections'])})")
         if not orchestrate["collections"]:
-            print("  No requested collections were retained in XML lineage.")
+            print("  No datasets were identified in the retained request metadata.")
         for collection, values in orchestrate["collections"].items():
+            outcomes = values["outcomes"]
             print(
                 f"  {collection}: requests={values['requests']} "
-                f"outcomes={values['outcomes']} years={values['year_coverage']}"
+                f"success={outcomes.get('successful', 0)} "
+                f"failures={outcomes.get('failed', 0)} "
+                f"years={values['year_coverage']}"
             )
-            for time_range in values["time_ranges"]:
-                print(f"    {time_range['count']:>5}  time={time_range['value']}")
-        print("  Failure causes (unique jobs)")
-        if not orchestrate["failure_categories"]:
-            print("    No orchestrate failures.")
-        for category, count in orchestrate["failure_categories"].items():
-            print(f"    {category}: {count}")
-        shown = len(orchestrate["failures"])
-        groups = orchestrate["failure_group_count"]
-        heading = "  Failed data"
-        if shown < groups:
-            heading += f" (showing {shown} of {groups} groups; increase --top to see more)"
-        print(heading)
-        if not orchestrate["failures"]:
-            print("    No orchestrate failures.")
-        for failure in orchestrate["failures"]:
-            jobs = ",".join(failure["example_jobs"])
-            print(
-                f"    {failure['count']:>5} [{failure['category']}] "
-                f"{failure['collection']}: years={failure['years']} "
-                f"time={','.join(failure['time_ranges']) or 'unknown'} "
-                f"reason={failure['message']} jobs={jobs}"
-            )
+        if details:
+            shown = len(orchestrate["failures"])
+            groups = orchestrate["failure_group_count"]
+            heading = "\nFailure details"
+            if shown < groups:
+                heading += f" (showing {shown} of {groups} groups; increase --top to see more)"
+            print(heading)
+            if not orchestrate["failures"]:
+                print("  No failures.")
+            failures_by_category: dict[str, list[dict[str, object]]] = {}
+            for failure in orchestrate["failures"]:
+                failures_by_category.setdefault(failure["category"], []).append(failure)
+            for category_index, category in enumerate(
+                detail_category_order(orchestrate["failure_categories"])
+            ):
+                category_failures = failures_by_category.get(category, [])
+                if not category_failures:
+                    continue
+                if category_index:
+                    print()
+                category_total = orchestrate["failure_categories"][category]
+                failure_label = "failure" if category_total == 1 else "failures"
+                print(f"  {category.capitalize()} ({category_total} {failure_label})")
+                failures_by_collection: dict[str, list[dict[str, object]]] = {}
+                for failure in category_failures:
+                    failures_by_collection.setdefault(failure["collection"], []).append(
+                        failure
+                    )
+                for collection_index, (collection, collection_failures) in enumerate(
+                    failures_by_collection.items()
+                ):
+                    if collection_index:
+                        print()
+                    print_detail_field("Dataset", collection, indent=4)
+                    for failure_index, failure in enumerate(collection_failures):
+                        if failure_index:
+                            print()
+                        count = failure["count"]
+                        request_label = "request" if count == 1 else "requests"
+                        print(f"      {count} {request_label}")
+                        print_detail_field(
+                            "Selection",
+                            f"years={failure['years']}  "
+                            f"time={','.join(failure['time_ranges']) or 'unknown'}",
+                            indent=8,
+                        )
+                        print_detail_field(
+                            "Reason",
+                            truncate_detail_message(failure["message"]),
+                            indent=8,
+                        )
+                        print_detail_field(
+                            "Jobs", ", ".join(failure["example_jobs"]), indent=8
+                        )
 
     if set(report["processes"]) != {"orchestrate"}:
         print("\nRequested-data coverage")
@@ -687,22 +841,24 @@ def print_report(report: dict[str, object]) -> None:
             for item in values["top_values"]:
                 print(f"    {item['count']:>5}  {item['value']}")
 
-        print("\nFailure causes")
+        heading = "All-process failure causes" if orchestrate is not None else "Failure causes"
+        print(f"\n{heading}")
         if not report["failure_categories"]:
             print("  No failures.")
         for category, count in report["failure_categories"].items():
             percentage = (count / failures * 100) if failures else 0
             print(f"  {category}: {count} ({percentage:.1f}%)")
-        for item in report["failure_messages"]:
-            details = " ".join(
-                value for value in (item["code"], item["locator"]) if value
-            )
-            suffix = f" ({details})" if details else ""
-            jobs = ",".join(item["example_jobs"])
-            print(
-                f"    {item['count']:>5} [{item['category']}] "
-                f"{item['message']}{suffix} jobs={jobs}"
-            )
+        if details:
+            for item in report["failure_messages"]:
+                context = " ".join(
+                    value for value in (item["code"], item["locator"]) if value
+                )
+                suffix = f" ({context})" if context else ""
+                jobs = ",".join(item["example_jobs"])
+                print(
+                    f"    {item['count']:>5} [{item['category']}] "
+                    f"{truncate_detail_message(item['message'])}{suffix} jobs={jobs}"
+                )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -722,6 +878,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="include every process instead of only orchestrate",
     )
     parser.add_argument("--top", type=int, default=10, help="values/messages per section")
+    parser.add_argument(
+        "--details",
+        action="store_true",
+        help="include grouped failure messages and example job IDs",
+    )
     parser.add_argument(
         "--sort",
         choices=("name", "requests", "successful", "failed"),
@@ -759,7 +920,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print_report(report)
+        print_report(report, details=args.details)
     for error in errors:
         print(error, file=sys.stderr)
     return 1 if errors else 0

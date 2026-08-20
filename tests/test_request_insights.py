@@ -210,6 +210,21 @@ class RequestInsightsTests(unittest.TestCase):
             "2026-08-12T19:59:13 DUE TO TIME LIMIT ***",
         )
 
+    def test_scheduler_cancellation_discards_preceding_diagnostics(self):
+        item = record(
+            "1",
+            "failed",
+            "[rook-diagnostic] selected_vars=time dtype=object "
+            "[rook-diagnostic] before direct xarray delayed write "
+            "slurmstepd: error: *** JOB 28327 ON localhost CANCELLED AT "
+            "2026-08-19T21:01:02 ***",
+        )
+        self.assertEqual(
+            MODULE.primary_failure_message(item),
+            "slurmstepd: error: *** JOB 28327 ON localhost CANCELLED AT "
+            "2026-08-19T21:01:02 ***",
+        )
+
     def test_longitude_domain_failure_is_spatial(self):
         item = record(
             "1",
@@ -217,6 +232,19 @@ class RequestInsightsTests(unittest.TestCase):
             "The requested longitude subset -0.37, 1.63 is not within the longitude "
             "bounds of this dataset and could not be converted to this longitude frame.",
         )
+        self.assertEqual(MODULE.failure_category(item), "spatial")
+
+    def test_longitude_meridian_failure_is_spatial(self):
+        item = record(
+            "1",
+            "failed",
+            "Input longitude bounds -10. 35. cross the 0 degree meridian but "
+            "dataset longitudes are all positive.",
+        )
+        self.assertEqual(MODULE.failure_category(item), "spatial")
+
+    def test_generic_latitude_failure_is_spatial(self):
+        item = record("1", "failed", "Could not normalize the latitude coordinate")
         self.assertEqual(MODULE.failure_category(item), "spatial")
 
     def test_runtime_diagnostic_overrides_generic_xml_failure_category(self):
@@ -286,10 +314,66 @@ class RequestInsightsTests(unittest.TestCase):
         output = io.StringIO()
         with redirect_stdout(output):
             MODULE.print_report(report)
-        self.assertIn("PyWPS request insights", output.getvalue())
-        self.assertIn("Orchestrate production data", output.getvalue())
-        self.assertNotIn("Requested-data coverage", output.getvalue())
-        self.assertNotIn("\nFailure causes", output.getvalue())
+        text = output.getvalue()
+        self.assertIn("PyWPS request insights — rook", text)
+        self.assertIn("Metadata: available=0  missing=1", text)
+        self.assertIn("Datasets (0)", text)
+        self.assertNotIn("Processes", text)
+        self.assertNotIn("Requested-data coverage", text)
+        self.assertNotIn("All-process failure causes", text)
+
+    def test_text_uses_compact_timestamps_and_outcomes(self):
+        item = dict(record("1"), process="orchestrate")
+        item["finished_at"] = "2026-08-01T10:00:00.123456+00:00"
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(MODULE.aggregate([item], top=10))
+        text = output.getvalue()
+        self.assertIn(
+            "Period: 2026-08-01 10:00 UTC to 2026-08-01 10:00 UTC",
+            text,
+        )
+        self.assertIn(
+            "Requests: 1  success=1  failures=0  success_rate=100.0%",
+            text,
+        )
+        self.assertIn("Duration: median=1.0m  p95=1.0m  max=1.0m", text)
+        self.assertNotIn("outcomes=", text)
+
+    def test_detail_messages_are_limited_without_changing_short_messages(self):
+        self.assertEqual(MODULE.truncate_detail_message("short reason"), "short reason")
+        shortened = MODULE.truncate_detail_message("x" * 400)
+        self.assertEqual(len(shortened), MODULE.MAX_DETAIL_MESSAGE_LENGTH)
+        self.assertTrue(shortened.endswith(" [..]"))
+
+    def test_orchestrate_text_uses_one_line_per_collection(self):
+        workflow = {
+            "inputs": {"uas": ["c3s-cmip6.example.uas"]},
+            "steps": {
+                "subset": {
+                    "run": "subset",
+                    "in": {"collection": "inputs/uas", "time": "1980/2014"},
+                }
+            },
+        }
+        item = record("1")
+        item["process"] = "orchestrate"
+        item["inputs"] = {
+            "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+        }
+        report = MODULE.aggregate([item], top=10)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(report)
+        lines = output.getvalue().splitlines()
+        self.assertEqual(
+            [line for line in lines if "c3s-cmip6.example.uas" in line],
+            [
+                "  c3s-cmip6.example.uas: requests=1 "
+                "success=1 failures=0 years=1980-2014"
+            ],
+        )
+        self.assertNotIn("time=1980/2014", output.getvalue())
 
     def test_orchestrate_failure_categories_are_not_limited_by_top(self):
         records = []
@@ -311,6 +395,88 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertEqual(production["failure_group_count"], 3)
         self.assertEqual(len(production["failures"]), 1)
+
+    def test_orchestrate_failure_overview_precedes_collections(self):
+        workflow = {
+            "inputs": {"tas": ["c3s-cmip6.example.tas"]},
+            "steps": {
+                "subset": {
+                    "run": "subset",
+                    "in": {"collection": "inputs/tas", "time": "2050/2050"},
+                }
+            },
+        }
+        item = record("1", "failed", "Job cancelled due to time limit")
+        item["process"] = "orchestrate"
+        item["inputs"] = {
+            "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+        }
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(MODULE.aggregate([item], top=10))
+        text = output.getvalue()
+        self.assertLess(text.index("Failure causes"), text.index("c3s-cmip6.example.tas"))
+        self.assertNotIn("Failure details", text)
+        detailed = io.StringIO()
+        with redirect_stdout(detailed):
+            MODULE.print_report(MODULE.aggregate([item], top=10), details=True)
+        detailed_text = detailed.getvalue()
+        self.assertLess(
+            detailed_text.index("c3s-cmip6.example.tas"),
+            detailed_text.index("Failure details"),
+        )
+        self.assertIn("  Timeout (1 failure)", detailed_text)
+        self.assertIn("    Dataset: c3s-cmip6.example.tas", detailed_text)
+        self.assertIn("      1 request", detailed_text)
+        self.assertIn("        Selection: years=2050  time=2050/2050", detailed_text)
+        self.assertIn("        Reason: Job cancelled due to time limit", detailed_text)
+        self.assertIn("        Jobs: 1", detailed_text)
+
+    def test_classifies_common_time_selection_failures(self):
+        no_timesteps = record(
+            "1",
+            "failed",
+            "No timesteps are matching the selection criteria.",
+        )
+        invalid_components = record(
+            "2",
+            "failed",
+            "Cannot create TimeComponentsParameter from: month:oct,nov,dez",
+        )
+        self.assertEqual(MODULE.failure_category(no_timesteps), "no-data")
+        self.assertEqual(MODULE.failure_category(invalid_components), "input")
+        self.assertEqual(
+            MODULE.concise_failure_message(
+                "Requested datetimes include some not found in the dataset: "
+                "cftime.DatetimeNoLeap(2050, 1, 1) "
+                "cftime.DatetimeNoLeap(2015, 1, 1) "
+                "cftime.DatetimeNoLeap(2050, 1, 1)"
+            ),
+            "Requested years not found in dataset: 2015,2050",
+        )
+        self.assertEqual(
+            MODULE.concise_failure_message(
+                "Cannot create TimeComponentsParameter from: month:oct,nov,dez"
+            ),
+            "Invalid time components: month:oct,nov,dez",
+        )
+        self.assertEqual(
+            MODULE.concise_failure_message(
+                'raise InvalidParameterValue(f"Cannot create TimeComponentsParameter '
+                'from: {self.input}") clisops.exceptions.InvalidParameterValue: '
+                "Cannot create TimeComponentsParameter from: "
+                "month:oct,nov,dec;year:2016,2017 During handling of the above "
+                "exception, another exception occurred: Traceback (most recent call last)"
+            ),
+            "Invalid time components: month:oct,nov,dec;year:2016,2017",
+        )
+
+    def test_detail_categories_prioritize_operational_failures(self):
+        counts = {"no-data": 22, "memory": 9, "input": 6, "other": 4, "timeout": 3}
+        self.assertEqual(
+            MODULE.detail_category_order(counts),
+            ["memory", "timeout", "no-data", "input", "other"],
+        )
 
     def test_collection_sorting_by_name_and_frequency(self):
         records = []

@@ -22,6 +22,8 @@ UTC = timezone.utc
 MAX_DATABASE_UTC_OFFSET = timedelta(hours=14)
 UUID_EPOCH_100NS = 0x01B21DD213814000
 TIMESTAMP_TOLERANCE = timedelta(minutes=5)
+MAX_DISPLAY_ERROR_LENGTH = 300
+TRUNCATION_MARKER = " [..]"
 STATUS_NAMES = (
     "accepted",
     "running",
@@ -350,6 +352,14 @@ def print_table(
         print(formatted(row))
 
 
+def display_error_message(value: object) -> str:
+    message = str(value)
+    if len(message) <= MAX_DISPLAY_ERROR_LENGTH:
+        return message
+    retained = MAX_DISPLAY_ERROR_LENGTH - len(TRUNCATION_MARKER)
+    return f"{message[:retained].rstrip()}{TRUNCATION_MARKER}"
+
+
 def print_report(report: dict) -> None:
     request = report["requests"]
     total = request["total"]
@@ -465,7 +475,9 @@ def print_report(report: dict) -> None:
     if not errors:
         print("None")
     for error in errors:
-        message = json.dumps(error["message"], ensure_ascii=False)
+        message = json.dumps(
+            display_error_message(error["message"]), ensure_ascii=False
+        )
         print(f"\n{error['count']}x  {message}")
         print(
             f"    First: {format_local_timestamp(error['first'])}\n"

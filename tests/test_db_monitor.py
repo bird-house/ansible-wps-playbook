@@ -190,6 +190,11 @@ class DatabaseMonitorTests(unittest.TestCase):
         output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
         self.assertIn('"first line\\nsecond line"', output)
 
+    def test_text_report_limits_long_error_messages(self):
+        message = "x" * 400
+        self.assertEqual(len(MODULE.display_error_message(message)), 300)
+        self.assertTrue(MODULE.display_error_message(message).endswith(" [..]"))
+
     def test_text_report_handles_an_empty_range(self):
         report = MODULE.summarize([], self.statuses, self.period)
         with mock.patch("sys.stdout") as stdout:

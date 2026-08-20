@@ -66,6 +66,8 @@
       - wps_job_control_recovery_schedule | type_debug == 'dict'
       - wps_job_statistics_schedule | type_debug == 'dict'
       - wps_job_inspect_schedule | type_debug == 'dict'
+      - job_timeout_minutes | float > 0
+      - job_timeout_grace_minutes | float > 0
       - wps_job_control_long_running_minutes | float > 0
       - wps_job_control_stale_after_minutes | float > 0
       - wps_job_control_database_stale_after_minutes | float > 0
@@ -96,7 +98,8 @@
         or not (wps_job_control_monitor_enabled | bool)
         or (wps_job_control_stale_after_minutes | float) < (wps_outputs_keep_minutes | float)
     fail_msg: >-
-      The job-control schedule must be a cron-field mapping, age must be
+      The job-control schedule must be a cron-field mapping. The shared job
+      timeout and recovery grace must be positive, and recovery age must be
       positive and shorter than output retention for scheduled XML checks.
       The long-running warning must be positive and shorter than the stale
       threshold, the database status window must be between 3 and 24 hours,
@@ -155,10 +158,15 @@
     group: root
     mode: "0755"
 
-- name: Install PyWPS request-insights command
+- name: Remove legacy PyWPS request-insights command
+  ansible.builtin.file:
+    path: "{{ cron_script_dir }}/request-insights"
+    state: absent
+
+- name: Install PyWPS insights command
   ansible.builtin.template:
     src: ./templates/request-insights-helper.sh.j2
-    dest: "{{ cron_script_dir }}/request-insights"
+    dest: "{{ cron_script_dir }}/insights"
     owner: root
     group: root
     mode: "0755"
@@ -240,6 +248,14 @@
     group: root
     mode: "0755"
   when: slurm_enabled | bool
+
+- name: Remove legacy Slurm live-view shortcuts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ cron_script_dir }}/slurm-top"
+    - "{{ cron_script_dir }}/top"
 
 - name: Install Slurm live-view shortcut
   ansible.builtin.template:
@@ -421,14 +437,24 @@
       {{ cron_script_dir }}/pywps-job-control.py
       --config /etc/pywps/{{ item.name }}.cfg statistics
     cron_file: ansible_pywps
-    disabled: "{{ cron_disabled }}"
+    disabled: >-
+      {{ (cron_disabled | bool)
+         or not (wps_job_statistics_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
-- name: Schedule hourly PyWPS XML request inspection
+- name: Remove legacy hourly PyWPS XML request inspection schedule
   ansible.builtin.cron:
     name: "record hourly PyWPS XML requests for {{ item.name }}"
-    minute: "{{ wps_job_inspect_schedule.minute | default('2') }}"
+    user: root
+    cron_file: ansible_pywps
+    state: absent
+  loop: "{{ wps_services }}"
+
+- name: Schedule PyWPS XML request inspection
+  ansible.builtin.cron:
+    name: "record PyWPS XML requests for {{ item.name }}"
+    minute: "{{ wps_job_inspect_schedule.minute | default('2-57/5') }}"
     hour: "{{ wps_job_inspect_schedule.hour | default('*') }}"
     day: "{{ wps_job_inspect_schedule.day | default('*') }}"
     month: "{{ wps_job_inspect_schedule.month | default('*') }}"
@@ -440,6 +466,7 @@
       --service {{ item.name }}
       --state-file {{ cron_script_dir }}/.{{ item.name }}-xml-inspect-state.json
       --log-file {{ wps_log_dir }}/{{ item.name }}-requests.log
+      --lock-file {{ wps_run_dir }}/{{ item.name }}-xml-inspect.lock
     cron_file: ansible_pywps
     disabled: "{{ (cron_disabled | bool) or not (wps_job_inspect_enabled | bool) }}"
     state: present

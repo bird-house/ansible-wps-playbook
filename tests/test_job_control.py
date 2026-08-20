@@ -914,6 +914,14 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertTrue(selected_layers.show_summaries)
         self.assertTrue(selected_layers.status_counts)
 
+        human = MODULE.parse_args([
+            "--config",
+            str(config),
+            "monitor",
+            "--human-readable",
+        ])
+        self.assertTrue(human.human_readable)
+
         statistics = MODULE.parse_args([
             "--config",
             str(config),
@@ -1294,6 +1302,56 @@ class RecoverStalledJobsTests(unittest.TestCase):
             40,
             0,
         )
+
+    def test_operator_report_is_compact_and_human_readable(self):
+        settings = self.settings("monitor", ["xml", "database"])
+        settings.service_name = "rook"
+        settings.log_file = Path("/var/log/pywps/rook-job-monitor.log")
+        summaries = [
+            MODULE.LayerSummary("xml", checked=8),
+            MODULE.LayerSummary(
+                "database", checked=12, stalled=1, long_running=2
+            ),
+        ]
+        output = io.StringIO()
+        with mock.patch("sys.stdout", output):
+            MODULE.print_operator_report(settings, summaries)
+        self.assertEqual(
+            output.getvalue(),
+            "PyWPS monitor — rook\n"
+            "XML: checked=8  stalled=0  long-running=0  errors=0\n"
+            "Database: checked=12  stalled=1  long-running=2  errors=0\n"
+            "Result: attention required\n"
+            "Details: /var/log/pywps/rook-job-monitor.log\n",
+        )
+
+    def test_statistics_operator_report_includes_request_statuses(self):
+        settings = self.settings("statistics", ["xml", "database"])
+        settings.service_name = "rook"
+        summaries = [
+            MODULE.LayerSummary("xml", checked=4),
+            MODULE.LayerSummary(
+                "database",
+                checked=10,
+                status_counts={
+                    "total": 10,
+                    "accepted": 1,
+                    "running": 2,
+                    "successful": 5,
+                    "failed": 2,
+                    "dismissed": 0,
+                    "unmapped": 0,
+                },
+            ),
+        ]
+        output = io.StringIO()
+        with mock.patch("sys.stdout", output):
+            MODULE.print_operator_report(settings, summaries)
+        self.assertIn(
+            "Requests: total=10  accepted=1  running=2  success=5  failures=2",
+            output.getvalue(),
+        )
+        self.assertIn("Result: complete", output.getvalue())
 
     def test_database_status_summary_uses_ogc_api_processes_vocabulary(self):
         statuses = argparse.Namespace(
