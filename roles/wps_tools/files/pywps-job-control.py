@@ -22,6 +22,8 @@ from typing import Callable, Iterable
 from urllib.parse import unquote, urlsplit
 from uuid import UUID
 
+from wps_tools_events import JsonlEventHandler
+
 
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
@@ -69,6 +71,7 @@ class Settings:
     pywps_config: Path | None
     lock_file: Path
     log_file: Path | None
+    event_log: Path | None = None
     show_summaries: bool = False
     human_readable: bool = False
     limit: int | None = None
@@ -1354,6 +1357,13 @@ def job_statistics_log_file(config: configparser.ConfigParser) -> Path | None:
     return related_log_file(config, "stats")
 
 
+def job_event_log_file(config: configparser.ConfigParser) -> Path | None:
+    pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
+    if pywps_log_file is None:
+        return None
+    return pywps_log_file.with_name(f"{pywps_log_file.stem}-events.jsonl")
+
+
 def validate_python_runtime(expected: Path | None) -> None:
     if expected is None:
         return
@@ -1470,6 +1480,12 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="override the derived monitor or statistics log file",
     )
     parser.add_argument(
+        "--event-log",
+        type=Path,
+        default=optional_path(control_config.get("event_log")) or job_event_log_file(config),
+        help="append important operational events as JSON Lines",
+    )
+    parser.add_argument(
         "--access-log",
         type=Path,
         default=optional_path(control_config.get("access_log")),
@@ -1569,6 +1585,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
                 else job_monitor_log_file(config)
             )
         ),
+        event_log=args.event_log,
         show_summaries=args.show_summaries,
         human_readable=args.human_readable,
         limit=limit,
@@ -1608,6 +1625,7 @@ def configure_logging(
     show_summaries: bool = False,
     statistics_only: bool = False,
     service_name: str = "unknown",
+    event_log: Path | None = None,
 ) -> logging.Logger:
     stream_handler = logging.StreamHandler()
     service_filter = ServiceContextFilter(service_name)
@@ -1627,6 +1645,10 @@ def configure_logging(
         if statistics_only:
             file_handler.addFilter(StatisticsFilter())
         handlers.append(file_handler)
+    if event_log is not None:
+        handlers.append(
+            JsonlEventHandler(event_log, service_name, "pywps-job-control")
+        )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s service=%(service)s %(message)s",
@@ -1878,6 +1900,7 @@ def main(argv: list[str] | None = None) -> int:
             settings.show_summaries,
             statistics_only=settings.mode == "statistics",
             service_name=settings.service_name,
+            event_log=settings.event_log,
         )
         if not operation_is_enabled(settings):
             logger.info(

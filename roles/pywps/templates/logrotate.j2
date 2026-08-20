@@ -12,3 +12,15 @@
     notifempty
     sharedscripts
 }
+
+/var/log/pywps/*-events.jsonl {
+    rotate {{ wps_tools_event_keep_days }}
+    daily
+    maxage {{ wps_tools_event_keep_days }}
+    dateext
+    compress
+    delaycompress
+    copytruncate
+    missingok
+    notifempty
+}

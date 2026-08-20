@@ -20,6 +20,7 @@ SCRIPT = (
     / "files"
     / "pywps-xml-inspect.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("pywps_xml_inspect", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -65,6 +66,8 @@ class XmlInspectTests(unittest.TestCase):
     def test_extracts_request_duration_and_inputs(self):
         self.write()
         record = MODULE.inspect(self.status, "rook")
+        self.assertEqual(record["schema_version"], 1)
+        self.assertEqual(record["record_type"], "request")
         self.assertEqual(record["process"], "subset")
         self.assertEqual(record["outcome"], "successful")
         self.assertEqual(record["duration_seconds"], 120.0)

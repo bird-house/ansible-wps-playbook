@@ -17,6 +17,8 @@ from pathlib import Path
 from urllib.parse import unquote
 from uuid import UUID
 
+from wps_tools_events import append_events
+
 
 UTC = timezone.utc
 FINAL_STATES = {"ProcessSucceeded": "successful", "ProcessFailed": "failed"}
@@ -133,6 +135,8 @@ def inspect(
             failures.append({"code": None, "locator": None, "message": element_text(states[0])})
 
     return {
+        "record_type": "request",
+        "schema_version": 1,
         "recorded_at": datetime.now(UTC).isoformat(),
         "service": service,
         "job_id": job_id,
@@ -252,10 +256,7 @@ def main(argv: list[str] | None = None) -> int:
                 records.append(record)
 
         if args.log_file:
-            args.log_file.parent.mkdir(parents=True, exist_ok=True)
-            with args.log_file.open("a", encoding="utf-8") as stream:
-                for record in records:
-                    stream.write(json.dumps(record, sort_keys=True) + "\n")
+            append_events(args.log_file, records)
         else:
             for record in records:
                 print(json.dumps(record, sort_keys=True))

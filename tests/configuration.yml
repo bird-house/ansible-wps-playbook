@@ -83,6 +83,9 @@
           - wps_tools_bin_dir == '/opt/wps-tools/bin'
           - wps_tools_sbin_dir == '/opt/wps-tools/sbin'
           - wps_tools_script_dir == '/opt/wps-tools/scripts'
+          - wps_tools_statistics_dir == '/var/lib/pywps/statistics'
+          - wps_tools_event_keep_days | int == 42
+          - wps_tools_statistics_keep_days | int == 0
           - wps_tools_incident_keep_days == 30
           - wps_tools_incident_keep_minutes | int == 43200
           - >-
@@ -237,6 +240,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/wps_tools/templates/request-insights-helper.sh.j2') }}
+        test_statistics_helper: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/wps_tools/templates/statistics-helper.sh.j2') }}
         test_xml_inspect_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -404,11 +411,11 @@
           - "'monitor)' in test_job_control_helper"
           - "'recover)' in test_job_control_helper"
           - "'mode=recover' in test_job_control_helper"
-          - "'statistics)' in test_job_control_helper"
-          - "'mode=statistics' in test_job_control_helper"
+          - "'statistics)' not in test_job_control_helper"
+          - "'mode=statistics' not in test_job_control_helper"
           - "'script_options=(--layer' not in test_job_control_helper"
           - "'--status-counts' not in test_job_control_helper"
-          - test_job_control_helper.count('script_options=(--human-readable)') == 3
+          - test_job_control_helper.count('script_options=(--human-readable)') == 2
           - >-
             'job_control_script="/opt/wps-tools/scripts/pywps-job-control.py"'
             in test_job_control_helper
@@ -420,8 +427,21 @@
             '/opt/wps-tools/scripts/pywps-request-insights.py'
             in test_request_insights_helper
           - >-
-            'logs=("/var/log/pywps/$service-requests.log"*)'
+            '"/var/log/pywps/$service-events.jsonl"*'
             in test_request_insights_helper
+          - >-
+            '"/var/log/pywps/$service-requests.log"*'
+            in test_request_insights_helper
+          - "'statistics SERVICE_NAME' in test_statistics_helper"
+          - >-
+            '/opt/wps-tools/scripts/wps-event-statistics.py'
+            in test_statistics_helper
+          - >-
+            '/var/lib/pywps/statistics/$service-daily.csv'
+            in test_statistics_helper
+          - >-
+            '"/var/log/pywps/$service-events.jsonl"*'
+            in test_statistics_helper
           - >-
             '--config "$config_file" "$mode" "${script_options[@]}" "$@"'
             in test_job_control_helper
@@ -449,8 +469,11 @@
             'exec watch -n "$interval" -- "$status_script"'
             in test_slurm_top
           - "'rotate 7' in test_logrotate_config"
+          - "'rotate 42' in test_logrotate_config"
           - "'daily' in test_logrotate_config"
           - "'minsize 10M' in test_logrotate_config"
+          - "'maxage 42' in test_logrotate_config"
+          - "'compress' in test_logrotate_config"
           - "'maxsize' not in test_logrotate_config"
           - "'upstream alpha' in test_nginx_config"
           - "'proxy_cache_path /var/lib/pywps/cache/alpha' in test_nginx_config"
@@ -488,6 +511,9 @@
           - "'recovery_enabled = true' in test_pywps_config"
           - "'missing_status_recovery_enabled = true' in test_pywps_config"
           - "'statistics_enabled = true' in test_pywps_config"
+          - >-
+            'event_log = /var/log/pywps/alpha-events.jsonl'
+            in test_pywps_config
           - "'layers =' not in test_pywps_config"
           - "'long_running_minutes = 10' in test_pywps_config"
           - "'stale_after_minutes = 95' in test_pywps_config"

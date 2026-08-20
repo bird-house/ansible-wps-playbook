@@ -72,6 +72,14 @@
     group: root
     mode: "0755"
 
+- name: Create WPS statistics directory
+  ansible.builtin.file:
+    path: "{{ wps_tools_statistics_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Validate job-control settings
   ansible.builtin.assert:
     that:
@@ -82,6 +90,9 @@
       - wps_tools_sbin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_script_dir.startswith(wps_tools_dir + '/')
       - wps_tools_state_dir.startswith(service_user_home + '/')
+      - wps_tools_statistics_dir.startswith(service_user_home + '/')
+      - wps_tools_event_keep_days | int > 0
+      - wps_tools_statistics_keep_days | int >= 0
       - wps_tools_job_control_schedule | type_debug == 'dict'
       - wps_tools_job_control_recovery_schedule | type_debug == 'dict'
       - wps_tools_statistics_schedule | type_debug == 'dict'
@@ -136,6 +147,22 @@
   ansible.builtin.copy:
     src: pywps-job-control.py
     dest: "{{ wps_tools_script_dir }}/pywps-job-control.py"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install WPS event utilities
+  ansible.builtin.copy:
+    src: wps_tools_events.py
+    dest: "{{ wps_tools_script_dir }}/wps_tools_events.py"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install WPS event statistics script
+  ansible.builtin.copy:
+    src: wps-event-statistics.py
+    dest: "{{ wps_tools_script_dir }}/wps-event-statistics.py"
     owner: root
     group: root
     mode: "0755"
@@ -354,7 +381,14 @@
   loop:
     - monitor
     - recover
-    - statistics
+
+- name: Install WPS statistics command
+  ansible.builtin.template:
+    src: statistics-helper.sh.j2
+    dest: "{{ wps_tools_sbin_dir }}/statistics"
+    owner: root
+    group: root
+    mode: "0755"
 
 - name: Remove obsolete recovery commands
   ansible.builtin.file:
@@ -455,9 +489,7 @@
     weekday: "{{ wps_tools_statistics_schedule.weekday | default('*') }}"
     user: root
     job: >-
-      {{ conda_envs_dir }}/{{ item.name }}/bin/python
-      {{ wps_tools_script_dir }}/pywps-job-control.py
-      --config /etc/pywps/{{ item.name }}.cfg statistics
+      {{ wps_tools_sbin_dir }}/statistics {{ item.name }} --quiet
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool)
@@ -505,7 +537,7 @@
       --config /etc/pywps/{{ item.name }}.cfg
       --service {{ item.name }}
       --state-file {{ wps_tools_state_dir }}/{{ item.name }}-xml-inspect.json
-      --log-file {{ wps_log_dir }}/{{ item.name }}-requests.log
+      --log-file {{ wps_log_dir }}/{{ item.name }}-events.jsonl
       --lock-file {{ wps_run_dir }}/{{ item.name }}-xml-inspect.lock
     cron_file: ansible_pywps
     disabled: "{{ (cron_disabled | bool) or not (wps_tools_inspect_enabled | bool) }}"

@@ -17,9 +17,12 @@ fi
 service=$1
 shift
 shopt -s nullglob
-logs=("{{ wps_log_dir }}/$service-requests.log"*)
+logs=(
+    "{{ wps_log_dir }}/$service-events.jsonl"*
+    "{{ wps_log_dir }}/$service-requests.log"*
+)
 if [[ -z ${logs[0]:-} ]]; then
-    echo "No request logs found for service: $service" >&2
+    echo "No event logs found for service: $service" >&2
     exit 1
 fi
 exec /usr/bin/python3 "{{ wps_tools_script_dir }}/pywps-request-insights.py" \

@@ -436,12 +436,14 @@ PyWPS runtime state:
 ├── cache/
 ├── db/
 ├── job-incidents/
-└── state/
+├── state/
+└── statistics/  # durable daily CSV aggregates
 ```
 
 The locations are controlled by `wps_tools_dir`,
 `wps_tools_bin_dir`, `wps_tools_sbin_dir`,
-`wps_tools_script_dir`, and `wps_tools_state_dir`. The deployment migrates XML
+`wps_tools_script_dir`, `wps_tools_state_dir`, and
+`wps_tools_statistics_dir`. The deployment migrates XML
 inspection state into `state/` before removing the old hidden state files and
 root-level tools from `/var/lib/pywps`.
 
@@ -539,6 +541,7 @@ monitor_enabled = true
 recovery_enabled = true
 missing_status_recovery_enabled = true
 statistics_enabled = true
+event_log = /var/log/pywps/SERVICE_NAME-events.jsonl
 incident_archive_enabled = true
 incident_archive_dir = /var/lib/pywps/job-incidents/SERVICE_NAME
 ```
@@ -577,6 +580,12 @@ the other PyWPS logs. By default, a log becomes eligible for rotation after
 one day only when it exceeds `10M`; both the size and retained archive count
 are configurable with `wps_logrotate_min_size` and
 `wps_logrotate_rotations`.
+
+Recovery actions and important warning-level monitor events are also appended
+as structured JSON Lines to
+`/var/log/pywps/SERVICE_NAME-events.jsonl`. This makes recoveries, long-running
+jobs, and operation errors available to `insights` and the durable statistics
+without removing the readable job-control log used for diagnosis.
 
 Individual stalled findings and warning summaries are written to the log file.
 Scheduled runs keep warnings off the console so cron does not mail them. Only
@@ -645,7 +654,7 @@ sudo /opt/wps-tools/sbin/recover SERVICE_NAME --limit 500
 ```
 
 The administrative commands installed in `/opt/wps-tools/sbin` are
-`monitor`, `recover`, and `statistics`. Their implementation is installed in
+`monitor`, `recover`, and `statistics`. Their implementations are installed in
 `/opt/wps-tools/scripts`.
 
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
@@ -653,8 +662,8 @@ diagnosis, invoke `pywps-job-control.py` with that service's deployed Conda
 Python and repeat `--layer`, for example `--layer xml --layer database`.
 The script validates its interpreter against the path rendered in the service
 configuration and rejects the host Python. Without explicit layers, monitoring
-and recovery use all three layers in their safe order; statistics uses XML and
-database. `--stale-after-minutes` overrides the XML threshold, while
+and recovery use all three layers in their safe order.
+`--stale-after-minutes` overrides the XML threshold, while
 `--database-stale-after-minutes` overrides database cleanup.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
@@ -698,10 +707,11 @@ sudo find /var/lib/pywps/job-incidents/rook -type f -name '*.xml' -print
 Slurm timeout enforcement and host-wide queue monitoring are described under
 [Use the Slurm scheduler](#use-the-slurm-scheduler).
 
-### Record hourly PyWPS job statistics
+### Retain daily WPS statistics
 
-When cron is enabled, a separate read-only statistics job runs hourly at four
-minutes past the hour by default:
+Completed requests and important job-control events share one append-only
+JSONL source per service. When cron is enabled, a read-only aggregation job
+runs hourly at four minutes past the hour by default:
 
 ```yaml
 wps_tools_statistics_enabled: true
@@ -710,23 +720,29 @@ wps_tools_statistics_schedule:
   hour: "*"
 ```
 
-It records one `current_status` line per run in
-`/var/log/pywps/SERVICE_NAME-stats.log`. The line contains the complete database
-aggregate using the OGC API Processes vocabulary: accepted, running,
-successful, failed, dismissed, and unmapped. PyWPS `started` and `paused`
-records are combined as `running`. It also reports the unique stalled-job
-count, the separate XML and database stalled counts, the number of XML status
-documents, and layer errors. A request stalled in both XML and the database is
-counted only once in `stalled`. The line also includes the number of non-final
-database requests beyond the long-running warning threshold. Routine
-individual findings are excluded. Errors add extra log records, and critical
-errors also reach the cron console. The
-statistics log uses the same daily maximum frequency and configured
-minimum-size threshold as the other service logs. Run the same report manually
-with:
+It atomically updates `/var/lib/pywps/statistics/SERVICE_NAME-daily.csv`.
+Each UTC day stores request outcomes and duration totals, memory and timeout
+failures, and unique recovered and long-running jobs. Re-reading retained
+events updates the corresponding days while older CSV rows remain untouched,
+so the aggregate can outlive its detailed source. Concurrent cron and manual
+runs use a file lock.
+
+Run a friendly summary over the complete retained aggregate, or select a date
+range or JSON output:
 
 ```sh
 sudo /opt/wps-tools/sbin/statistics SERVICE_NAME
+sudo /opt/wps-tools/sbin/statistics SERVICE_NAME --from 2026-08-01 --to 2026-08-31
+sudo /opt/wps-tools/sbin/statistics SERVICE_NAME --json
+```
+
+Detailed event files rotate daily, are gzip-compressed, and are retained for
+42 days by default. Daily CSV rows are retained indefinitely by default. Both
+policies are configurable; a positive aggregate value limits CSV history:
+
+```yaml
+wps_tools_event_keep_days: 42
+wps_tools_statistics_keep_days: 0  # zero means unlimited
 ```
 
 ### Inspect individual XML requests
@@ -734,8 +750,8 @@ sudo /opt/wps-tools/sbin/statistics SERVICE_NAME
 An independent, read-only helper scans final status XML documents every five
 minutes by default, starting at minute 2. This includes a run immediately
 before the normal hourly minute-3 output cleanup. It appends one JSON line per
-completed request to
-`/var/log/pywps/SERVICE_NAME-requests.log`, including the process, input values
+completed request to the unified
+`/var/log/pywps/SERVICE_NAME-events.jsonl`, including the process, input values
 or references when present in the XML, approximate duration, success or
 failure, and OWS exception details. A small state file prevents the same
 retained XML document being recorded again on the next scan.
@@ -768,7 +784,7 @@ The duration is derived from a version-1 job UUID when available, otherwise
 from the XML `Status` creation time, and the status file modification time. It
 is therefore an operational estimate rather than a database-quality timing.
 
-Aggregate the current and rotated request logs with:
+Aggregate the current and rotated event files with:
 
 ```sh
 sudo /opt/wps-tools/bin/insights SERVICE_NAME
@@ -787,7 +803,8 @@ ties deterministically.
 
 The default report is a compact operational overview: request outcomes,
 median, 95th-percentile and maximum durations, retained workflow metadata,
-failure-category totals, and one line per requested dataset. A process table
+failure-category totals, recovered and long-running jobs, operation errors,
+and one line per requested dataset. A process table
 is shown only when multiple processes are selected. Use `--details` to append
 failure blocks grouped by dataset, with their selection, concise reason and
 example job IDs, or `--json` for the complete machine-readable report. The
@@ -816,8 +833,9 @@ allocation errors; timeout detection recognizes Slurm time-limit cancellation,
 wall-clock, deadline, timed-out, and stale no-update recovery messages. The
 root-cause reducer also extracts plain Slurm cancellation lines from verbose
 diagnostic output. Both plain and gzip-compressed logrotate files are accepted,
-and duplicate job IDs across rotations are ignored. `--top` controls the number
-of values and detailed failure groups retained.
+and duplicate job IDs across rotations are ignored. Legacy
+`SERVICE_NAME-requests.log` rotations are read during migration. `--top`
+controls the number of values and detailed failure groups retained.
 
 When orchestrate records are present, a dedicated production-data section
 resolves workflow aliases such as `inputs/tas` to their complete collection

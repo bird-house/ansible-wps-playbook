@@ -15,6 +15,10 @@ wps_tools_dir: /opt/wps-tools
 wps_tools_bin_dir: "{{ wps_tools_dir }}/bin"
 wps_tools_sbin_dir: "{{ wps_tools_dir }}/sbin"
 wps_tools_script_dir: "{{ wps_tools_dir }}/scripts"
+wps_tools_statistics_dir: "{{ service_user_home }}/statistics"
+wps_tools_event_keep_days: 42
+# Zero keeps daily aggregate rows indefinitely.
+wps_tools_statistics_keep_days: 0
 
 # collectd host monitoring (Red Hat family version 9 only)
 collectd_enabled: true

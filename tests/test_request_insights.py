@@ -297,6 +297,43 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(json.loads(output.getvalue())["requests"], 1)
 
+    def test_reports_operational_events_without_counting_them_as_requests(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / "events.jsonl"
+            events = [
+                dict(record("1"), record_type="request"),
+                {
+                    "record_type": "operation",
+                    "service": "rook",
+                    "job_id": "recover-me",
+                    "recorded_at": "2026-08-01T11:00:00+00:00",
+                    "event": "job-recovered",
+                    "level": "warning",
+                    "message": "recovered",
+                },
+                {
+                    "record_type": "operation",
+                    "service": "rook",
+                    "job_id": "slow-job",
+                    "recorded_at": "2026-08-01T11:05:00+00:00",
+                    "event": "job-long-running",
+                    "level": "warning",
+                    "message": "long running",
+                },
+            ]
+            log.write_text(
+                "".join(json.dumps(item) + "\n" for item in events),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = MODULE.main([str(log), "--all-processes", "--json"])
+        report = json.loads(output.getvalue())
+        self.assertEqual(result, 0)
+        self.assertEqual(report["requests"], 1)
+        self.assertEqual(report["operations"]["recovered_jobs"], 1)
+        self.assertEqual(report["operations"]["long_running_jobs"], 1)
+
     def test_defaults_to_orchestrate_process(self):
         with tempfile.TemporaryDirectory() as temporary:
             log = Path(temporary) / "requests.log"

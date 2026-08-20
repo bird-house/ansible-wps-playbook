@@ -4,8 +4,9 @@
     that:
       - wps_logrotate_rotations | int > 0
       - wps_logrotate_min_size is match('^[1-9][0-9]*[kMGT]?$')
+      - wps_tools_event_keep_days | int > 0
     fail_msg: >-
-      wps_logrotate_rotations must be positive and
+      Log rotation counts and event retention must be positive, and
       wps_logrotate_min_size must be a positive logrotate size such as 10M.
 
 - name: Copy pywps logrotate config

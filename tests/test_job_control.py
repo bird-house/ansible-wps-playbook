@@ -23,6 +23,7 @@ SCRIPT = (
     / "files"
     / "pywps-job-control.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("pywps_job_control", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -830,6 +831,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
             "statistics_enabled = true\n"
+            f"event_log = {self.root / 'logs' / 'alpha-events.jsonl'}\n"
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "database_stale_after_minutes = 420\n"
@@ -876,6 +878,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertTrue(settings.recovery_enabled)
         self.assertTrue(settings.missing_status_recovery_enabled)
         self.assertTrue(settings.statistics_enabled)
+        self.assertEqual(
+            settings.event_log, self.root / "logs" / "alpha-events.jsonl"
+        )
         self.assertTrue(settings.incident_archive_enabled)
         self.assertEqual(settings.incident_archive_dir, self.root / "incidents")
         self.assertEqual(settings.recovery_limit, 100)

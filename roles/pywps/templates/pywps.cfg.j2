@@ -79,6 +79,7 @@ min_poll_count = {{ wps_tools_missing_status_min_poll_count }}
 min_poll_duration_minutes = {{ wps_tools_missing_status_min_poll_duration_minutes }}
 missing_status_recovery_limit = {{ wps_tools_missing_status_recovery_limit }}
 missing_status_database_guard = {{ wps_tools_missing_status_database_guard | bool | lower }}
+event_log = {{ wps_log_dir }}/{{ item.name }}-events.jsonl
 
 {% if item.extra_config is defined %}
 {{ item.extra_config }}

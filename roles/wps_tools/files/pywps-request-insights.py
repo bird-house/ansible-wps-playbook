@@ -146,9 +146,10 @@ def load_records(paths: Iterable[Path]) -> tuple[list[dict[str, object]], list[s
                         errors.append(f"{path}:{line_number}: record is not an object")
                         continue
                     job_id = record.get("job_id")
+                    record_type = record.get("record_type", "request")
                     identity = (
-                        (record.get("service"), job_id)
-                        if isinstance(job_id, str) and job_id
+                        ("request", record.get("service"), job_id)
+                        if record_type == "request" and isinstance(job_id, str) and job_id
                         else (str(path), line_number)
                     )
                     if identity in seen:
@@ -184,6 +185,44 @@ def duration_summary(values: list[float]) -> dict[str, object]:
         "median_seconds": round(statistics.median(values), 3) if values else None,
         "p95_seconds": percentile(values, 0.95),
         "max_seconds": round(max(values), 3) if values else None,
+    }
+
+
+def aggregate_operations(records: list[dict[str, object]], top: int) -> dict[str, object]:
+    recovered_jobs = {
+        str(record["job_id"])
+        for record in records
+        if record.get("event") == "job-recovered" and record.get("job_id")
+    }
+    long_running_jobs = {
+        str(record["job_id"])
+        for record in records
+        if record.get("event") == "job-long-running" and record.get("job_id")
+    }
+    errors = [
+        record
+        for record in records
+        if record.get("event") == "operation-error" or record.get("level") == "critical"
+    ]
+    recent = sorted(
+        records,
+        key=lambda record: record_time(record) or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )[:top]
+    return {
+        "events": len(records),
+        "recovered_jobs": len(recovered_jobs),
+        "long_running_jobs": len(long_running_jobs),
+        "errors": len(errors),
+        "recent": [
+            {
+                "recorded_at": record.get("recorded_at"),
+                "event": record.get("event"),
+                "job_id": record.get("job_id"),
+                "message": record.get("message"),
+            }
+            for record in recent
+        ],
     }
 
 
@@ -740,6 +779,13 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
         f" p95={format_duration(duration.get('p95_seconds'))} "
         f" max={format_duration(duration.get('max_seconds'))}"
     )
+    operations = report.get("operations", {})
+    if operations.get("events"):
+        print(
+            f"Operations: recovered={operations['recovered_jobs']}  "
+            f"long-running={operations['long_running_jobs']}  "
+            f"errors={operations['errors']}"
+        )
 
     if len(report["processes"]) > 1:
         print("\nProcesses")
@@ -907,16 +953,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     records, errors = load_records(args.logs)
     selected = []
+    operations = []
     for record in records:
         timestamp = record_time(record)
         if args.start and (timestamp is None or timestamp < args.start):
             continue
         if args.end and (timestamp is None or timestamp > args.end):
             continue
+        if record.get("record_type") == "operation":
+            operations.append(record)
+            continue
         if not args.all_processes and record.get("process") != args.process:
             continue
         selected.append(record)
     report = aggregate(selected, args.top, args.sort)
+    report["operations"] = aggregate_operations(operations, args.top)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
