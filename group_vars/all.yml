@@ -15,6 +15,13 @@ wps_tools_dir: /opt/wps-tools
 wps_tools_bin_dir: "{{ wps_tools_dir }}/bin"
 wps_tools_sbin_dir: "{{ wps_tools_dir }}/sbin"
 wps_tools_script_dir: "{{ wps_tools_dir }}/scripts"
+wps_tools_statistics_dir: "{{ service_user_home }}/statistics"
+wps_tools_event_keep_days: 42
+# Zero keeps daily aggregate rows indefinitely.
+wps_tools_statistics_keep_days: 0
+# Compact interactive PyWPS database overview.
+wps_tools_pywps_status_script: "{{ wps_tools_script_dir }}/pywps-job-status.py"
+wps_tools_pywps_top_script: "{{ wps_tools_bin_dir }}/ptop"
 
 # collectd host monitoring (Red Hat family version 9 only)
 collectd_enabled: true
@@ -81,22 +88,48 @@ wps_cpus_resolved: >-
     if (wps_cpus | string | lower) == 'auto'
     else (wps_cpus | int)
   }}
+# Keep capacity for Gunicorn and other host services instead of advertising
+# every CPU to Slurm. "auto" reserves one CPU on hosts with up to four CPUs
+# and two CPUs on larger hosts, while always leaving Slurm at least one CPU.
+wps_service_cpus: auto
+wps_service_cpus_resolved: >-
+  {{
+    (
+      [
+        (2 if (wps_cpus_resolved | int) > 4 else 1),
+        ([(wps_cpus_resolved | int) - 1, 0] | max)
+      ] | min
+    )
+    if (wps_service_cpus | string | lower) == 'auto'
+    else (wps_service_cpus | int)
+  }}
 
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
-slurm_cpus: "{{ wps_cpus_resolved }}"
-slurm_drmaa_version: 1.1.4
-slurm_roles: ['controller', 'exec']
-# Keep host services outside Slurm's allocatable memory. Jobs receive an equal
-# share by default, while deployments with memory-heavy workloads can raise
-# the per-job allocation and let Slurm run fewer jobs concurrently.
+# Keep host services outside Slurm's allocatable memory. Automatic CPU/job
+# capacity also leaves at least this much allocatable RAM per concurrent job.
 slurm_system_memory_reserve_percent: 20
+slurm_min_job_memory_mb: 4096
 slurm_real_memory_mb: >-
   {{
     ((ansible_memtotal_mb | int)
      * (100 - (slurm_system_memory_reserve_percent | int)) / 100) | int
   }}
+slurm_cpus: >-
+  {{
+    [
+      [
+        (wps_cpus_resolved | int) - (wps_service_cpus_resolved | int),
+        (slurm_real_memory_mb | int) // (slurm_min_job_memory_mb | int)
+      ] | min,
+      1
+    ] | max
+  }}
+slurm_drmaa_version: 1.1.4
+slurm_roles: ['controller', 'exec']
+# Jobs receive an equal share by default. Memory-heavy deployments can raise
+# the per-job allocation and let Slurm run fewer jobs concurrently.
 slurm_default_job_memory_mb: >-
   {{
     [
@@ -138,8 +171,9 @@ slurm_munge_key: /etc/munge/munge.key
 slurm_configure_munge: false
 # Slurm limits running allocation time; pending queue time is not counted.
 slurm_job_timeout_minutes: "{{ job_timeout_minutes }}"
-# Report host-wide Slurm queue pressure and long-running jobs by default.
-wps_tools_slurm_monitor_enabled: true
+# Optional host-wide Slurm queue and availability alerting. qtop and Slurm's
+# hard job limits remain available when this scheduled monitor is disabled.
+wps_tools_slurm_monitor_enabled: false
 wps_tools_slurm_monitor_schedule:
   minute: "*/5"
   hour: "*"
@@ -288,6 +322,8 @@ wps_tools_job_control_stale_after_minutes: >-
   {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
 wps_tools_job_control_database_stale_after_minutes: >-
   {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
+# Accepted rows may represent queue wait, so use a separate conservative age.
+wps_tools_job_control_database_accepted_stale_after_hours: 24
 # Report the status mix for jobs started in this recent window.
 wps_tools_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.

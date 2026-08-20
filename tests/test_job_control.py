@@ -23,6 +23,7 @@ SCRIPT = (
     / "files"
     / "pywps-job-control.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("pywps_job_control", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -36,6 +37,7 @@ JOB_UUID = "123e4567-e89b-42d3-a456-426614174000"
 OTHER_JOB_UUID = "223e4567-e89b-42d3-a456-426614174000"
 THIRD_JOB_UUID = "323e4567-e89b-42d3-a456-426614174000"
 FOURTH_JOB_UUID = "423e4567-e89b-42d3-a456-426614174000"
+FIFTH_JOB_UUID = "523e4567-e89b-42d3-a456-426614174000"
 OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
@@ -829,10 +831,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "monitor_enabled = false\n"
             "recovery_enabled = true\n"
             "missing_status_recovery_enabled = true\n"
-            "statistics_enabled = true\n"
+            f"event_log = {self.root / 'logs' / 'alpha-events.jsonl'}\n"
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "database_stale_after_minutes = 420\n"
+            "database_accepted_stale_after_hours = 36\n"
             "database_status_window_hours = 12\n"
             "recovery_user = alpha-user\n"
             "recovery_group = alpha-group\n"
@@ -855,6 +858,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertEqual(settings.database_stale_after_minutes, 420)
+        self.assertEqual(settings.database_accepted_stale_after_hours, 36)
         self.assertEqual(settings.database_status_window_hours, 12)
         self.assertEqual(settings.work_dir, self.root / "tmp")
         self.assertEqual(settings.recovery_user, "alpha-user")
@@ -875,7 +879,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertFalse(settings.monitor_enabled)
         self.assertTrue(settings.recovery_enabled)
         self.assertTrue(settings.missing_status_recovery_enabled)
-        self.assertTrue(settings.statistics_enabled)
+        self.assertEqual(
+            settings.event_log, self.root / "logs" / "alpha-events.jsonl"
+        )
         self.assertTrue(settings.incident_archive_enabled)
         self.assertEqual(settings.incident_archive_dir, self.root / "incidents")
         self.assertEqual(settings.recovery_limit, 100)
@@ -896,10 +902,13 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "720",
             "--database-stale-after-minutes",
             "840",
+            "--database-accepted-stale-after-hours",
+            "48",
         ])
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
         self.assertEqual(overridden.database_stale_after_minutes, 840)
+        self.assertEqual(overridden.database_accepted_stale_after_hours, 48)
         self.assertIsNone(overridden.limit)
 
         recovery = MODULE.parse_args(["--config", str(config), "recover"])
@@ -914,11 +923,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "--layer",
             "database",
             "--show-summaries",
-            "--status-counts",
         ])
         self.assertEqual(selected_layers.layers, ["xml", "database"])
         self.assertTrue(selected_layers.show_summaries)
-        self.assertTrue(selected_layers.status_counts)
 
         human = MODULE.parse_args([
             "--config",
@@ -927,18 +934,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "--human-readable",
         ])
         self.assertTrue(human.human_readable)
-
-        statistics = MODULE.parse_args([
-            "--config",
-            str(config),
-            "statistics",
-        ])
-        self.assertEqual(statistics.layers, ["xml", "database"])
-        self.assertTrue(statistics.status_counts)
-        self.assertEqual(
-            statistics.log_file,
-            self.root / "logs" / "alpha-stats.log",
-        )
 
         overridden_monitor = MODULE.parse_args([
             "--config",
@@ -973,6 +968,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
             ["monitor", "--hours", "3.5"],
             ["monitor", "--stale-after-hours", "6"],
             ["monitor", "--min-poll-age-minutes", "5"],
+            ["monitor", "--status-counts"],
+            ["statistics"],
         ):
             with self.subTest(arguments=arguments), mock.patch(
                 "sys.stderr", new=io.StringIO()
@@ -996,7 +993,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(summaries[0].errors, 1)
         self.assertEqual((summaries[1].checked, summaries[1].stalled), (2, 1))
 
-    def test_operation_flags_select_monitor_recovery_and_statistics(self):
+    def test_operation_flags_select_monitor_and_recovery(self):
         settings = self.settings("monitor", ["xml", "database"])
         settings.monitor_enabled = False
         self.assertFalse(MODULE.operation_is_enabled(settings))
@@ -1015,12 +1012,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertTrue(MODULE.operation_is_enabled(settings))
         settings.missing_status_recovery_enabled = True
         self.assertTrue(MODULE.layer_is_enabled(settings, "polling"))
-
-        settings.mode = "statistics"
-        settings.statistics_enabled = False
-        self.assertFalse(MODULE.operation_is_enabled(settings))
-        settings.statistics_enabled = True
-        self.assertTrue(MODULE.operation_is_enabled(settings))
 
     def test_disabled_polling_recovery_does_not_skip_other_layers(self):
         settings = self.settings("recover", ["xml", "polling"])
@@ -1200,114 +1191,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         warning = MODULE.logging.LogRecord(
             "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
         )
-        status_summary = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
-        )
-        current_status = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
-        )
         self.assertTrue(handler.filter(summary))
-        self.assertTrue(handler.filter(status_summary))
-        self.assertTrue(handler.filter(current_status))
         self.assertFalse(handler.filter(finding))
         self.assertTrue(handler.filter(warning))
-
-    def test_statistics_log_keeps_only_current_status_and_warnings(self):
-        log_file = self.root / "statistics.log"
-        with mock.patch.object(MODULE.logging, "basicConfig") as basic_config:
-            MODULE.configure_logging(log_file, statistics_only=True)
-
-        handlers = basic_config.call_args.kwargs["handlers"]
-        stream_handler = next(
-            handler
-            for handler in handlers
-            if type(handler) is MODULE.logging.StreamHandler
-        )
-        file_handler = next(
-            handler
-            for handler in handlers
-            if isinstance(handler, MODULE.logging.FileHandler)
-        )
-        self.assertEqual(stream_handler.level, MODULE.logging.CRITICAL)
-        summary = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "summary layer=xml", (), None
-        )
-        finding = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "layer=xml job=1", (), None
-        )
-        status_summary = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "status_summary total=5", (), None
-        )
-        current_status = MODULE.logging.LogRecord(
-            "test", MODULE.logging.INFO, __file__, 1, "current_status total=5", (), None
-        )
-        warning = MODULE.logging.LogRecord(
-            "test", MODULE.logging.WARNING, __file__, 1, "warning", (), None
-        )
-        self.assertFalse(file_handler.filter(summary))
-        self.assertFalse(file_handler.filter(status_summary))
-        self.assertTrue(file_handler.filter(current_status))
-        self.assertFalse(file_handler.filter(finding))
-        self.assertTrue(file_handler.filter(warning))
-        file_handler.close()
-
-    def test_statistics_logs_one_current_status_line_with_unique_stalled_jobs(self):
-        settings = self.settings("statistics", ["xml", "database"])
-        logger = mock.Mock()
-        counts = {
-            "total": 58,
-            "accepted": 3,
-            "running": 12,
-            "successful": 11,
-            "failed": 13,
-            "dismissed": 0,
-            "unmapped": 19,
-        }
-        xml = MODULE.LayerSummary(
-            "xml",
-            checked=40,
-            stalled=2,
-            stalled_jobs={JOB_UUID, OTHER_JOB_UUID},
-        )
-        database = MODULE.LayerSummary(
-            "database",
-            checked=2,
-            stalled=2,
-            stalled_jobs={OTHER_JOB_UUID, THIRD_JOB_UUID},
-            status_counts=counts,
-            long_running=2,
-            long_running_jobs={JOB_UUID, OTHER_JOB_UUID},
-        )
-
-        summaries = MODULE.execute_layers(
-            settings,
-            self.now,
-            logger,
-            runners={
-                "xml": lambda *_args: xml,
-                "database": lambda *_args: database,
-            },
-        )
-        MODULE.log_current_status(summaries, logger)
-
-        logger.info.assert_called_once_with(
-            "current_status total=%s accepted=%s running=%s successful=%s "
-            "failed=%s dismissed=%s unmapped=%s long_running=%d stalled=%d "
-            "xml_stalled=%d database_stalled=%d xml_documents=%d errors=%d",
-            58,
-            3,
-            12,
-            11,
-            13,
-            0,
-            19,
-            2,
-            3,
-            2,
-            2,
-            40,
-            0,
-        )
 
     def test_operator_report_is_compact_and_human_readable(self):
         settings = self.settings("monitor", ["xml", "database"])
@@ -1330,34 +1216,6 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "Result: attention required\n"
             "Details: /var/log/pywps/rook-job-monitor.log\n",
         )
-
-    def test_statistics_operator_report_includes_request_statuses(self):
-        settings = self.settings("statistics", ["xml", "database"])
-        settings.service_name = "rook"
-        summaries = [
-            MODULE.LayerSummary("xml", checked=4),
-            MODULE.LayerSummary(
-                "database",
-                checked=10,
-                status_counts={
-                    "total": 10,
-                    "accepted": 1,
-                    "running": 2,
-                    "successful": 5,
-                    "failed": 2,
-                    "dismissed": 0,
-                    "unmapped": 0,
-                },
-            ),
-        ]
-        output = io.StringIO()
-        with mock.patch("sys.stdout", output):
-            MODULE.print_operator_report(settings, summaries)
-        self.assertIn(
-            "Requests: total=10  accepted=1  running=2  success=5  failures=2",
-            output.getvalue(),
-        )
-        self.assertIn("Result: complete", output.getvalue())
 
     def test_database_status_summary_uses_ogc_api_processes_vocabulary(self):
         statuses = argparse.Namespace(
@@ -1623,7 +1481,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
-    def test_database_recovery_handles_started_but_not_accepted_requests(self):
+    def test_database_recovery_uses_conservative_accepted_threshold(self):
         pywps_config = self.root / "pywps.cfg"
         database = self.root / "pywps.sqlite"
         workdir = self.root / "work"
@@ -1643,6 +1501,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
         configuration.load_configuration([str(pywps_config)])
         old = (self.now - timedelta(hours=8)).replace(tzinfo=None)
+        very_old = (self.now - timedelta(hours=30)).replace(tzinfo=None)
         session = dblog.get_session()
         session.add(
             dblog.ProcessInstance(
@@ -1663,7 +1522,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 pid=34567,
                 operation="execute",
                 version="1.0.0",
-                time_start=old,
+                time_start=very_old,
+                time_end=very_old,
                 status=WPS_STATUS.ACCEPTED,
                 percent_done=0,
             )
@@ -1681,6 +1541,18 @@ class RecoverStalledJobsTests(unittest.TestCase):
             )
         )
         session.add(dblog.RequestInstance(uuid=FOURTH_JOB_UUID, request=b"{}"))
+        session.add(
+            dblog.ProcessInstance(
+                uuid=FIFTH_JOB_UUID,
+                pid=56789,
+                operation="execute",
+                version="1.0.0",
+                time_start=old,
+                status=WPS_STATUS.ACCEPTED,
+                percent_done=0,
+            )
+        )
+        session.add(dblog.RequestInstance(uuid=FIFTH_JOB_UUID, request=b"{}"))
         session.add(
             dblog.ProcessInstance(
                 uuid=OTHER_JOB_UUID,
@@ -1701,11 +1573,15 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (1, 1, 1, 0),
+            (2, 2, 2, 0),
         )
         self.assertEqual(
             logger.warning.call_args_list,
             [
+                mock.call(
+                    "layer=database job=%s status=failed action=recovered",
+                    THIRD_JOB_UUID,
+                ),
                 mock.call(
                     "layer=database job=%s status=failed action=recovered",
                     JOB_UUID,
@@ -1723,11 +1599,21 @@ class RecoverStalledJobsTests(unittest.TestCase):
         accepted = (
             session.query(dblog.ProcessInstance).filter_by(uuid=THIRD_JOB_UUID).one()
         )
-        self.assertEqual(accepted.status, WPS_STATUS.ACCEPTED)
-        self.assertEqual(accepted.percent_done, 0)
-        self.assertIsNotNone(
+        self.assertEqual(accepted.status, WPS_STATUS.FAILED)
+        self.assertEqual(accepted.percent_done, 100)
+        self.assertIsNone(
             session.query(dblog.RequestInstance)
             .filter_by(uuid=THIRD_JOB_UUID)
+            .first()
+        )
+        queued = (
+            session.query(dblog.ProcessInstance).filter_by(uuid=FIFTH_JOB_UUID).one()
+        )
+        self.assertEqual(queued.status, WPS_STATUS.ACCEPTED)
+        self.assertEqual(queued.percent_done, 0)
+        self.assertIsNotNone(
+            session.query(dblog.RequestInstance)
+            .filter_by(uuid=FIFTH_JOB_UUID)
             .first()
         )
         paused = (

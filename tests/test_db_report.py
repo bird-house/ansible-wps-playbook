@@ -17,9 +17,9 @@ SCRIPT = (
     / "roles"
     / "wps_tools"
     / "files"
-    / "pywps-db-monitor.py"
+    / "pywps-db-report.py"
 )
-SPEC = importlib.util.spec_from_file_location("pywps_db_monitor", SCRIPT)
+SPEC = importlib.util.spec_from_file_location("pywps_db_report", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 sys.modules[SPEC.name] = MODULE
@@ -27,7 +27,7 @@ SPEC.loader.exec_module(MODULE)
 UTC = timezone.utc
 
 
-class DatabaseMonitorTests(unittest.TestCase):
+class DatabaseReportTests(unittest.TestCase):
     def setUp(self):
         self.statuses = argparse.Namespace(
             ACCEPTED=0,
@@ -192,7 +192,7 @@ class DatabaseMonitorTests(unittest.TestCase):
             self.period,
         )
         with mock.patch("sys.stdout") as stdout:
-            MODULE.print_report(report)
+            MODULE.print_report(report, failures=True)
         output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
         self.assertIn('"first line\\nsecond line"', output)
 
@@ -208,7 +208,29 @@ class DatabaseMonitorTests(unittest.TestCase):
         output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
         self.assertIn("Total", output)
         self.assertIn("Success rate: n/a", output)
-        self.assertIn("Errors (0 failures, 0 unique messages)", output)
+        self.assertNotIn("Failure details", output)
+
+        with mock.patch("sys.stdout") as stdout:
+            MODULE.print_report(report, failures=True)
+        output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
+        self.assertIn("Failure details (0 failures, 0 unique messages)", output)
+
+    def test_failure_details_are_optional_and_limited_by_top(self):
+        report = MODULE.summarize(
+            [
+                self.record(status=5, message="common"),
+                self.record(status=5, message="common"),
+                self.record(status=5, message="rare"),
+            ],
+            self.statuses,
+            self.period,
+        )
+        with mock.patch("sys.stdout") as stdout:
+            MODULE.print_report(report, failures=True, top=1)
+        output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list)
+        self.assertIn("showing 1, increase --top to see more", output)
+        self.assertIn('2x  "common"', output)
+        self.assertNotIn('1x  "rare"', output)
 
     def test_successful_duration_distribution_uses_distinct_ranges(self):
         distribution = MODULE.duration_distribution(

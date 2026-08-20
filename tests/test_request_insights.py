@@ -18,6 +18,7 @@ SCRIPT = (
     / "files"
     / "pywps-request-insights.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("pywps_request_insights", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -116,6 +117,45 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(production["jobs_without_workflow_lineage"], 0)
         self.assertEqual(production["collections"][collection]["requests"], 1)
         self.assertEqual(production["collections"][collection]["year_coverage"], "2060-2070")
+
+    def test_coverage_hides_malformed_complex_data_and_compacts_values(self):
+        self.assertEqual(
+            MODULE.coverage_items(
+                "orchestrate",
+                "workflow",
+                {"type": "ComplexData", "value": '{"inputs": [truncated]'},
+            ),
+            [],
+        )
+        self.assertEqual(
+            MODULE.coverage_items(
+                "dashboard", "site", {"type": "LiteralData", "value": "dkrz"}
+            ),
+            [("dashboard.site", '"dkrz"')],
+        )
+        workflow = {
+            "inputs": {"tas": ["collection"]},
+            "steps": {
+                "subset": {
+                    "run": "subset",
+                    "in": {
+                        "collection": "inputs/tas",
+                        "time_components": "month:jan,feb|year:2015,2016,2017,2018",
+                    },
+                }
+            },
+        }
+        coverage = dict(
+            MODULE.coverage_items(
+                "orchestrate",
+                "workflow",
+                {"type": "ComplexData", "value": json.dumps(workflow)},
+            )
+        )
+        self.assertEqual(
+            coverage["orchestrate.workflow.steps.subset.time_components"],
+            '"month:jan,feb|year:2015-2018"',
+        )
 
     def test_orchestrate_failure_is_associated_with_collection(self):
         workflow = {
@@ -297,6 +337,43 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(json.loads(output.getvalue())["requests"], 1)
 
+    def test_reports_operational_events_without_counting_them_as_requests(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / "events.jsonl"
+            events = [
+                dict(record("1"), record_type="request"),
+                {
+                    "record_type": "operation",
+                    "service": "rook",
+                    "job_id": "recover-me",
+                    "recorded_at": "2026-08-01T11:00:00+00:00",
+                    "event": "job-recovered",
+                    "level": "warning",
+                    "message": "recovered",
+                },
+                {
+                    "record_type": "operation",
+                    "service": "rook",
+                    "job_id": "slow-job",
+                    "recorded_at": "2026-08-01T11:05:00+00:00",
+                    "event": "job-long-running",
+                    "level": "warning",
+                    "message": "long running",
+                },
+            ]
+            log.write_text(
+                "".join(json.dumps(item) + "\n" for item in events),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = MODULE.main([str(log), "--all-processes", "--json"])
+        report = json.loads(output.getvalue())
+        self.assertEqual(result, 0)
+        self.assertEqual(report["requests"], 1)
+        self.assertEqual(report["operations"]["recovered_jobs"], 1)
+        self.assertEqual(report["operations"]["long_running_jobs"], 1)
+
     def test_defaults_to_orchestrate_process(self):
         with tempfile.TemporaryDirectory() as temporary:
             log = Path(temporary) / "requests.log"
@@ -345,6 +422,34 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertIn("Duration: median=1.0m  p95=1.0m  max=1.0m", text)
         self.assertNotIn("outcomes=", text)
+
+    def test_requested_data_coverage_is_opt_in_for_text_reports(self):
+        item = record("1", dataset="tas")
+        report = MODULE.aggregate([item], top=10)
+        compact = io.StringIO()
+        with redirect_stdout(compact):
+            MODULE.print_report(report)
+        self.assertNotIn("Requested-data coverage", compact.getvalue())
+        self.assertIn("Failure causes", compact.getvalue())
+
+        expanded = io.StringIO()
+        with redirect_stdout(expanded):
+            MODULE.print_report(report, coverage=True)
+        self.assertIn("Requested-data coverage", expanded.getvalue())
+        self.assertIn("subset.dataset: uses=1 distinct=1", expanded.getvalue())
+
+    def test_all_processes_labels_orchestrate_data_without_duplicate_causes(self):
+        orchestrate = dict(record("1", "failed", "Detected an oom-kill event"))
+        orchestrate["process"] = "orchestrate"
+        report = MODULE.aggregate([orchestrate, record("2")], top=10)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(report)
+        text = output.getvalue()
+        self.assertIn("Orchestrate data\n  Metadata:", text)
+        self.assertIn("\n  Datasets (0)", text)
+        self.assertIn("All-process failure causes", text)
+        self.assertNotIn("\nFailure causes\n", text)
 
     def test_detail_messages_are_limited_without_changing_short_messages(self):
         self.assertEqual(MODULE.truncate_detail_message("short reason"), "short reason")
@@ -425,7 +530,9 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertNotIn("Failure details", text)
         detailed = io.StringIO()
         with redirect_stdout(detailed):
-            MODULE.print_report(MODULE.aggregate([item], top=10), details=True)
+            MODULE.print_report(
+                MODULE.aggregate([item], top=10), failure_details=True
+            )
         detailed_text = detailed.getvalue()
         self.assertLess(
             detailed_text.index("c3s-cmip6.example.tas"),

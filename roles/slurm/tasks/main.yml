@@ -3,18 +3,26 @@
   ansible.builtin.assert:
     that:
       - slurm_cpus | int > 0
+      - slurm_cpus | int <= wps_cpus_resolved | int
+      - wps_service_cpus_resolved | int >= 0
+      - wps_service_cpus_resolved | int < wps_cpus_resolved | int
       - slurm_system_memory_reserve_percent | int > 0
       - slurm_system_memory_reserve_percent | int < 100
       - slurm_real_memory_mb | int > 0
       - slurm_real_memory_mb | int < ansible_memtotal_mb | int
+      - slurm_min_job_memory_mb | int > 0
+      - slurm_real_memory_mb | int >= slurm_min_job_memory_mb | int
       - slurm_default_job_memory_mb | int > 0
+      - slurm_default_job_memory_mb | int >= slurm_min_job_memory_mb | int
       - slurm_default_job_memory_mb | int <= slurm_real_memory_mb | int
       - slurm_max_job_memory_mb | int >= slurm_default_job_memory_mb | int
       - slurm_max_job_memory_mb | int <= slurm_real_memory_mb | int
     quiet: true
     fail_msg: >-
-      Slurm requires positive CPU and job-memory allocations, allocatable
-      memory below physical RAM, and a maximum job allocation between the
+      Slurm requires a positive CPU allocation no larger than the configured
+      host capacity, with a smaller non-negative service reserve. Allocatable
+      memory must remain below physical RAM and provide at least the configured
+      minimum memory per job. The maximum job allocation must be between the
       default job allocation and allocatable memory.
 
 - name: Include Munge tasks

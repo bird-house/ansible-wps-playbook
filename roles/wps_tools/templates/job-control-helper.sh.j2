@@ -46,10 +46,6 @@ main() {
             mode=recover
             script_options=(--human-readable)
             ;;
-        statistics)
-            mode=statistics
-            script_options=(--human-readable)
-            ;;
         *)
             fail "Unsupported command name: $command_name"
             ;;

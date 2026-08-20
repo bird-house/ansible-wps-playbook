@@ -15,6 +15,8 @@ from datetime import datetime, time, timezone
 from pathlib import Path
 from typing import Iterable, TextIO
 
+from wps_tools_events import MEMORY_FAILURE_RE, TIMEOUT_FAILURE_RE
+
 
 UTC = timezone.utc
 DETAIL_CATEGORY_PRIORITY = ("memory", "timeout")
@@ -23,20 +25,11 @@ TRUNCATION_MARKER = " [..]"
 FAILURE_PATTERNS = (
     (
         "memory",
-        re.compile(
-            r"\b(?:oom|oom-kill|memoryerror)\b|out of memory|cannot allocate memory|"
-            r"memory (?:limit|allocation)|exceeded[^\n]*memory",
-            re.IGNORECASE,
-        ),
+        MEMORY_FAILURE_RE,
     ),
     (
         "timeout",
-        re.compile(
-            r"timed?\s*out|time(?: |-)?limit|deadline exceeded|walltime|wall clock|"
-            r"cancelled[^\n]*time|no (?:status|database) update[^\n]*minutes|"
-            r"exceeded[^\n]*(?:run|execution) time",
-            re.IGNORECASE,
-        ),
+        TIMEOUT_FAILURE_RE,
     ),
     (
         "no-data",
@@ -146,9 +139,10 @@ def load_records(paths: Iterable[Path]) -> tuple[list[dict[str, object]], list[s
                         errors.append(f"{path}:{line_number}: record is not an object")
                         continue
                     job_id = record.get("job_id")
+                    record_type = record.get("record_type", "request")
                     identity = (
-                        (record.get("service"), job_id)
-                        if isinstance(job_id, str) and job_id
+                        ("request", record.get("service"), job_id)
+                        if record_type == "request" and isinstance(job_id, str) and job_id
                         else (str(path), line_number)
                     )
                     if identity in seen:
@@ -184,6 +178,44 @@ def duration_summary(values: list[float]) -> dict[str, object]:
         "median_seconds": round(statistics.median(values), 3) if values else None,
         "p95_seconds": percentile(values, 0.95),
         "max_seconds": round(max(values), 3) if values else None,
+    }
+
+
+def aggregate_operations(records: list[dict[str, object]], top: int) -> dict[str, object]:
+    recovered_jobs = {
+        str(record["job_id"])
+        for record in records
+        if record.get("event") == "job-recovered" and record.get("job_id")
+    }
+    long_running_jobs = {
+        str(record["job_id"])
+        for record in records
+        if record.get("event") == "job-long-running" and record.get("job_id")
+    }
+    errors = [
+        record
+        for record in records
+        if record.get("event") == "operation-error" or record.get("level") == "critical"
+    ]
+    recent = sorted(
+        records,
+        key=lambda record: record_time(record) or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )[:top]
+    return {
+        "events": len(records),
+        "recovered_jobs": len(recovered_jobs),
+        "long_running_jobs": len(long_running_jobs),
+        "errors": len(errors),
+        "recent": [
+            {
+                "recorded_at": record.get("recorded_at"),
+                "event": record.get("event"),
+                "job_id": record.get("job_id"),
+                "message": record.get("message"),
+            }
+            for record in recent
+        ],
     }
 
 
@@ -235,6 +267,12 @@ def flatten_json(prefix: str, value: object) -> list[tuple[str, str]]:
         for child in value:
             result.extend(flatten_json(prefix, child))
         return result
+    if isinstance(value, str) and prefix.endswith(".time_components"):
+        match = re.search(r"(?:^|\|)year:([^|]+)", value)
+        if match:
+            years = {int(year) for year in re.findall(r"\b[12][0-9]{3}\b", match.group(1))}
+            if years:
+                value = value.replace(match.group(1), compact_years(years))
     return [(prefix, json.dumps(value, ensure_ascii=False, sort_keys=True))]
 
 
@@ -267,18 +305,18 @@ def coverage_items(
             try:
                 structured = json.loads(contents)
             except json.JSONDecodeError:
-                structured = None
+                # A partial or malformed complex payload has no useful scalar
+                # coverage and can otherwise flood the human report.
+                return []
             if isinstance(structured, dict):
                 workflow = workflow_coverage(process, input_name, structured)
                 if workflow is not None:
                     return workflow
                 return flatten_json(prefix, structured)
-    if isinstance(value, dict):
-        rendered = json.dumps(
-            {item: value.get(item) for item in ("type", "value")},
-            sort_keys=True,
-            ensure_ascii=False,
-        )
+    if isinstance(value, dict) and "value" in value:
+        rendered = json.dumps(value.get("value"), ensure_ascii=False, sort_keys=True)
+    elif isinstance(value, dict):
+        rendered = json.dumps(value, sort_keys=True, ensure_ascii=False)
     else:
         rendered = json.dumps(value, ensure_ascii=False)
     return [(prefix, rendered)]
@@ -716,7 +754,9 @@ def print_detail_field(label: str, value: str, *, indent: int = 4) -> None:
     )
 
 
-def print_report(report: dict[str, object], *, details: bool = False) -> None:
+def print_report(
+    report: dict[str, object], *, failure_details: bool = False, coverage: bool = False
+) -> None:
     period = report["period"]
     outcomes = report["outcomes"]
     failures = int(outcomes.get("failed", 0))
@@ -740,6 +780,13 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
         f" p95={format_duration(duration.get('p95_seconds'))} "
         f" max={format_duration(duration.get('max_seconds'))}"
     )
+    operations = report.get("operations", {})
+    if operations.get("events"):
+        print(
+            f"Operations: recovered={operations['recovered_jobs']}  "
+            f"long-running={operations['long_running_jobs']}  "
+            f"errors={operations['errors']}"
+        )
 
     if len(report["processes"]) > 1:
         print("\nProcesses")
@@ -755,29 +802,39 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
                 f"max={format_duration(duration['max_seconds'])}"
             )
 
+    orchestrate_only = set(report["processes"]) == {"orchestrate"}
     orchestrate = report["orchestrate"]
     if orchestrate is not None:
+        if not orchestrate_only:
+            print("\nOrchestrate data")
+        indent = "" if orchestrate_only else "  "
         print(
-            f"Metadata: available={orchestrate['jobs_with_workflow_lineage']} "
+            f"{indent}Metadata: available={orchestrate['jobs_with_workflow_lineage']} "
             f" missing={orchestrate['jobs_without_workflow_lineage']}"
         )
-        print("\nFailure causes")
-        if not orchestrate["failure_categories"]:
-            print("  No failures.")
-        for category, count in orchestrate["failure_categories"].items():
-            print(f"  {category}: {count}")
-        print(f"\nDatasets ({len(orchestrate['collections'])})")
+        if orchestrate_only:
+            print("\nFailure causes")
+            if not orchestrate["failure_categories"]:
+                print("  No failures.")
+            for category, count in orchestrate["failure_categories"].items():
+                print(f"  {category}: {count}")
+        dataset_indent = "" if orchestrate_only else "  "
+        item_indent = "  " if orchestrate_only else "    "
+        print(f"\n{dataset_indent}Datasets ({len(orchestrate['collections'])})")
         if not orchestrate["collections"]:
-            print("  No datasets were identified in the retained request metadata.")
+            print(
+                f"{item_indent}No datasets were identified in the retained "
+                "request metadata."
+            )
         for collection, values in orchestrate["collections"].items():
             outcomes = values["outcomes"]
             print(
-                f"  {collection}: requests={values['requests']} "
+                f"{item_indent}{collection}: requests={values['requests']} "
                 f"success={outcomes.get('successful', 0)} "
                 f"failures={outcomes.get('failed', 0)} "
                 f"years={values['year_coverage']}"
             )
-        if details:
+        if failure_details and orchestrate_only:
             shown = len(orchestrate["failures"])
             groups = orchestrate["failure_group_count"]
             heading = "\nFailure details"
@@ -832,14 +889,18 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
                             "Jobs", ", ".join(failure["example_jobs"]), indent=8
                         )
 
-    if set(report["processes"]) != {"orchestrate"}:
-        print("\nRequested-data coverage")
-        if not report["coverage"]:
-            print("  No input lineage was present in the inspected XML records.")
-        for name, values in report["coverage"].items():
-            print(f"  {name}: uses={values['uses']} distinct={values['distinct_values']}")
-            for item in values["top_values"]:
-                print(f"    {item['count']:>5}  {item['value']}")
+    if not orchestrate_only:
+        if coverage:
+            print("\nRequested-data coverage")
+            if not report["coverage"]:
+                print("  No input lineage was present in the inspected XML records.")
+            for name, values in report["coverage"].items():
+                print(
+                    f"  {name}: uses={values['uses']} "
+                    f"distinct={values['distinct_values']}"
+                )
+                for item in values["top_values"]:
+                    print(f"    {item['count']:>5}  {item['value']}")
 
         heading = "All-process failure causes" if orchestrate is not None else "Failure causes"
         print(f"\n{heading}")
@@ -848,7 +909,7 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
         for category, count in report["failure_categories"].items():
             percentage = (count / failures * 100) if failures else 0
             print(f"  {category}: {count} ({percentage:.1f}%)")
-        if details:
+        if failure_details:
             for item in report["failure_messages"]:
                 context = " ".join(
                     value for value in (item["code"], item["locator"]) if value
@@ -879,9 +940,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--top", type=int, default=10, help="values/messages per section")
     parser.add_argument(
-        "--details",
+        "--failures",
         action="store_true",
         help="include grouped failure messages and example job IDs",
+    )
+    parser.add_argument(
+        "--coverage",
+        action="store_true",
+        help="include detailed requested-data coverage in the text report",
     )
     parser.add_argument(
         "--sort",
@@ -907,20 +973,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     records, errors = load_records(args.logs)
     selected = []
+    operations = []
     for record in records:
         timestamp = record_time(record)
         if args.start and (timestamp is None or timestamp < args.start):
             continue
         if args.end and (timestamp is None or timestamp > args.end):
             continue
+        if record.get("record_type") == "operation":
+            operations.append(record)
+            continue
         if not args.all_processes and record.get("process") != args.process:
             continue
         selected.append(record)
     report = aggregate(selected, args.top, args.sort)
+    report["operations"] = aggregate_operations(operations, args.top)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print_report(report, details=args.details)
+        print_report(
+            report, failure_details=args.failures, coverage=args.coverage
+        )
     for error in errors:
         print(error, file=sys.stderr)
     return 1 if errors else 0

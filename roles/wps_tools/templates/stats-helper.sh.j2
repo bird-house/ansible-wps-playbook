@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# Aggregate and display durable WPS event statistics.
+
+set -euo pipefail
+
+if [[ $# -lt 1 || $1 == -h || $1 == --help ]]; then
+    echo "Usage: stats SERVICE_NAME [--from DATE] [--to DATE] [--json]" >&2
+    [[ ${1:-} == -h || ${1:-} == --help ]] && exit 0
+    exit 2
+fi
+if [[ ! $1 =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "Invalid service name: $1" >&2
+    exit 2
+fi
+
+service=$1
+shift
+shopt -s nullglob
+logs=(
+    "{{ wps_log_dir }}/$service-events.jsonl"*
+    "{{ wps_log_dir }}/$service-requests.log"*
+)
+
+exec /usr/bin/python3 "{{ wps_tools_script_dir }}/wps-event-statistics.py" \
+    --service "$service" \
+    --csv "{{ wps_tools_statistics_dir }}/$service-daily.csv" \
+    --keep-days "{{ wps_tools_statistics_keep_days }}" \
+    --update "$@" "${logs[@]}"

@@ -22,6 +22,8 @@ from typing import Callable, Iterable
 from urllib.parse import unquote, urlsplit
 from uuid import UUID
 
+from wps_tools_events import JsonlEventHandler
+
 
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
@@ -40,7 +42,6 @@ SUPPORTED_LAYERS = ("xml", "database", "polling")
 DEFAULT_LAYERS = {
     "monitor": SUPPORTED_LAYERS,
     "recover": SUPPORTED_LAYERS,
-    "statistics": ("xml", "database"),
 }
 UTC = timezone.utc
 XML_TIMESTAMP_TOLERANCE = timedelta(minutes=5)
@@ -69,10 +70,10 @@ class Settings:
     pywps_config: Path | None
     lock_file: Path
     log_file: Path | None
+    event_log: Path | None = None
     show_summaries: bool = False
     human_readable: bool = False
     limit: int | None = None
-    status_counts: bool = False
     output_url: str | None = None
     access_log: Path | None = None
     poll_window_minutes: float = 190
@@ -82,7 +83,6 @@ class Settings:
     monitor_enabled: bool = True
     recovery_enabled: bool = False
     missing_status_recovery_enabled: bool = False
-    statistics_enabled: bool = True
     service_name: str = "unknown"
     incident_archive_enabled: bool = False
     incident_archive_dir: Path | None = None
@@ -90,6 +90,7 @@ class Settings:
     missing_status_recovery_limit: int = 20
     long_running_minutes: float = 10
     database_stale_after_minutes: float = 95
+    database_accepted_stale_after_hours: float = 24
     database_status_window_hours: float = 24
     work_dir: Path | None = None
     recovery_user: str = "wps"
@@ -118,16 +119,7 @@ class SummaryConsoleFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return record.levelno >= logging.WARNING or record.getMessage().startswith(
-            ("summary ", "status_summary ", "current_status ")
-        )
-
-
-class StatisticsFilter(logging.Filter):
-    """Keep one routine current-status line while retaining real errors."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        return record.levelno >= logging.WARNING or record.getMessage().startswith(
-            "current_status "
+            "summary "
         )
 
 
@@ -1143,7 +1135,7 @@ def run_database_layer(
     try:
         from pywps import configuration, dblog
         from pywps.response.status import WPS_STATUS
-        from sqlalchemy import create_engine, func, inspect, or_
+        from sqlalchemy import and_, create_engine, func, inspect, or_
         from sqlalchemy.orm import sessionmaker
     except ImportError as error:
         raise RuntimeError(
@@ -1151,6 +1143,9 @@ def run_database_layer(
         ) from error
 
     threshold = timedelta(minutes=settings.database_stale_after_minutes)
+    accepted_threshold = timedelta(
+        hours=settings.database_accepted_stale_after_hours
+    )
     long_running_threshold = timedelta(minutes=settings.long_running_minutes)
     status_window = timedelta(hours=settings.database_status_window_hours)
     database_url = configuration.get_config_value("logging", "database")
@@ -1181,35 +1176,11 @@ def run_database_layer(
             )
             summary.status_counts = status_counts
             summary.checked = status_counts["total"]
-        elif settings.status_counts:
-            status_counts = summarize_database_statuses(
-                session.query(
-                    dblog.ProcessInstance.status,
-                    func.count(),
-                )
-                .group_by(dblog.ProcessInstance.status)
-                .all(),
-                WPS_STATUS,
-            )
-            summary.status_counts = status_counts
-            if settings.mode != "statistics":
-                logger.info(
-                    "status_summary total=%d accepted=%d running=%d "
-                    "successful=%d failed=%d dismissed=%d unmapped=%d",
-                    status_counts["total"],
-                    status_counts["accepted"],
-                    status_counts["running"],
-                    status_counts["successful"],
-                    status_counts["failed"],
-                    status_counts["dismissed"],
-                    status_counts["unmapped"],
-                )
-        # Queue wait is not execution time. Only STARTED rows can become
-        # long-running or stale; accepted, paused, and unknown rows remain
-        # visible in status aggregates without being recovered as failed.
-        query = session.query(dblog.ProcessInstance).filter(
-            dblog.ProcessInstance.status == WPS_STATUS.STARTED
-        )
+        # Queue wait is not execution time. STARTED rows use the normal runtime
+        # threshold. ACCEPTED rows use a much longer threshold so abandoned
+        # queue records are eventually reconciled. PAUSED and unknown rows are
+        # visible in status aggregates but are never recovered automatically.
+        query = session.query(dblog.ProcessInstance)
         if settings.mode == "recover" and settings.database_recovery_excluded_jobs:
             query = query.filter(
                 ~dblog.ProcessInstance.uuid.in_(
@@ -1222,20 +1193,30 @@ def run_database_layer(
         long_running_cutoff = database_candidate_cutoff(
             now, long_running_threshold
         )
+        accepted_cutoff = database_candidate_cutoff(now, accepted_threshold)
         last_update = func.coalesce(
             dblog.ProcessInstance.time_end,
             dblog.ProcessInstance.time_start,
         )
         stale_filter = or_(last_update.is_(None), last_update <= cutoff)
-        if settings.mode == "recover":
-            query = query.filter(stale_filter)
-        else:
-            query = query.filter(
-                or_(
-                    stale_filter,
-                    dblog.ProcessInstance.time_start <= long_running_cutoff,
-                )
-            )
+        accepted_stale_filter = or_(
+            last_update.is_(None),
+            last_update <= accepted_cutoff,
+        )
+        started_candidate = and_(
+            dblog.ProcessInstance.status == WPS_STATUS.STARTED,
+            stale_filter
+            if settings.mode == "recover"
+            else or_(
+                stale_filter,
+                dblog.ProcessInstance.time_start <= long_running_cutoff,
+            ),
+        )
+        accepted_candidate = and_(
+            dblog.ProcessInstance.status == WPS_STATUS.ACCEPTED,
+            accepted_stale_filter,
+        )
+        query = query.filter(or_(started_candidate, accepted_candidate))
         query = query.order_by(last_update, dblog.ProcessInstance.uuid)
         if settings.mode != "recover" and settings.limit is not None:
             query = query.limit(settings.limit)
@@ -1244,7 +1225,9 @@ def run_database_layer(
             if settings.mode != "monitor":
                 summary.checked += 1
             try:
-                if not database_status_can_timeout(record.status, WPS_STATUS):
+                is_started = database_status_can_timeout(record.status, WPS_STATUS)
+                is_accepted = record.status == WPS_STATUS.ACCEPTED
+                if not (is_started or is_accepted):
                     logger.debug(
                         "layer=database job=%s status=%s decision=skip-timeout "
                         "reason=job-not-running",
@@ -1254,12 +1237,19 @@ def run_database_layer(
                     continue
                 last_update = database_last_update(record)
                 started = database_start_time(record)
-                finding = classify_database_job(
-                    record,
-                    now,
-                    long_running_threshold,
-                    threshold,
-                )
+                if is_accepted:
+                    finding = (
+                        "stalled"
+                        if is_stalled(last_update, now, accepted_threshold)
+                        else None
+                    )
+                else:
+                    finding = classify_database_job(
+                        record,
+                        now,
+                        long_running_threshold,
+                        threshold,
+                    )
                 if settings.mode != "recover" and finding == "long-running":
                     summary.long_running += 1
                     summary.long_running_jobs.add(str(record.uuid))
@@ -1290,13 +1280,22 @@ def run_database_layer(
                 if settings.mode == "recover":
                     record.status = WPS_STATUS.FAILED
                     record.percent_done = 100
-                    record.message = (
-                        "Process failed: stalled-job recovery found no database update "
-                        "for at least "
-                        f"{settings.database_stale_after_minutes:g} minutes."
-                    )
+                    if is_accepted:
+                        record.message = (
+                            "Process failed: stalled-job recovery found an accepted "
+                            "database request that did not advance for at least "
+                            f"{settings.database_accepted_stale_after_hours:g} hours."
+                        )
+                    else:
+                        record.message = (
+                            "Process failed: stalled-job recovery found no database "
+                            "update for at least "
+                            f"{settings.database_stale_after_minutes:g} minutes."
+                        )
                     record.time_end = database_naive_now(now)
-                    session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
+                    session.query(dblog.RequestInstance).filter_by(
+                        uuid=record.uuid
+                    ).delete()
                     session.commit()
                     summary.recovered += 1
                     logger.warning(
@@ -1350,8 +1349,11 @@ def job_monitor_log_file(config: configparser.ConfigParser) -> Path | None:
     return related_log_file(config, "job-monitor")
 
 
-def job_statistics_log_file(config: configparser.ConfigParser) -> Path | None:
-    return related_log_file(config, "stats")
+def job_event_log_file(config: configparser.ConfigParser) -> Path | None:
+    pywps_log_file = optional_path(config.get("logging", "file", fallback=None))
+    if pywps_log_file is None:
+        return None
+    return pywps_log_file.with_name(f"{pywps_log_file.stem}-events.jsonl")
 
 
 def validate_python_runtime(expected: Path | None) -> None:
@@ -1388,14 +1390,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
   %(prog)s --config /etc/pywps/rook.cfg monitor
   %(prog)s --config /etc/pywps/rook.cfg monitor --layer polling
   %(prog)s --config /etc/pywps/rook.cfg recover --layer xml
-  %(prog)s --config /etc/pywps/rook.cfg statistics
 """,
     )
     parser.add_argument(
         "mode",
-        metavar="{monitor,recover,statistics}",
-        choices=("monitor", "recover", "statistics"),
-        help="monitor without changes, recover as failed, or report statistics",
+        metavar="{monitor,recover}",
+        choices=("monitor", "recover"),
+        help="monitor without changes or recover stalled jobs as failed",
     )
     parser.add_argument(
         "--layer",
@@ -1414,11 +1415,6 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--human-readable",
         action="store_true",
         help="write a compact operator report to the console",
-    )
-    parser.add_argument(
-        "--status-counts",
-        action="store_true",
-        help="show complete database status counts; intended for manual monitoring",
     )
     parser.add_argument(
         "--long-running-minutes",
@@ -1445,6 +1441,14 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="summarize database jobs started within this many hours",
     )
     parser.add_argument(
+        "--database-accepted-stale-after-hours",
+        type=float,
+        default=float(
+            control_config.get("database_accepted_stale_after_hours", "24")
+        ),
+        help="consider accepted database rows stale after this many hours",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         help="process at most this many stalled jobs in each selected layer",
@@ -1467,7 +1471,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--log-file",
         type=Path,
         default=None,
-        help="override the derived monitor or statistics log file",
+        help="override the derived monitor log file",
+    )
+    parser.add_argument(
+        "--event-log",
+        type=Path,
+        default=optional_path(control_config.get("event_log")) or job_event_log_file(config),
+        help="append important operational events as JSON Lines",
     )
     parser.add_argument(
         "--access-log",
@@ -1506,8 +1516,6 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="allow polling recovery without checking active database requests",
     )
     args = parser.parse_args(argv)
-    if args.mode == "statistics":
-        args.status_counts = True
     limit = args.limit
     recovery_limit = int(control_config.get("recovery_limit", "100"))
     missing_status_recovery_limit = int(
@@ -1527,6 +1535,18 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("--stale-after-minutes must be greater than zero")
     if args.database_stale_after_minutes <= 0:
         parser.error("--database-stale-after-minutes must be greater than zero")
+    if args.database_accepted_stale_after_hours <= 0:
+        parser.error(
+            "--database-accepted-stale-after-hours must be greater than zero"
+        )
+    if (
+        args.database_accepted_stale_after_hours * 60
+        <= args.database_stale_after_minutes
+    ):
+        parser.error(
+            "--database-accepted-stale-after-hours must be longer than "
+            "--database-stale-after-minutes"
+        )
     if not 3 <= args.database_status_window_hours <= 24:
         parser.error("--database-status-window-hours must be between 3 and 24")
     if args.long_running_minutes <= 0:
@@ -1544,8 +1564,6 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("configured recovery limits must be greater than zero")
     if incident_archive_enabled and incident_archive_dir is None:
         parser.error("incident_archive_dir is required when incident archiving is enabled")
-    if args.status_counts and args.mode not in {"monitor", "statistics"}:
-        parser.error("--status-counts is only available in monitor or statistics mode")
     if args.poll_window_minutes <= 0:
         parser.error("--poll-window-minutes must be greater than zero")
     if args.min_poll_count <= 0:
@@ -1561,18 +1579,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         output_dir=args.output_dir,
         pywps_config=preliminary.config,
         lock_file=args.lock_file,
-        log_file=(
-            args.log_file
-            or (
-                job_statistics_log_file(config)
-                if args.mode == "statistics"
-                else job_monitor_log_file(config)
-            )
-        ),
+        log_file=args.log_file or job_monitor_log_file(config),
+        event_log=args.event_log,
         show_summaries=args.show_summaries,
         human_readable=args.human_readable,
         limit=limit,
-        status_counts=args.status_counts,
         output_url=config.get("server", "outputurl", fallback=None),
         access_log=args.access_log,
         poll_window_minutes=args.poll_window_minutes,
@@ -1584,7 +1595,6 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         missing_status_recovery_enabled=control_config.getboolean(
             "missing_status_recovery_enabled", fallback=False
         ),
-        statistics_enabled=control_config.getboolean("statistics_enabled", fallback=True),
         service_name=(preliminary.config.stem if preliminary.config else "unknown"),
         incident_archive_enabled=incident_archive_enabled,
         incident_archive_dir=incident_archive_dir,
@@ -1592,6 +1602,9 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         missing_status_recovery_limit=missing_status_recovery_limit,
         long_running_minutes=args.long_running_minutes,
         database_stale_after_minutes=args.database_stale_after_minutes,
+        database_accepted_stale_after_hours=(
+            args.database_accepted_stale_after_hours
+        ),
         database_status_window_hours=args.database_status_window_hours,
         work_dir=optional_path(config.get("server", "workdir", fallback=None)),
         recovery_user=control_config.get("recovery_user", "wps"),
@@ -1606,8 +1619,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
 def configure_logging(
     log_file: Path | None,
     show_summaries: bool = False,
-    statistics_only: bool = False,
     service_name: str = "unknown",
+    event_log: Path | None = None,
 ) -> logging.Logger:
     stream_handler = logging.StreamHandler()
     service_filter = ServiceContextFilter(service_name)
@@ -1624,9 +1637,11 @@ def configure_logging(
         file_handler = logging.FileHandler(log_file)
         file_handler.addFilter(service_filter)
         file_handler.setLevel(logging.INFO)
-        if statistics_only:
-            file_handler.addFilter(StatisticsFilter())
         handlers.append(file_handler)
+    if event_log is not None:
+        handlers.append(
+            JsonlEventHandler(event_log, service_name, "pywps-job-control")
+        )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s service=%(service)s %(message)s",
@@ -1636,8 +1651,6 @@ def configure_logging(
 
 
 def operation_is_enabled(settings: Settings) -> bool:
-    if settings.mode == "statistics":
-        return settings.statistics_enabled
     if settings.mode == "monitor":
         return settings.monitor_enabled
     return settings.recovery_enabled
@@ -1694,8 +1707,6 @@ def execute_layers(
             summary = LayerSummary(layer, errors=1)
         summaries.append(summary)
         database_recovery_excluded_jobs.update(summary.recovery_blocked_jobs)
-        if settings.mode == "statistics":
-            continue
         if summary.errors:
             log_summary = logger.error
         elif summary.stalled or summary.long_running:
@@ -1736,66 +1747,16 @@ def execute_layers(
     return summaries
 
 
-def log_current_status(
-    summaries: list[LayerSummary],
-    logger: logging.Logger,
-) -> None:
-    by_name = {summary.name: summary for summary in summaries}
-    xml = by_name.get("xml", LayerSummary("xml"))
-    database = by_name.get("database", LayerSummary("database"))
-    counts = database.status_counts or {}
-    stalled_jobs = set().union(
-        *(summary.stalled_jobs for summary in summaries)
-    )
-    long_running_jobs = set().union(
-        *(summary.long_running_jobs for summary in summaries)
-    )
-    logger.info(
-        "current_status total=%s accepted=%s running=%s successful=%s "
-        "failed=%s dismissed=%s unmapped=%s long_running=%d stalled=%d "
-        "xml_stalled=%d database_stalled=%d xml_documents=%d errors=%d",
-        counts.get("total", "unknown"),
-        counts.get("accepted", "unknown"),
-        counts.get("running", "unknown"),
-        counts.get("successful", "unknown"),
-        counts.get("failed", "unknown"),
-        counts.get("dismissed", "unknown"),
-        counts.get("unmapped", "unknown"),
-        len(long_running_jobs),
-        len(stalled_jobs),
-        xml.stalled,
-        database.stalled,
-        xml.checked,
-        sum(summary.errors for summary in summaries),
-    )
-
-
 def operator_title(settings: Settings) -> str:
     titles = {
         "monitor": "PyWPS monitor",
         "recover": "PyWPS recovery",
-        "statistics": "PyWPS statistics",
     }
     return f"{titles[settings.mode]} — {settings.service_name}"
 
 
 def print_operator_report(settings: Settings, summaries: list[LayerSummary]) -> None:
     print(operator_title(settings))
-    database = next(
-        (summary for summary in summaries if summary.name == "database"), None
-    )
-    if (
-        settings.mode == "statistics"
-        and database is not None
-        and database.status_counts is not None
-    ):
-        counts = database.status_counts
-        print(
-            f"Requests: total={counts['total']}  accepted={counts['accepted']} "
-            f" running={counts['running']}  success={counts['successful']} "
-            f" failures={counts['failed']}  dismissed={counts['dismissed']} "
-            f" unmapped={counts['unmapped']}"
-        )
     for summary in summaries:
         layer_label = "XML" if summary.name == "xml" else summary.name.capitalize()
         fields = [f"checked={summary.checked}", f"stalled={summary.stalled}"]
@@ -1876,8 +1837,8 @@ def main(argv: list[str] | None = None) -> int:
         logger = configure_logging(
             settings.log_file,
             settings.show_summaries,
-            statistics_only=settings.mode == "statistics",
             service_name=settings.service_name,
+            event_log=settings.event_log,
         )
         if not operation_is_enabled(settings):
             logger.info(
@@ -1900,8 +1861,6 @@ def main(argv: list[str] | None = None) -> int:
             lock.write(f"{os.getpid()}\n")
             lock.flush()
             summaries = execute_layers(settings, datetime.now(UTC), logger)
-            if settings.mode == "statistics":
-                log_current_status(summaries, logger)
             if settings.human_readable:
                 print_operator_report(settings, summaries)
             return 1 if any(summary.errors for summary in summaries) else 0

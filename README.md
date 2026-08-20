@@ -384,17 +384,30 @@ capacity:
 wps_cpus: auto
 ```
 
-The resolved count is exposed as `wps_cpus_resolved`. Slurm advertises that
-many CPUs, while the Gunicorn default follows the existing `2 * CPUs + 1`
-rule. A deployment can constrain both defaults with one positive integer:
+The resolved count is exposed as `wps_cpus_resolved`. Gunicorn follows the
+existing `2 * CPUs + 1` rule. Slurm reserves capacity for the web service and
+other host processes instead of advertising every CPU:
+
+```yaml
+wps_service_cpus: auto
+```
+
+The automatic reserve is one CPU on hosts with up to four logical CPUs and two
+on larger hosts. The default Slurm capacity is also capped by allocatable
+memory, with at least 4096 MiB reserved for each concurrent job. Both limits
+are reduced when necessary so Slurm retains at least one slot. A deployment can
+constrain the detected host capacity with one positive integer:
 
 ```yaml
 wps_cpus: 8
 ```
 
-`slurm_cpus` and `gunicorn_workers` remain independently overridable for hosts
-that need different scheduler or web-service tuning. Values other than `auto`
-or a positive integer fail validation.
+`wps_service_cpus`, `slurm_cpus`, and `gunicorn_workers` remain independently
+overridable for hosts that need different scheduler or web-service tuning.
+The service reserve accepts `auto` or a non-negative integer smaller than the
+host capacity. `slurm_min_job_memory_mb` changes the memory floor used by the
+automatic Slurm calculation; an explicit `slurm_cpus` override must still leave
+at least that much default memory per job.
 
 ### Configure output and temporary-file retention
 
@@ -426,12 +439,14 @@ PyWPS runtime state:
 ├── cache/
 ├── db/
 ├── job-incidents/
-└── state/
+├── state/
+└── statistics/  # durable daily CSV aggregates
 ```
 
 The locations are controlled by `wps_tools_dir`,
 `wps_tools_bin_dir`, `wps_tools_sbin_dir`,
-`wps_tools_script_dir`, and `wps_tools_state_dir`. The deployment migrates XML
+`wps_tools_script_dir`, `wps_tools_state_dir`, and
+`wps_tools_statistics_dir`. The deployment migrates XML
 inspection state into `state/` before removing the old hidden state files and
 root-level tools from `/var/lib/pywps`.
 
@@ -442,6 +457,8 @@ command directory to their shell configuration:
 export PATH="/opt/wps-tools/bin:$PATH"
 ```
 
+Routine maintainer commands are `insights`, `ptop`, `smoke`, and, when Slurm is
+enabled, `qtop`. Specialist and state-changing commands remain under `sbin/`.
 The playbook deliberately does not add either tool directory to the global
 `PATH`, and administrative commands remain explicitly addressed through
 `/opt/wps-tools/sbin`.
@@ -485,6 +502,7 @@ wps_tools_job_control_recovery_schedule:
   hour: "*"
 wps_tools_job_control_stale_after_minutes: 95
 wps_tools_job_control_database_stale_after_minutes: 95
+wps_tools_job_control_database_accepted_stale_after_hours: 24
 wps_tools_job_control_database_status_window_hours: 24
 wps_tools_job_control_recovery_limit: 100
 wps_tools_incident_archive_enabled: true
@@ -497,9 +515,11 @@ is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 polling recovery can still be disabled independently when it is not wanted.
 The database layer reports `started` requests as long-running after ten minutes
-by default, based on their request start time. Accepted, queued, paused, and
-unknown requests are not timed out because their age may be queue wait rather
-than execution time. This is an early warning only.
+by default, based on their request start time. Started rows are recovered after
+the normal 95-minute timeout. Accepted rows may represent queue wait, so they
+use a separate conservative 24-hour recovery threshold. Paused and unknown
+requests are never timed out automatically. The long-running report remains an
+early warning only.
 Its monitor summary also counts every database request started within the
 configured recent window, including final requests, and reports the status mix:
 
@@ -509,7 +529,7 @@ summary layer=database total=20 running=8 accepted=2 failed=1 success=9 ...
 
 `wps_tools_job_control_database_status_window_hours` defaults to 24 and accepts
 values from 3 through 24 hours. This reporting window does not restrict stale
-detection or recovery; old `started` requests remain eligible for recovery.
+detection or recovery; old `started` and `accepted` requests remain eligible.
 XML documents and database rows have separate stale thresholds, both derived
 as the 90-minute job timeout plus the five-minute recovery grace by default.
 XML recovery writes a failed status document; database recovery only reconciles
@@ -528,7 +548,7 @@ The playbook renders the operation switches into every service configuration:
 monitor_enabled = true
 recovery_enabled = true
 missing_status_recovery_enabled = true
-statistics_enabled = true
+event_log = /var/log/pywps/SERVICE_NAME-events.jsonl
 incident_archive_enabled = true
 incident_archive_dir = /var/lib/pywps/job-incidents/SERVICE_NAME
 ```
@@ -567,6 +587,12 @@ the other PyWPS logs. By default, a log becomes eligible for rotation after
 one day only when it exceeds `10M`; both the size and retained archive count
 are configurable with `wps_logrotate_min_size` and
 `wps_logrotate_rotations`.
+
+Recovery actions and important warning-level monitor events are also appended
+as structured JSON Lines to
+`/var/log/pywps/SERVICE_NAME-events.jsonl`. This makes recoveries, long-running
+jobs, and operation errors available to `insights` and the durable statistics
+without removing the readable job-control log used for diagnosis.
 
 Individual stalled findings and warning summaries are written to the log file.
 Scheduled runs keep warnings off the console so cron does not mail them. Only
@@ -635,7 +661,7 @@ sudo /opt/wps-tools/sbin/recover SERVICE_NAME --limit 500
 ```
 
 The administrative commands installed in `/opt/wps-tools/sbin` are
-`monitor`, `recover`, and `statistics`. Their implementation is installed in
+`monitor`, `recover`, and `stats`. Their implementations are installed in
 `/opt/wps-tools/scripts`.
 
 The installed helpers have fixed layer scopes and reject `--layer`. For custom
@@ -643,8 +669,8 @@ diagnosis, invoke `pywps-job-control.py` with that service's deployed Conda
 Python and repeat `--layer`, for example `--layer xml --layer database`.
 The script validates its interpreter against the path rendered in the service
 configuration and rejects the host Python. Without explicit layers, monitoring
-and recovery use all three layers in their safe order; statistics uses XML and
-database. `--stale-after-minutes` overrides the XML threshold, while
+and recovery use all three layers in their safe order.
+`--stale-after-minutes` overrides the XML threshold, while
 `--database-stale-after-minutes` overrides database cleanup.
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
@@ -654,8 +680,6 @@ remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery defaults for every selected layer. Polling recovery uses
 its separate default of `wps_tools_missing_status_recovery_limit`, which is 20.
-The underlying `--status-counts` option enables a complete database aggregate
-for explicit low-level invocations.
 
 ### Preserve failed-job evidence
 
@@ -688,10 +712,11 @@ sudo find /var/lib/pywps/job-incidents/rook -type f -name '*.xml' -print
 Slurm timeout enforcement and host-wide queue monitoring are described under
 [Use the Slurm scheduler](#use-the-slurm-scheduler).
 
-### Record hourly PyWPS job statistics
+### Retain daily WPS statistics
 
-When cron is enabled, a separate read-only statistics job runs hourly at four
-minutes past the hour by default:
+Completed requests and important job-control events share one append-only
+JSONL source per service. When cron is enabled, a read-only aggregation job
+runs hourly at four minutes past the hour by default:
 
 ```yaml
 wps_tools_statistics_enabled: true
@@ -700,32 +725,38 @@ wps_tools_statistics_schedule:
   hour: "*"
 ```
 
-It records one `current_status` line per run in
-`/var/log/pywps/SERVICE_NAME-stats.log`. The line contains the complete database
-aggregate using the OGC API Processes vocabulary: accepted, running,
-successful, failed, dismissed, and unmapped. PyWPS `started` and `paused`
-records are combined as `running`. It also reports the unique stalled-job
-count, the separate XML and database stalled counts, the number of XML status
-documents, and layer errors. A request stalled in both XML and the database is
-counted only once in `stalled`. The line also includes the number of non-final
-database requests beyond the long-running warning threshold. Routine
-individual findings are excluded. Errors add extra log records, and critical
-errors also reach the cron console. The
-statistics log uses the same daily maximum frequency and configured
-minimum-size threshold as the other service logs. Run the same report manually
-with:
+It atomically updates `/var/lib/pywps/statistics/SERVICE_NAME-daily.csv`.
+Each UTC day stores request outcomes and duration totals, memory and timeout
+failures, and unique recovered and long-running jobs. Re-reading retained
+events updates the corresponding days while older CSV rows remain untouched,
+so the aggregate can outlive its detailed source. Concurrent cron and manual
+runs use a file lock.
+
+Run a friendly summary over the complete retained aggregate, or select a date
+range or JSON output:
 
 ```sh
-sudo /opt/wps-tools/sbin/statistics SERVICE_NAME
+sudo /opt/wps-tools/sbin/stats SERVICE_NAME
+sudo /opt/wps-tools/sbin/stats SERVICE_NAME --from 2026-08-01 --to 2026-08-31
+sudo /opt/wps-tools/sbin/stats SERVICE_NAME --json
 ```
 
-### Inspect individual XML requests
+Detailed event files rotate daily, are gzip-compressed, and are retained for
+42 days by default. Daily CSV rows are retained indefinitely by default. Both
+policies are configurable; a positive aggregate value limits CSV history:
+
+```yaml
+wps_tools_event_keep_days: 42
+wps_tools_statistics_keep_days: 0  # zero means unlimited
+```
+
+### Collect completed XML requests
 
 An independent, read-only helper scans final status XML documents every five
 minutes by default, starting at minute 2. This includes a run immediately
 before the normal hourly minute-3 output cleanup. It appends one JSON line per
-completed request to
-`/var/log/pywps/SERVICE_NAME-requests.log`, including the process, input values
+completed request to the unified
+`/var/log/pywps/SERVICE_NAME-events.jsonl`, including the process, input values
 or references when present in the XML, approximate duration, success or
 failure, and OWS exception details. A small state file prevents the same
 retained XML document being recorded again on the next scan.
@@ -747,18 +778,11 @@ wps_tools_inspect_schedule:
 The schedule accepts normal cron fields. For example, use `2-52/10` for a
 ten-minute interval that retains the pre-cleanup minute-2 run.
 
-Inspect all final XML documents currently retained for a service without
-changing the log or state file:
-
-```sh
-sudo /opt/wps-tools/bin/inspect-jobs SERVICE_NAME
-```
-
 The duration is derived from a version-1 job UUID when available, otherwise
 from the XML `Status` creation time, and the status file modification time. It
 is therefore an operational estimate rather than a database-quality timing.
 
-Aggregate the current and rotated request logs with:
+Aggregate the current and rotated event files with:
 
 ```sh
 sudo /opt/wps-tools/bin/insights SERVICE_NAME
@@ -766,7 +790,8 @@ sudo /opt/wps-tools/bin/insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --process subset --json
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --sort failed
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --details --top 20
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --failures --top 20
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --all-processes --coverage
 ```
 
 `insights` selects `orchestrate` by default. Use `--all-processes` for
@@ -777,10 +802,12 @@ ties deterministically.
 
 The default report is a compact operational overview: request outcomes,
 median, 95th-percentile and maximum durations, retained workflow metadata,
-failure-category totals, and one line per requested dataset. A process table
-is shown only when multiple processes are selected. Use `--details` to append
-failure blocks grouped by dataset, with their selection, concise reason and
-example job IDs, or `--json` for the complete machine-readable report. The
+failure-category totals, recovered and long-running jobs, operation errors,
+and one line per requested dataset. A process table
+is shown only when multiple processes are selected. Use `--coverage` to append
+the detailed requested-input dimensions to a text report. Use `--failures` to
+append failure blocks grouped by dataset, with their selection, concise reason
+and example job IDs. JSON always retains both coverage and failure details. The
 detailed view shows `memory` and `timeout` first, then the remaining categories
 by total frequency. Within each category, datasets and selection groups are
 ordered by frequency. The `--top` allowance is distributed across categories
@@ -794,8 +821,12 @@ JSON `ComplexData` is expanded into useful dotted coverage dimensions.
 Orchestrate workflows receive dedicated dimensions such as
 `orchestrate.workflow.inputs.tas` and
 `orchestrate.workflow.steps.subset.time`, with generated step names collapsed
-to their `run` operation. Derived references such as `subset_tas_1/output` are
-not counted as source collections. Failures are grouped into `memory`,
+to their `run` operation. The XML collector retains complex inputs up to 64 KiB
+so normal workflow documents remain parseable. Malformed or truncated complex
+payloads are omitted from human coverage instead of printing the raw blob, and
+consecutive component years are shown as ranges. Derived references such as
+`subset_tas_1/output` are not counted as source collections. Failures are
+grouped into `memory`,
 `timeout`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and `unknown`.
 Failures mentioning longitude or latitude are classified as `spatial`.
 Detailed output includes concise root-cause messages and example job IDs for
@@ -806,14 +837,15 @@ allocation errors; timeout detection recognizes Slurm time-limit cancellation,
 wall-clock, deadline, timed-out, and stale no-update recovery messages. The
 root-cause reducer also extracts plain Slurm cancellation lines from verbose
 diagnostic output. Both plain and gzip-compressed logrotate files are accepted,
-and duplicate job IDs across rotations are ignored. `--top` controls the number
-of values and detailed failure groups retained.
+and duplicate job IDs across rotations are ignored. Legacy
+`SERVICE_NAME-requests.log` rotations are read during migration. `--top`
+controls the number of values and detailed failure groups retained.
 
 When orchestrate records are present, a dedicated production-data section
 resolves workflow aliases such as `inputs/tas` to their complete collection
 identifiers. It expands `time` ranges and `time_components` into inclusive year
 coverage and associates each failed workflow with its collection, failure
-category, message, and example job IDs. With `--details`, failures are grouped
+category, message, and example job IDs. With `--failures`, failures are grouped
 separately by requested year coverage and time range so problems affecting
 different periods are not merged. The overview explicitly counts requests
 with and without retained workflow metadata.
@@ -827,21 +859,32 @@ Because `orchestrate` is the default selection, its text report omits the
 generic coverage and failure sections that would duplicate the production-data
 view. They remain available with `--all-processes` or another `--process`.
 
-### Summarize historical PyWPS database activity
+### Inspect historical PyWPS database activity
 
-The read-only `db-monitor` operator command aggregates database requests for an
-explicit range. It reports every job state, success rate, request and duration
-statistics, successful-job runtime ranges and maximum duration, per-process
-totals, and failed messages grouped with their count and first and last
-occurrence:
+For a compact live view of recent database activity and all active jobs, use
+`ptop`. The default window is one hour:
 
 ```sh
-sudo /opt/wps-tools/bin/db-monitor rook 2026-08-01/2026-08-06
-sudo /opt/wps-tools/bin/db-monitor rook 2026-08
-sudo /opt/wps-tools/bin/db-monitor rook 2026
-sudo /opt/wps-tools/bin/db-monitor rook 2026-08/
-sudo /opt/wps-tools/bin/db-monitor rook /2026-08
-sudo /opt/wps-tools/bin/db-monitor rook --from 2026-01 --to 2026-08
+/opt/wps-tools/bin/ptop rook
+/opt/wps-tools/bin/ptop rook --window 24h
+```
+
+Windows accept minutes (`30m`), hours (`24h`), or days (`7d`). The request and
+process totals cover jobs started inside that window. The non-final database
+section also includes older accepted and running records so long or stale jobs
+do not disappear from the display. Set `PTOP_INTERVAL` to change the five-second
+refresh interval, and use `--top N` to change the number of records shown.
+
+The specialist, read-only `db-report` command under `sbin/` aggregates database
+requests for an explicit range. It reports every job state, success rate,
+request and duration statistics, successful-job runtime ranges and maximum
+duration, and per-process totals:
+
+```sh
+sudo /opt/wps-tools/sbin/db-report rook 2026-08-01/2026-08-06
+sudo /opt/wps-tools/sbin/db-report rook 2026-08
+sudo /opt/wps-tools/sbin/db-report rook --from 2026-01 --to 2026-08
+sudo /opt/wps-tools/sbin/db-report rook 2026-08 --failures --top 5
 ```
 
 One year, month, or date selects that complete local calendar period. A slash
@@ -849,11 +892,13 @@ sets separate inclusive bounds; omit its left or right side for an open-ended
 range, or omit the range entirely to report all recorded requests. Full ISO
 timestamps, including `Z` or explicit UTC offsets, are also accepted. The
 equivalent `--from` and `--to` options can be used independently. Add
-`--identifier orchestrate` to select one process or `--json` for structured
-output. The range selects `execute` requests by their start time; non-final
-requests are included, and completed-job duration uses the full elapsed time.
-The command queries only a timezone-safe range candidate rather than loading
-the complete PyWPS table.
+`--identifier orchestrate` to select one process. Failure messages are hidden
+by default; `--failures` shows them by frequency and `--top` limits the number
+of unique messages. JSON output always includes the complete error aggregation.
+The range selects `execute` requests by their start time; non-final requests are
+included, and completed-job duration uses the full elapsed time. The command
+queries only a timezone-safe range candidate rather than loading the complete
+PyWPS table.
 
 ### Recover repeatedly polled missing status documents
 
@@ -963,17 +1008,19 @@ wps_services:
     drmaa_native_specification: ""
 ```
 
-By default, Slurm advertises the CPU count resolved from `wps_cpus` and also
-treats memory as a consumable resource. Twenty percent of physical RAM is
-reserved for the OS and host services. Jobs that do not request memory receive
-an equal share of the remaining RAM based on `slurm_cpus`, and cgroups enforce
-the allocation so a worker cannot trigger a host-wide OOM. Memory-heavy
-deployments can raise the default allocation; this keeps all CPUs available
-but admits fewer heavy jobs at once:
+By default, Slurm advertises the smaller of the CPU capacity remaining after
+the `wps_service_cpus` reserve and the number of 4096 MiB jobs that fit in its
+allocatable memory. Twenty percent of physical RAM is reserved for the OS and
+host services. Jobs that do not request memory receive an equal share of the
+remaining RAM based on `slurm_cpus`, and cgroups enforce the allocation so a
+worker cannot trigger a host-wide OOM. Memory-heavy deployments can raise the
+minimum used for automatic sizing or the actual default allocation:
 
 ```yaml
 wps_cpus: 8
+wps_service_cpus: 2
 slurm_system_memory_reserve_percent: 20
+slurm_min_job_memory_mb: 4096
 slurm_default_job_memory_mb: 20000
 ```
 
@@ -1015,14 +1062,14 @@ accounting or `slurmdbd`. Slurm starts the runtime limit only after resources
 are allocated and the job enters `RUNNING`; time spent `PENDING` under load does
 not consume the limit.
 
-An independent read-only monitor makes one `squeue` request for `PENDING` and
-`RUNNING` jobs owned by the configured PyWPS Unix account. It is enabled by
-default whenever Slurm and cron are enabled, and can still be disabled
-explicitly. Because every PyWPS service uses the same account on the dedicated
-VM, Ansible creates one cron entry rather than one per service.
+An optional read-only monitor makes one `squeue` request for `PENDING` and
+`RUNNING` jobs owned by the configured PyWPS Unix account. It is disabled by
+default; enable it when unattended queue, node, and partition alerts are
+useful. Because every PyWPS service uses the same account on the dedicated VM,
+Ansible creates one cron entry rather than one per service.
 
 ```yaml
-wps_tools_slurm_monitor_enabled: true  # enabled by default when Slurm is enabled
+wps_tools_slurm_monitor_enabled: false
 wps_tools_slurm_monitor_schedule:
   minute: "*/5"
   hour: "*"

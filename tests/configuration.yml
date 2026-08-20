@@ -64,10 +64,16 @@
           - job_timeout_grace_minutes | float == 5
           - wps_cpus == 'auto'
           - wps_cpus_resolved | int == 4
+          - wps_service_cpus == 'auto'
+          - wps_service_cpus_resolved | int == 1
+          - slurm_cpus | int == 3
           - gunicorn_workers | int == 9
           - wps_tools_job_control_long_running_minutes | float == 10
           - wps_tools_job_control_stale_after_minutes | float == 95
           - wps_tools_job_control_database_stale_after_minutes | float == 95
+          - >-
+            wps_tools_job_control_database_accepted_stale_after_hours | float
+            == 24
           - wps_tools_job_control_database_status_window_hours | float == 24
           - >-
             wps_tools_job_control_long_running_minutes | float
@@ -80,6 +86,13 @@
           - wps_tools_bin_dir == '/opt/wps-tools/bin'
           - wps_tools_sbin_dir == '/opt/wps-tools/sbin'
           - wps_tools_script_dir == '/opt/wps-tools/scripts'
+          - >-
+            wps_tools_pywps_status_script
+            == '/opt/wps-tools/scripts/pywps-job-status.py'
+          - wps_tools_pywps_top_script == '/opt/wps-tools/bin/ptop'
+          - wps_tools_statistics_dir == '/var/lib/pywps/statistics'
+          - wps_tools_event_keep_days | int == 42
+          - wps_tools_statistics_keep_days | int == 0
           - wps_tools_incident_keep_days == 30
           - wps_tools_incident_keep_minutes | int == 43200
           - >-
@@ -114,8 +127,9 @@
           - "'dkrz' in roocs_project_path_profiles"
           - not slurm_configure_munge
           - slurm_system_memory_reserve_percent | int == 20
+          - slurm_min_job_memory_mb | int == 4096
           - slurm_real_memory_mb | int == 51200
-          - slurm_default_job_memory_mb | int == 12800
+          - slurm_default_job_memory_mb | int == 17066
           - slurm_max_job_memory_mb | int == 51200
           - slurm_config.SchedulerType == 'sched/backfill'
           - slurm_config.SelectType == 'select/cons_res'
@@ -129,7 +143,7 @@
           - slurm_cgroup_config.AllowedRAMSpace | int == 100
           - slurm_cgroup_config.AllowedSwapSpace | int == 0
           - slurm_nodes[0].RealMemory | int == 51200
-          - slurm_partitions[0].DefMemPerNode | int == 12800
+          - slurm_partitions[0].DefMemPerNode | int == 17066
           - slurm_partitions[0].MaxMemPerNode | int == 51200
           - slurm_job_timeout_minutes | int == 90
           - slurm_partitions[0].DefaultTime | int == 90
@@ -140,7 +154,7 @@
           - >-
             slurm_job_timeout_minutes | int
             < wps_tools_job_control_database_stale_after_minutes | float
-          - wps_tools_slurm_monitor_enabled
+          - not wps_tools_slurm_monitor_enabled
           - wps_tools_slurm_monitor_schedule.minute == '*/5'
           - wps_tools_slurm_monitor_user == 'wps'
           - wps_tools_slurm_monitor_long_running_minutes | int == 10
@@ -184,11 +198,35 @@
       ansible.builtin.assert:
         quiet: true
         that:
+          - wps_cpus_resolved | int == 8
+          - wps_service_cpus_resolved | int == 2
+          - slurm_cpus | int == 6
+          - gunicorn_workers | int == 17
+      vars:
+        wps_cpus: 8
+
+    - name: Check explicit service CPU reserve override
+      ansible.builtin.assert:
+        quiet: true
+        that:
           - wps_cpus_resolved | int == 3
+          - wps_service_cpus_resolved | int == 0
           - slurm_cpus | int == 3
-          - gunicorn_workers | int == 7
       vars:
         wps_cpus: 3
+        wps_service_cpus: 0
+
+    - name: Check automatic Slurm memory capacity
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - slurm_real_memory_mb | int == 12800
+          - wps_service_cpus_resolved | int == 2
+          - slurm_cpus | int == 3
+          - slurm_default_job_memory_mb | int == 4266
+      vars:
+        ansible_memtotal_mb: 16000
+        wps_cpus: 8
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -214,18 +252,22 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/wps_tools/templates/job-control-helper.sh.j2') }}
-        test_db_monitor_helper: >-
+        test_db_report_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/wps_tools/templates/db-monitor-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/db-report-helper.sh.j2') }}
+        test_pywps_top: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/wps_tools/templates/pywps-top.sh.j2') }}
         test_request_insights_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/wps_tools/templates/request-insights-helper.sh.j2') }}
-        test_xml_inspect_helper: >-
+        test_statistics_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/wps_tools/templates/xml-inspect-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/stats-helper.sh.j2') }}
         test_slurm_top: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -364,11 +406,11 @@
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
           - >-
-            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=12800 '
+            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=17066 '
             'MaxMemPerNode=51200 MaxTime=90 Nodes=localhost'
             in test_slurm_config
           - >-
-            'NodeName=localhost CPUs=4 RealMemory=51200'
+            'NodeName=localhost CPUs=3 RealMemory=51200'
             in test_slurm_config
           - "'AllowedRAMSpace=100' in test_slurm_cgroup_config"
           - "'AllowedSwapSpace=0' in test_slurm_cgroup_config"
@@ -389,11 +431,11 @@
           - "'monitor)' in test_job_control_helper"
           - "'recover)' in test_job_control_helper"
           - "'mode=recover' in test_job_control_helper"
-          - "'statistics)' in test_job_control_helper"
-          - "'mode=statistics' in test_job_control_helper"
+          - "'statistics)' not in test_job_control_helper"
+          - "'mode=statistics' not in test_job_control_helper"
           - "'script_options=(--layer' not in test_job_control_helper"
           - "'--status-counts' not in test_job_control_helper"
-          - test_job_control_helper.count('script_options=(--human-readable)') == 3
+          - test_job_control_helper.count('script_options=(--human-readable)') == 2
           - >-
             'job_control_script="/opt/wps-tools/scripts/pywps-job-control.py"'
             in test_job_control_helper
@@ -401,31 +443,52 @@
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
           - "'insights SERVICE_NAME' in test_request_insights_helper"
+          - "'--failures' in test_request_insights_helper"
+          - "'--coverage' in test_request_insights_helper"
           - >-
             '/opt/wps-tools/scripts/pywps-request-insights.py'
             in test_request_insights_helper
           - >-
-            'logs=("/var/log/pywps/$service-requests.log"*)'
+            '"/var/log/pywps/$service-events.jsonl"*'
             in test_request_insights_helper
+          - >-
+            '"/var/log/pywps/$service-requests.log"*'
+            in test_request_insights_helper
+          - "'stats SERVICE_NAME' in test_statistics_helper"
+          - >-
+            '/opt/wps-tools/scripts/wps-event-statistics.py'
+            in test_statistics_helper
+          - >-
+            '/var/lib/pywps/statistics/$service-daily.csv'
+            in test_statistics_helper
+          - >-
+            '"/var/log/pywps/$service-events.jsonl"*'
+            in test_statistics_helper
           - >-
             '--config "$config_file" "$mode" "${script_options[@]}" "$@"'
             in test_job_control_helper
           - >-
             '$command_name has a fixed layer scope; --layer is not allowed'
             in test_job_control_helper
+          - "'db-report SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_report_helper"
+          - "'--failures' in test_db_report_helper"
+          - "'--top N' in test_db_report_helper"
           - >-
-            '/opt/wps-tools/scripts/pywps-xml-inspect.py'
-            in test_xml_inspect_helper
-          - "'db-monitor SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_monitor_helper"
+            'report_script="/opt/wps-tools/scripts/pywps-db-report.py"'
+            in test_db_report_helper
           - >-
-            'monitor_script="/opt/wps-tools/scripts/pywps-db-monitor.py"'
-            in test_db_monitor_helper
-          - >-
-            'exec "$python" "$monitor_script"'
-            in test_db_monitor_helper
+            'exec "$python" "$report_script"'
+            in test_db_report_helper
           - >-
             '--config "$config_file" "${range_option[@]}" "$@"'
-            in test_db_monitor_helper
+            in test_db_report_helper
+          - "'Usage: ptop SERVICE_NAME [--window 1h|24h] [--top N]' in test_pywps_top"
+          - >-
+            'status_script="/opt/wps-tools/scripts/pywps-job-status.py"'
+            in test_pywps_top
+          - >-
+            'exec watch -n "$interval" -- "$python" "$status_script"'
+            in test_pywps_top
           - >-
             'status_script="/opt/wps-tools/scripts/slurm-job-status.py"'
             in test_slurm_top
@@ -434,8 +497,11 @@
             'exec watch -n "$interval" -- "$status_script"'
             in test_slurm_top
           - "'rotate 7' in test_logrotate_config"
+          - "'rotate 42' in test_logrotate_config"
           - "'daily' in test_logrotate_config"
           - "'minsize 10M' in test_logrotate_config"
+          - "'maxage 42' in test_logrotate_config"
+          - "'compress' in test_logrotate_config"
           - "'maxsize' not in test_logrotate_config"
           - "'upstream alpha' in test_nginx_config"
           - "'proxy_cache_path /var/lib/pywps/cache/alpha' in test_nginx_config"
@@ -472,11 +538,17 @@
           - "'monitor_enabled = true' in test_pywps_config"
           - "'recovery_enabled = true' in test_pywps_config"
           - "'missing_status_recovery_enabled = true' in test_pywps_config"
-          - "'statistics_enabled = true' in test_pywps_config"
+          - "'statistics_enabled' not in test_pywps_config"
+          - >-
+            'event_log = /var/log/pywps/alpha-events.jsonl'
+            in test_pywps_config
           - "'layers =' not in test_pywps_config"
           - "'long_running_minutes = 10' in test_pywps_config"
           - "'stale_after_minutes = 95' in test_pywps_config"
           - "'database_stale_after_minutes = 95' in test_pywps_config"
+          - >-
+            'database_accepted_stale_after_hours = 24'
+            in test_pywps_config
           - "'database_status_window_hours = 24' in test_pywps_config"
           - "'recovery_user = wps' in test_pywps_config"
           - "'recovery_group = wps' in test_pywps_config"

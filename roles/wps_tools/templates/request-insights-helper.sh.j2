@@ -5,7 +5,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 || $1 == -h || $1 == --help ]]; then
-    echo "Usage: insights SERVICE_NAME [--from TIME] [--to TIME] [--process PROCESS | --all-processes] [--sort name|requests|successful|failed] [--top N] [--details] [--json]" >&2
+    echo "Usage: insights SERVICE_NAME [--from TIME] [--to TIME] [--process PROCESS | --all-processes] [--sort name|requests|successful|failed] [--top N] [--failures] [--coverage] [--json]" >&2
     [[ ${1:-} == -h || ${1:-} == --help ]] && exit 0
     exit 2
 fi
@@ -17,9 +17,12 @@ fi
 service=$1
 shift
 shopt -s nullglob
-logs=("{{ wps_log_dir }}/$service-requests.log"*)
+logs=(
+    "{{ wps_log_dir }}/$service-events.jsonl"*
+    "{{ wps_log_dir }}/$service-requests.log"*
+)
 if [[ -z ${logs[0]:-} ]]; then
-    echo "No request logs found for service: $service" >&2
+    echo "No event logs found for service: $service" >&2
     exit 1
 fi
 exec /usr/bin/python3 "{{ wps_tools_script_dir }}/pywps-request-insights.py" \

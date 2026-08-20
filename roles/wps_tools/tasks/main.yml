@@ -72,6 +72,14 @@
     group: root
     mode: "0755"
 
+- name: Create WPS statistics directory
+  ansible.builtin.file:
+    path: "{{ wps_tools_statistics_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Validate job-control settings
   ansible.builtin.assert:
     that:
@@ -81,7 +89,12 @@
       - wps_tools_bin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_sbin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_script_dir.startswith(wps_tools_dir + '/')
+      - wps_tools_pywps_status_script.startswith(wps_tools_script_dir + '/')
+      - wps_tools_pywps_top_script.startswith(wps_tools_bin_dir + '/')
       - wps_tools_state_dir.startswith(service_user_home + '/')
+      - wps_tools_statistics_dir.startswith(service_user_home + '/')
+      - wps_tools_event_keep_days | int > 0
+      - wps_tools_statistics_keep_days | int >= 0
       - wps_tools_job_control_schedule | type_debug == 'dict'
       - wps_tools_job_control_recovery_schedule | type_debug == 'dict'
       - wps_tools_statistics_schedule | type_debug == 'dict'
@@ -91,6 +104,10 @@
       - wps_tools_job_control_long_running_minutes | float > 0
       - wps_tools_job_control_stale_after_minutes | float > 0
       - wps_tools_job_control_database_stale_after_minutes | float > 0
+      - wps_tools_job_control_database_accepted_stale_after_hours | float > 0
+      - >-
+        (wps_tools_job_control_database_accepted_stale_after_hours | float * 60)
+        > (wps_tools_job_control_database_stale_after_minutes | float)
       - wps_tools_job_control_database_status_window_hours | float >= 3
       - wps_tools_job_control_database_status_window_hours | float <= 24
       - >-
@@ -124,7 +141,8 @@
       positive, and recovery age must be positive and shorter than output
       retention for scheduled XML checks.
       The long-running warning must be positive and shorter than the stale
-      threshold, the database status window must be between 3 and 24 hours,
+      threshold, the accepted-row threshold must be longer than the started-row
+      database threshold, the database status window must be between 3 and 24 hours,
       and recovery and incident-retention limits must be positive.
       Recovery requires incident archiving so the source XML and scheduler
       dump can be preserved before PyWPS updates them.
@@ -140,21 +158,63 @@
     group: root
     mode: "0755"
 
-- name: Install PyWPS database-monitor script
+- name: Install WPS event utilities
   ansible.builtin.copy:
-    src: pywps-db-monitor.py
-    dest: "{{ wps_tools_script_dir }}/pywps-db-monitor.py"
+    src: wps_tools_events.py
+    dest: "{{ wps_tools_script_dir }}/wps_tools_events.py"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install WPS event statistics script
+  ansible.builtin.copy:
+    src: wps-event-statistics.py
+    dest: "{{ wps_tools_script_dir }}/wps-event-statistics.py"
     owner: root
     group: root
     mode: "0755"
 
-- name: Install PyWPS database-monitor command
-  ansible.builtin.template:
-    src: db-monitor-helper.sh.j2
-    dest: "{{ wps_tools_bin_dir }}/db-monitor"
+- name: Install PyWPS database report script
+  ansible.builtin.copy:
+    src: pywps-db-report.py
+    dest: "{{ wps_tools_script_dir }}/pywps-db-report.py"
     owner: root
     group: root
     mode: "0755"
+
+- name: Install PyWPS database report command
+  ansible.builtin.template:
+    src: db-report-helper.sh.j2
+    dest: "{{ wps_tools_sbin_dir }}/db-report"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install interactive PyWPS database status script
+  ansible.builtin.copy:
+    src: pywps-job-status.py
+    dest: "{{ wps_tools_pywps_status_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install PyWPS database live-view shortcut
+  ansible.builtin.template:
+    src: pywps-top.sh.j2
+    dest: "{{ wps_tools_pywps_top_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Remove obsolete database monitor shortcut
+  ansible.builtin.file:
+    path: "{{ wps_tools_bin_dir }}/db-monitor"
+    state: absent
+
+- name: Remove obsolete database monitor script
+  ansible.builtin.file:
+    path: "{{ wps_tools_script_dir }}/pywps-db-monitor.py"
+    state: absent
 
 - name: Install PyWPS XML inspection script
   ansible.builtin.copy:
@@ -164,13 +224,10 @@
     group: root
     mode: "0755"
 
-- name: Install PyWPS XML inspection command
-  ansible.builtin.template:
-    src: xml-inspect-helper.sh.j2
-    dest: "{{ wps_tools_bin_dir }}/inspect-jobs"
-    owner: root
-    group: root
-    mode: "0755"
+- name: Remove obsolete XML inspection shortcut
+  ansible.builtin.file:
+    path: "{{ wps_tools_bin_dir }}/inspect-jobs"
+    state: absent
 
 - name: Install PyWPS request-insights script
   ansible.builtin.copy:
@@ -308,6 +365,12 @@
     - "{{ wps_tools_slurm_top_script }}"
   when: not (slurm_enabled | bool)
 
+- name: Remove stale Slurm alert when monitoring is disabled
+  ansible.builtin.file:
+    path: "{{ wps_tools_slurm_monitor_alert_file }}"
+    state: absent
+  when: not (wps_tools_slurm_monitor_enabled | bool)
+
 - name: Remove obsolete Slurm job-control cron entry
   ansible.builtin.cron:
     name: control overdue Slurm jobs
@@ -354,7 +417,19 @@
   loop:
     - monitor
     - recover
-    - statistics
+
+- name: Install WPS statistics command
+  ansible.builtin.template:
+    src: stats-helper.sh.j2
+    dest: "{{ wps_tools_sbin_dir }}/stats"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Remove obsolete long statistics command
+  ansible.builtin.file:
+    path: "{{ wps_tools_sbin_dir }}/statistics"
+    state: absent
 
 - name: Remove obsolete recovery commands
   ansible.builtin.file:
@@ -455,9 +530,7 @@
     weekday: "{{ wps_tools_statistics_schedule.weekday | default('*') }}"
     user: root
     job: >-
-      {{ conda_envs_dir }}/{{ item.name }}/bin/python
-      {{ wps_tools_script_dir }}/pywps-job-control.py
-      --config /etc/pywps/{{ item.name }}.cfg statistics
+      {{ wps_tools_sbin_dir }}/stats {{ item.name }} --quiet
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool)
@@ -505,7 +578,7 @@
       --config /etc/pywps/{{ item.name }}.cfg
       --service {{ item.name }}
       --state-file {{ wps_tools_state_dir }}/{{ item.name }}-xml-inspect.json
-      --log-file {{ wps_log_dir }}/{{ item.name }}-requests.log
+      --log-file {{ wps_log_dir }}/{{ item.name }}-events.jsonl
       --lock-file {{ wps_run_dir }}/{{ item.name }}-xml-inspect.lock
     cron_file: ansible_pywps
     disabled: "{{ (cron_disabled | bool) or not (wps_tools_inspect_enabled | bool) }}"
@@ -543,10 +616,15 @@
 - name: Copy smoke test script
   ansible.builtin.template:
     src: smoke.sh.j2
-    dest: "{{ wps_tools_sbin_dir }}/smoke"
+    dest: "{{ wps_tools_bin_dir }}/smoke"
     owner: root
     group: root
-    mode: "0744"
+    mode: "0755"
+
+- name: Remove obsolete administrative smoke command
+  ansible.builtin.file:
+    path: "{{ wps_tools_sbin_dir }}/smoke"
+    state: absent
 
 - name: Remove tools from the legacy PyWPS state directory
   ansible.builtin.file:
@@ -555,6 +633,8 @@
   loop:
     - pywps-job-control.py
     - pywps-db-monitor.py
+    - pywps-db-report.py
+    - pywps-job-status.py
     - pywps-xml-inspect.py
     - pywps-request-insights.py
     - slurm-job-status.py
@@ -573,6 +653,7 @@
     - slurm-top
     - top
     - qtop
+    - ptop
     - restart-pywps.sh
     - smoke.sh
 
