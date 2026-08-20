@@ -37,6 +37,7 @@ JOB_UUID = "123e4567-e89b-42d3-a456-426614174000"
 OTHER_JOB_UUID = "223e4567-e89b-42d3-a456-426614174000"
 THIRD_JOB_UUID = "323e4567-e89b-42d3-a456-426614174000"
 FOURTH_JOB_UUID = "423e4567-e89b-42d3-a456-426614174000"
+FIFTH_JOB_UUID = "523e4567-e89b-42d3-a456-426614174000"
 OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
@@ -834,6 +835,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "database_stale_after_minutes = 420\n"
+            "database_accepted_stale_after_hours = 36\n"
             "database_status_window_hours = 12\n"
             "recovery_user = alpha-user\n"
             "recovery_group = alpha-group\n"
@@ -856,6 +858,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertEqual(settings.database_stale_after_minutes, 420)
+        self.assertEqual(settings.database_accepted_stale_after_hours, 36)
         self.assertEqual(settings.database_status_window_hours, 12)
         self.assertEqual(settings.work_dir, self.root / "tmp")
         self.assertEqual(settings.recovery_user, "alpha-user")
@@ -899,10 +902,13 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "720",
             "--database-stale-after-minutes",
             "840",
+            "--database-accepted-stale-after-hours",
+            "48",
         ])
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
         self.assertEqual(overridden.database_stale_after_minutes, 840)
+        self.assertEqual(overridden.database_accepted_stale_after_hours, 48)
         self.assertIsNone(overridden.limit)
 
         recovery = MODULE.parse_args(["--config", str(config), "recover"])
@@ -1475,7 +1481,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
-    def test_database_recovery_handles_started_but_not_accepted_requests(self):
+    def test_database_recovery_uses_conservative_accepted_threshold(self):
         pywps_config = self.root / "pywps.cfg"
         database = self.root / "pywps.sqlite"
         workdir = self.root / "work"
@@ -1495,6 +1501,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
 
         configuration.load_configuration([str(pywps_config)])
         old = (self.now - timedelta(hours=8)).replace(tzinfo=None)
+        very_old = (self.now - timedelta(hours=30)).replace(tzinfo=None)
         session = dblog.get_session()
         session.add(
             dblog.ProcessInstance(
@@ -1515,7 +1522,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 pid=34567,
                 operation="execute",
                 version="1.0.0",
-                time_start=old,
+                time_start=very_old,
+                time_end=very_old,
                 status=WPS_STATUS.ACCEPTED,
                 percent_done=0,
             )
@@ -1533,6 +1541,18 @@ class RecoverStalledJobsTests(unittest.TestCase):
             )
         )
         session.add(dblog.RequestInstance(uuid=FOURTH_JOB_UUID, request=b"{}"))
+        session.add(
+            dblog.ProcessInstance(
+                uuid=FIFTH_JOB_UUID,
+                pid=56789,
+                operation="execute",
+                version="1.0.0",
+                time_start=old,
+                status=WPS_STATUS.ACCEPTED,
+                percent_done=0,
+            )
+        )
+        session.add(dblog.RequestInstance(uuid=FIFTH_JOB_UUID, request=b"{}"))
         session.add(
             dblog.ProcessInstance(
                 uuid=OTHER_JOB_UUID,
@@ -1553,11 +1573,15 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (1, 1, 1, 0),
+            (2, 2, 2, 0),
         )
         self.assertEqual(
             logger.warning.call_args_list,
             [
+                mock.call(
+                    "layer=database job=%s status=failed action=recovered",
+                    THIRD_JOB_UUID,
+                ),
                 mock.call(
                     "layer=database job=%s status=failed action=recovered",
                     JOB_UUID,
@@ -1575,11 +1599,21 @@ class RecoverStalledJobsTests(unittest.TestCase):
         accepted = (
             session.query(dblog.ProcessInstance).filter_by(uuid=THIRD_JOB_UUID).one()
         )
-        self.assertEqual(accepted.status, WPS_STATUS.ACCEPTED)
-        self.assertEqual(accepted.percent_done, 0)
-        self.assertIsNotNone(
+        self.assertEqual(accepted.status, WPS_STATUS.FAILED)
+        self.assertEqual(accepted.percent_done, 100)
+        self.assertIsNone(
             session.query(dblog.RequestInstance)
             .filter_by(uuid=THIRD_JOB_UUID)
+            .first()
+        )
+        queued = (
+            session.query(dblog.ProcessInstance).filter_by(uuid=FIFTH_JOB_UUID).one()
+        )
+        self.assertEqual(queued.status, WPS_STATUS.ACCEPTED)
+        self.assertEqual(queued.percent_done, 0)
+        self.assertIsNotNone(
+            session.query(dblog.RequestInstance)
+            .filter_by(uuid=FIFTH_JOB_UUID)
             .first()
         )
         paused = (

@@ -90,6 +90,7 @@ class Settings:
     missing_status_recovery_limit: int = 20
     long_running_minutes: float = 10
     database_stale_after_minutes: float = 95
+    database_accepted_stale_after_hours: float = 24
     database_status_window_hours: float = 24
     work_dir: Path | None = None
     recovery_user: str = "wps"
@@ -1134,7 +1135,7 @@ def run_database_layer(
     try:
         from pywps import configuration, dblog
         from pywps.response.status import WPS_STATUS
-        from sqlalchemy import create_engine, inspect, or_
+        from sqlalchemy import and_, create_engine, func, inspect, or_
         from sqlalchemy.orm import sessionmaker
     except ImportError as error:
         raise RuntimeError(
@@ -1142,6 +1143,9 @@ def run_database_layer(
         ) from error
 
     threshold = timedelta(minutes=settings.database_stale_after_minutes)
+    accepted_threshold = timedelta(
+        hours=settings.database_accepted_stale_after_hours
+    )
     long_running_threshold = timedelta(minutes=settings.long_running_minutes)
     status_window = timedelta(hours=settings.database_status_window_hours)
     database_url = configuration.get_config_value("logging", "database")
@@ -1172,12 +1176,11 @@ def run_database_layer(
             )
             summary.status_counts = status_counts
             summary.checked = status_counts["total"]
-        # Queue wait is not execution time. Only STARTED rows can become
-        # long-running or stale; accepted, paused, and unknown rows remain
-        # visible in status aggregates without being recovered as failed.
-        query = session.query(dblog.ProcessInstance).filter(
-            dblog.ProcessInstance.status == WPS_STATUS.STARTED
-        )
+        # Queue wait is not execution time. STARTED rows use the normal runtime
+        # threshold. ACCEPTED rows use a much longer threshold so abandoned
+        # queue records are eventually reconciled. PAUSED and unknown rows are
+        # visible in status aggregates but are never recovered automatically.
+        query = session.query(dblog.ProcessInstance)
         if settings.mode == "recover" and settings.database_recovery_excluded_jobs:
             query = query.filter(
                 ~dblog.ProcessInstance.uuid.in_(
@@ -1190,20 +1193,30 @@ def run_database_layer(
         long_running_cutoff = database_candidate_cutoff(
             now, long_running_threshold
         )
+        accepted_cutoff = database_candidate_cutoff(now, accepted_threshold)
         last_update = func.coalesce(
             dblog.ProcessInstance.time_end,
             dblog.ProcessInstance.time_start,
         )
         stale_filter = or_(last_update.is_(None), last_update <= cutoff)
-        if settings.mode == "recover":
-            query = query.filter(stale_filter)
-        else:
-            query = query.filter(
-                or_(
-                    stale_filter,
-                    dblog.ProcessInstance.time_start <= long_running_cutoff,
-                )
-            )
+        accepted_stale_filter = or_(
+            last_update.is_(None),
+            last_update <= accepted_cutoff,
+        )
+        started_candidate = and_(
+            dblog.ProcessInstance.status == WPS_STATUS.STARTED,
+            stale_filter
+            if settings.mode == "recover"
+            else or_(
+                stale_filter,
+                dblog.ProcessInstance.time_start <= long_running_cutoff,
+            ),
+        )
+        accepted_candidate = and_(
+            dblog.ProcessInstance.status == WPS_STATUS.ACCEPTED,
+            accepted_stale_filter,
+        )
+        query = query.filter(or_(started_candidate, accepted_candidate))
         query = query.order_by(last_update, dblog.ProcessInstance.uuid)
         if settings.mode != "recover" and settings.limit is not None:
             query = query.limit(settings.limit)
@@ -1212,7 +1225,9 @@ def run_database_layer(
             if settings.mode != "monitor":
                 summary.checked += 1
             try:
-                if not database_status_can_timeout(record.status, WPS_STATUS):
+                is_started = database_status_can_timeout(record.status, WPS_STATUS)
+                is_accepted = record.status == WPS_STATUS.ACCEPTED
+                if not (is_started or is_accepted):
                     logger.debug(
                         "layer=database job=%s status=%s decision=skip-timeout "
                         "reason=job-not-running",
@@ -1222,12 +1237,19 @@ def run_database_layer(
                     continue
                 last_update = database_last_update(record)
                 started = database_start_time(record)
-                finding = classify_database_job(
-                    record,
-                    now,
-                    long_running_threshold,
-                    threshold,
-                )
+                if is_accepted:
+                    finding = (
+                        "stalled"
+                        if is_stalled(last_update, now, accepted_threshold)
+                        else None
+                    )
+                else:
+                    finding = classify_database_job(
+                        record,
+                        now,
+                        long_running_threshold,
+                        threshold,
+                    )
                 if settings.mode != "recover" and finding == "long-running":
                     summary.long_running += 1
                     summary.long_running_jobs.add(str(record.uuid))
@@ -1258,13 +1280,22 @@ def run_database_layer(
                 if settings.mode == "recover":
                     record.status = WPS_STATUS.FAILED
                     record.percent_done = 100
-                    record.message = (
-                        "Process failed: stalled-job recovery found no database update "
-                        "for at least "
-                        f"{settings.database_stale_after_minutes:g} minutes."
-                    )
+                    if is_accepted:
+                        record.message = (
+                            "Process failed: stalled-job recovery found an accepted "
+                            "database request that did not advance for at least "
+                            f"{settings.database_accepted_stale_after_hours:g} hours."
+                        )
+                    else:
+                        record.message = (
+                            "Process failed: stalled-job recovery found no database "
+                            "update for at least "
+                            f"{settings.database_stale_after_minutes:g} minutes."
+                        )
                     record.time_end = database_naive_now(now)
-                    session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
+                    session.query(dblog.RequestInstance).filter_by(
+                        uuid=record.uuid
+                    ).delete()
                     session.commit()
                     summary.recovered += 1
                     logger.warning(
@@ -1410,6 +1441,14 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="summarize database jobs started within this many hours",
     )
     parser.add_argument(
+        "--database-accepted-stale-after-hours",
+        type=float,
+        default=float(
+            control_config.get("database_accepted_stale_after_hours", "24")
+        ),
+        help="consider accepted database rows stale after this many hours",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         help="process at most this many stalled jobs in each selected layer",
@@ -1496,6 +1535,18 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("--stale-after-minutes must be greater than zero")
     if args.database_stale_after_minutes <= 0:
         parser.error("--database-stale-after-minutes must be greater than zero")
+    if args.database_accepted_stale_after_hours <= 0:
+        parser.error(
+            "--database-accepted-stale-after-hours must be greater than zero"
+        )
+    if (
+        args.database_accepted_stale_after_hours * 60
+        <= args.database_stale_after_minutes
+    ):
+        parser.error(
+            "--database-accepted-stale-after-hours must be longer than "
+            "--database-stale-after-minutes"
+        )
     if not 3 <= args.database_status_window_hours <= 24:
         parser.error("--database-status-window-hours must be between 3 and 24")
     if args.long_running_minutes <= 0:
@@ -1551,6 +1602,9 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         missing_status_recovery_limit=missing_status_recovery_limit,
         long_running_minutes=args.long_running_minutes,
         database_stale_after_minutes=args.database_stale_after_minutes,
+        database_accepted_stale_after_hours=(
+            args.database_accepted_stale_after_hours
+        ),
         database_status_window_hours=args.database_status_window_hours,
         work_dir=optional_path(config.get("server", "workdir", fallback=None)),
         recovery_user=control_config.get("recovery_user", "wps"),

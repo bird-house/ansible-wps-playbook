@@ -130,8 +130,9 @@ class PywpsJobStatusTests(unittest.TestCase):
         text = output.getvalue()
         self.assertIn("PyWPS database — rook", text)
         self.assertIn("Window: last 1h", text)
-        self.assertIn("Processes — window requests; active includes all ages", text)
-        self.assertIn("Active jobs — all ages (1)", text)
+        self.assertIn("Processes — window requests; non-final includes all ages", text)
+        self.assertIn("Non-final database jobs — all ages (1)", text)
+        self.assertIn("2026-08-20", text)
         self.assertIn("12345678", text)
 
     def test_active_age_ignores_a_recorded_end_time(self):

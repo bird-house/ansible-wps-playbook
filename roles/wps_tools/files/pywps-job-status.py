@@ -262,7 +262,7 @@ def print_report(report: dict, *, service: str, window_label: str, top: int) -> 
         f"max={format_duration(duration['max'])}"
     )
 
-    print("\nProcesses — window requests; active includes all ages")
+    print("\nProcesses — window requests; non-final includes all ages")
     rows = []
     for process in report["processes"]:
         process_duration = process["duration_seconds"]
@@ -286,7 +286,7 @@ def print_report(report: dict, *, service: str, window_label: str, top: int) -> 
                 "Requests",
                 "OK",
                 "Failed",
-                "Active",
+                "Non-final",
                 "Other",
                 "Median",
                 "P95",
@@ -299,7 +299,7 @@ def print_report(report: dict, *, service: str, window_label: str, top: int) -> 
         print("No requests in this window.")
 
     active_jobs = report["active_jobs"]
-    print(f"\nActive jobs — all ages ({len(active_jobs)})")
+    print(f"\nNon-final database jobs — all ages ({len(active_jobs)})")
     if not active_jobs:
         print("None")
         return
@@ -309,7 +309,7 @@ def print_report(report: dict, *, service: str, window_label: str, top: int) -> 
             job["process"],
             job["status"],
             format_duration(job["age_seconds"]),
-            job["started"].astimezone(local_timezone).strftime("%H:%M:%S"),
+            job["started"].astimezone(local_timezone).strftime("%Y-%m-%d %H:%M"),
         )
         for job in active_jobs[:top]
     ]

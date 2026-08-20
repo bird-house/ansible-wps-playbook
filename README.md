@@ -502,6 +502,7 @@ wps_tools_job_control_recovery_schedule:
   hour: "*"
 wps_tools_job_control_stale_after_minutes: 95
 wps_tools_job_control_database_stale_after_minutes: 95
+wps_tools_job_control_database_accepted_stale_after_hours: 24
 wps_tools_job_control_database_status_window_hours: 24
 wps_tools_job_control_recovery_limit: 100
 wps_tools_incident_archive_enabled: true
@@ -514,9 +515,11 @@ is enabled, one locked recovery command runs every five minutes with a
 one-minute offset. It always processes XML, database, and then polling evidence;
 polling recovery can still be disabled independently when it is not wanted.
 The database layer reports `started` requests as long-running after ten minutes
-by default, based on their request start time. Accepted, queued, paused, and
-unknown requests are not timed out because their age may be queue wait rather
-than execution time. This is an early warning only.
+by default, based on their request start time. Started rows are recovered after
+the normal 95-minute timeout. Accepted rows may represent queue wait, so they
+use a separate conservative 24-hour recovery threshold. Paused and unknown
+requests are never timed out automatically. The long-running report remains an
+early warning only.
 Its monitor summary also counts every database request started within the
 configured recent window, including final requests, and reports the status mix:
 
@@ -526,7 +529,7 @@ summary layer=database total=20 running=8 accepted=2 failed=1 success=9 ...
 
 `wps_tools_job_control_database_status_window_hours` defaults to 24 and accepts
 values from 3 through 24 hours. This reporting window does not restrict stale
-detection or recovery; old `started` requests remain eligible for recovery.
+detection or recovery; old `started` and `accepted` requests remain eligible.
 XML documents and database rows have separate stale thresholds, both derived
 as the 90-minute job timeout plus the five-minute recovery grace by default.
 XML recovery writes a failed status document; database recovery only reconciles
@@ -867,10 +870,10 @@ For a compact live view of recent database activity and all active jobs, use
 ```
 
 Windows accept minutes (`30m`), hours (`24h`), or days (`7d`). The request and
-process totals cover jobs started inside that window. The active-job section
-also includes older accepted and running jobs so long jobs do not disappear
-from the display. Set `PTOP_INTERVAL` to change the five-second refresh interval,
-and use `--top N` to change the number of active jobs shown.
+process totals cover jobs started inside that window. The non-final database
+section also includes older accepted and running records so long or stale jobs
+do not disappear from the display. Set `PTOP_INTERVAL` to change the five-second
+refresh interval, and use `--top N` to change the number of records shown.
 
 The specialist, read-only `db-report` command under `sbin/` aggregates database
 requests for an explicit range. It reports every job state, success rate,

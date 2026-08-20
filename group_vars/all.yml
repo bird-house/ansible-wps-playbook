@@ -322,6 +322,8 @@ wps_tools_job_control_stale_after_minutes: >-
   {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
 wps_tools_job_control_database_stale_after_minutes: >-
   {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
+# Accepted rows may represent queue wait, so use a separate conservative age.
+wps_tools_job_control_database_accepted_stale_after_hours: 24
 # Report the status mix for jobs started in this recent window.
 wps_tools_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
