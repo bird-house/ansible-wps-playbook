@@ -66,6 +66,8 @@
       - wps_job_control_recovery_schedule | type_debug == 'dict'
       - wps_job_statistics_schedule | type_debug == 'dict'
       - wps_job_inspect_schedule | type_debug == 'dict'
+      - job_timeout_minutes | float > 0
+      - job_timeout_grace_minutes | float > 0
       - wps_job_control_long_running_minutes | float > 0
       - wps_job_control_stale_after_minutes | float > 0
       - wps_job_control_database_stale_after_minutes | float > 0
@@ -96,7 +98,8 @@
         or not (wps_job_control_monitor_enabled | bool)
         or (wps_job_control_stale_after_minutes | float) < (wps_outputs_keep_minutes | float)
     fail_msg: >-
-      The job-control schedule must be a cron-field mapping, age must be
+      The job-control schedule must be a cron-field mapping. The shared job
+      timeout and recovery grace must be positive, and recovery age must be
       positive and shorter than output retention for scheduled XML checks.
       The long-running warning must be positive and shorter than the stale
       threshold, the database status window must be between 3 and 24 hours,

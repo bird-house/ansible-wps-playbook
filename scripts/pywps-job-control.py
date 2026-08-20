@@ -74,9 +74,9 @@ class Settings:
     status_counts: bool = False
     output_url: str | None = None
     access_log: Path | None = None
-    poll_window_minutes: float = 180
+    poll_window_minutes: float = 190
     min_poll_count: int = 3
-    min_poll_duration_minutes: float = 150
+    min_poll_duration_minutes: float = 100
     database_guard: bool = True
     monitor_enabled: bool = True
     recovery_enabled: bool = False
@@ -88,7 +88,7 @@ class Settings:
     recovery_limit: int = 100
     missing_status_recovery_limit: int = 20
     long_running_minutes: float = 10
-    database_stale_after_minutes: float = 120
+    database_stale_after_minutes: float = 95
     database_status_window_hours: float = 24
     work_dir: Path | None = None
     recovery_user: str = "wps"
@@ -1422,13 +1422,13 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--stale-after-minutes",
         type=float,
-        default=float(control_config.get("stale_after_minutes", "120")),
+        default=float(control_config.get("stale_after_minutes", "95")),
         help="consider started XML jobs stalled after this many minutes",
     )
     parser.add_argument(
         "--database-stale-after-minutes",
         type=float,
-        default=float(control_config.get("database_stale_after_minutes", "120")),
+        default=float(control_config.get("database_stale_after_minutes", "95")),
         help="consider started database rows stale after this many minutes",
     )
     parser.add_argument(
@@ -1471,7 +1471,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--poll-window-minutes",
         type=float,
-        default=float(control_config.get("poll_window_minutes", "180")),
+        default=float(control_config.get("poll_window_minutes", "190")),
         help="inspect polling requests from this recent time window",
     )
     parser.add_argument(
@@ -1486,7 +1486,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         default=float(
             control_config.get(
                 "min_poll_duration_minutes",
-                "150",
+                "100",
             )
         ),
         help="require matching polls to span at least this much time",

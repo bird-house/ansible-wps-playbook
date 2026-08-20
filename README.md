@@ -415,6 +415,8 @@ polling recovery layers are enabled by default:
 
 ```yaml
 cron_enabled: true
+job_timeout_minutes: 90
+job_timeout_grace_minutes: 5
 job_long_running_minutes: 10
 wps_job_control_monitor_enabled: true
 wps_job_control_recovery_enabled: true
@@ -425,8 +427,8 @@ wps_job_control_schedule:
 wps_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-wps_job_control_stale_after_minutes: 30
-wps_job_control_database_stale_after_minutes: 30
+wps_job_control_stale_after_minutes: 95
+wps_job_control_database_stale_after_minutes: 95
 wps_job_control_database_status_window_hours: 24
 wps_job_control_recovery_limit: 100
 wps_job_incident_archive_enabled: true
@@ -452,8 +454,9 @@ summary layer=database total=20 running=8 accepted=2 failed=1 success=9 ...
 `wps_job_control_database_status_window_hours` defaults to 24 and accepts
 values from 3 through 24 hours. This reporting window does not restrict stale
 detection or recovery; old `started` requests remain eligible for recovery.
-XML documents and database rows have separate two-hour stale thresholds. XML
-recovery writes a failed status document; database recovery only reconciles
+XML documents and database rows have separate stale thresholds, both derived
+as the 90-minute job timeout plus the five-minute recovery grace by default.
+XML recovery writes a failed status document; database recovery only reconciles
 the database row and removes its stored request. Stalled database rows are
 reported only as stalled, rather than being counted again as long-running.
 Standard cron fields
@@ -796,20 +799,20 @@ instead of polling forever.
 ```yaml
 wps_job_control_recovery_enabled: true
 wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: 60
+wps_missing_status_poll_window_minutes: 190
 wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 35
+wps_missing_status_min_poll_duration_minutes: 100
 wps_missing_status_recovery_limit: 20
 wps_missing_status_access_log: /var/log/nginx/access.log
 wps_missing_status_database_guard: true
 ```
 
 The default recovery schedule runs every five minutes at minute 1 and
-considers only requests from the preceding hour. Polling is the last
+considers requests from the preceding 190 minutes. Polling is the last
 recovery layer, so
 XML and database reconciliation has already completed in the same locked run.
 Recovery requires at least three `GET` or `HEAD` responses
-with status `404`, spanning at least 35 minutes rather than arriving in one
+with status `404`, spanning at least 100 minutes rather than arriving in one
 short burst. Only the exact output path configured for that PyWPS service and a
 syntactically valid UUID filename are accepted. Only the configured active log
 is inspected. Rotated logs are intentionally ignored: persistent polling
@@ -921,17 +924,22 @@ provide this validation when the service runs in scheduler mode.
 
 #### Limit and monitor Slurm jobs
 
-Slurm enforces a default and maximum runtime on the `fast` partition. Its
-25-minute limit stops scheduler work before the 30-minute XML and database
-stale thresholds, and before workloads observed to exhaust their memory around
-30 minutes. The CDS client's three-hour limit remains an outer safeguard for
-queue health rather than the normal scheduler cutoff. These limits can be
-overridden independently, but the Slurm timeout must remain shorter:
+Slurm enforces a default and maximum runtime on the `fast` partition. The
+shared 90-minute job timeout is followed by a five-minute recovery grace, so
+XML and database recovery begins at 95 minutes. The CDS client's three-hour
+limit remains an outer safeguard for queue health rather than the normal
+scheduler cutoff. Change the shared values to adjust the derived limits:
 
 ```yaml
-wps_job_control_stale_after_minutes: 30
-slurm_job_timeout_minutes: 25
+job_timeout_minutes: 90
+job_timeout_grace_minutes: 5
 ```
+
+`slurm_job_timeout_minutes`, `wps_job_control_stale_after_minutes`,
+`wps_job_control_database_stale_after_minutes`, and the missing-status polling
+thresholds inherit these shared values. Each derived variable can still be
+overridden explicitly when a deployment needs different behavior, but the
+Slurm timeout must remain below both stale-recovery thresholds.
 
 Slurm uses its value as both `DefaultTime` and `MaxTime`, so jobs receive the
 limit even when PyWPS does not pass `--time` during submission and cannot

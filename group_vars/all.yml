@@ -56,8 +56,12 @@ fs_enabled: false
 fs_host: localhost
 fs_port: 6000
 
-# Shared long-running threshold. The WPS and Slurm settings below inherit this
-# value but remain independently overridable in deployment inventories.
+# Shared hard job timeout and recovery grace period. Slurm enforces the timeout;
+# XML, database, and missing-status recovery settings below derive from both.
+job_timeout_minutes: 90
+job_timeout_grace_minutes: 5
+# Shared long-running warning. WPS and Slurm inherit this value but remain
+# independently overridable in deployment inventories.
 job_long_running_minutes: 10
 
 # slurm/drmaa
@@ -112,7 +116,7 @@ slurm_munge_key: /etc/munge/munge.key
 # The local prerequisite role creates the key and manages the Munge service.
 slurm_configure_munge: false
 # Slurm limits running allocation time; pending queue time is not counted.
-slurm_job_timeout_minutes: 25
+slurm_job_timeout_minutes: "{{ job_timeout_minutes }}"
 # Report host-wide Slurm queue pressure and long-running jobs by default.
 slurm_job_monitor_enabled: true
 slurm_job_monitor_schedule:
@@ -259,8 +263,10 @@ wps_job_control_recovery_schedule:
   weekday: "*"
 # Warn about started database requests running this long; queue wait is excluded.
 wps_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
-wps_job_control_stale_after_minutes: 30
-wps_job_control_database_stale_after_minutes: 30
+wps_job_control_stale_after_minutes: >-
+  {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
+wps_job_control_database_stale_after_minutes: >-
+  {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
 # Report the status mix for jobs started in this recent window.
 wps_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
@@ -272,9 +278,13 @@ wps_job_incident_keep_days: 30
 wps_job_incident_keep_minutes: "{{ (wps_job_incident_keep_days | int) * 1440 }}"
 # Create failure XML for repeated Nginx 404 status polling.
 wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: 60
+wps_missing_status_poll_window_minutes: >-
+  {{ ((job_timeout_minutes | int) * 2)
+     + ((job_timeout_grace_minutes | int) * 2) }}
 wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 35
+wps_missing_status_min_poll_duration_minutes: >-
+  {{ (job_timeout_minutes | int)
+     + ((job_timeout_grace_minutes | int) * 2) }}
 wps_missing_status_recovery_limit: 20
 wps_missing_status_access_log: "{{ wps_http_log_dir }}/access.log"
 wps_missing_status_database_guard: true
