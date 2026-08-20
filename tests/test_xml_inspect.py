@@ -82,6 +82,22 @@ class XmlInspectTests(unittest.TestCase):
         self.assertEqual(record["failures"][0]["locator"], "dataset")
         self.assertEqual(record["failures"][0]["message"], "Input was unavailable")
 
+    def test_retains_large_complex_workflow_inputs(self):
+        workflow = json.dumps(
+            {
+                "inputs": {"tas": [f"collection-{index}" for index in range(100)]},
+                "steps": {"subset": {"run": "subset", "in": {"time": "2020/2030"}}},
+            }
+        )
+        self.assertGreater(len(workflow), MODULE.MAX_VALUE_LENGTH)
+        element = MODULE.ET.fromstring(
+            '<wps:Input xmlns:wps="http://www.opengis.net/wps/1.0.0">'
+            f"<wps:Data><wps:ComplexData>{workflow}</wps:ComplexData></wps:Data>"
+            "</wps:Input>"
+        )
+        value = MODULE.input_value(element)
+        self.assertEqual(json.loads(value["value"]), json.loads(workflow))
+
     def test_ignores_non_final_status(self):
         self.write("ProcessStarted")
         self.assertIsNone(MODULE.inspect(self.status, "rook"))

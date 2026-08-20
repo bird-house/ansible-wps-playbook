@@ -436,6 +436,8 @@
             'exec "$python" "$job_control_script"'
             in test_job_control_helper
           - "'insights SERVICE_NAME' in test_request_insights_helper"
+          - "'--failures' in test_request_insights_helper"
+          - "'--coverage' in test_request_insights_helper"
           - >-
             '/opt/wps-tools/scripts/pywps-request-insights.py'
             in test_request_insights_helper

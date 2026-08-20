@@ -795,7 +795,8 @@ sudo /opt/wps-tools/bin/insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --process subset --json
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --sort failed
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --details --top 20
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --failures --top 20
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --all-processes --coverage
 ```
 
 `insights` selects `orchestrate` by default. Use `--all-processes` for
@@ -808,9 +809,10 @@ The default report is a compact operational overview: request outcomes,
 median, 95th-percentile and maximum durations, retained workflow metadata,
 failure-category totals, recovered and long-running jobs, operation errors,
 and one line per requested dataset. A process table
-is shown only when multiple processes are selected. Use `--details` to append
-failure blocks grouped by dataset, with their selection, concise reason and
-example job IDs, or `--json` for the complete machine-readable report. The
+is shown only when multiple processes are selected. Use `--coverage` to append
+the detailed requested-input dimensions to a text report. Use `--failures` to
+append failure blocks grouped by dataset, with their selection, concise reason
+and example job IDs. JSON always retains both coverage and failure details. The
 detailed view shows `memory` and `timeout` first, then the remaining categories
 by total frequency. Within each category, datasets and selection groups are
 ordered by frequency. The `--top` allowance is distributed across categories
@@ -824,8 +826,12 @@ JSON `ComplexData` is expanded into useful dotted coverage dimensions.
 Orchestrate workflows receive dedicated dimensions such as
 `orchestrate.workflow.inputs.tas` and
 `orchestrate.workflow.steps.subset.time`, with generated step names collapsed
-to their `run` operation. Derived references such as `subset_tas_1/output` are
-not counted as source collections. Failures are grouped into `memory`,
+to their `run` operation. The XML collector retains complex inputs up to 64 KiB
+so normal workflow documents remain parseable. Malformed or truncated complex
+payloads are omitted from human coverage instead of printing the raw blob, and
+consecutive component years are shown as ranges. Derived references such as
+`subset_tas_1/output` are not counted as source collections. Failures are
+grouped into `memory`,
 `timeout`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and `unknown`.
 Failures mentioning longitude or latitude are classified as `spatial`.
 Detailed output includes concise root-cause messages and example job IDs for
@@ -844,7 +850,7 @@ When orchestrate records are present, a dedicated production-data section
 resolves workflow aliases such as `inputs/tas` to their complete collection
 identifiers. It expands `time` ranges and `time_components` into inclusive year
 coverage and associates each failed workflow with its collection, failure
-category, message, and example job IDs. With `--details`, failures are grouped
+category, message, and example job IDs. With `--failures`, failures are grouped
 separately by requested year coverage and time range so problems affecting
 different periods are not merged. The overview explicitly counts requests
 with and without retained workflow metadata.

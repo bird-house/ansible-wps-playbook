@@ -24,6 +24,7 @@ UTC = timezone.utc
 FINAL_STATES = {"ProcessSucceeded": "successful", "ProcessFailed": "failed"}
 UUID_EPOCH_100NS = 0x01B21DD213814000
 MAX_VALUE_LENGTH = 1000
+MAX_COMPLEX_VALUE_LENGTH = 65536
 MAX_DIAGNOSTIC_LENGTH = 8000
 
 
@@ -37,13 +38,15 @@ def first_descendant(element: ET.Element | None, name: str) -> ET.Element | None
     return next((item for item in element.iter() if local_name(item.tag) == name), None)
 
 
-def element_text(element: ET.Element | None) -> str | None:
+def element_text(
+    element: ET.Element | None, max_length: int = MAX_VALUE_LENGTH
+) -> str | None:
     if element is None:
         return None
     value = " ".join("".join(element.itertext()).split())
     if not value:
         return None
-    return value[:MAX_VALUE_LENGTH]
+    return value[:max_length]
 
 
 def uuid_time(value: str) -> datetime | None:
@@ -78,7 +81,13 @@ def input_value(input_element: ET.Element) -> dict[str, object]:
     for kind in ("LiteralData", "ComplexData", "BoundingBoxData"):
         value = first_descendant(input_element, kind)
         if value is not None:
-            result: dict[str, object] = {"type": kind, "value": element_text(value)}
+            max_length = (
+                MAX_COMPLEX_VALUE_LENGTH if kind == "ComplexData" else MAX_VALUE_LENGTH
+            )
+            result: dict[str, object] = {
+                "type": kind,
+                "value": element_text(value, max_length),
+            }
             if value.attrib:
                 result["attributes"] = {
                     local_name(key): item for key, item in sorted(value.attrib.items())

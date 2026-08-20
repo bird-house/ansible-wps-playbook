@@ -274,6 +274,12 @@ def flatten_json(prefix: str, value: object) -> list[tuple[str, str]]:
         for child in value:
             result.extend(flatten_json(prefix, child))
         return result
+    if isinstance(value, str) and prefix.endswith(".time_components"):
+        match = re.search(r"(?:^|\|)year:([^|]+)", value)
+        if match:
+            years = {int(year) for year in re.findall(r"\b[12][0-9]{3}\b", match.group(1))}
+            if years:
+                value = value.replace(match.group(1), compact_years(years))
     return [(prefix, json.dumps(value, ensure_ascii=False, sort_keys=True))]
 
 
@@ -306,18 +312,18 @@ def coverage_items(
             try:
                 structured = json.loads(contents)
             except json.JSONDecodeError:
-                structured = None
+                # A partial or malformed complex payload has no useful scalar
+                # coverage and can otherwise flood the human report.
+                return []
             if isinstance(structured, dict):
                 workflow = workflow_coverage(process, input_name, structured)
                 if workflow is not None:
                     return workflow
                 return flatten_json(prefix, structured)
-    if isinstance(value, dict):
-        rendered = json.dumps(
-            {item: value.get(item) for item in ("type", "value")},
-            sort_keys=True,
-            ensure_ascii=False,
-        )
+    if isinstance(value, dict) and "value" in value:
+        rendered = json.dumps(value.get("value"), ensure_ascii=False, sort_keys=True)
+    elif isinstance(value, dict):
+        rendered = json.dumps(value, sort_keys=True, ensure_ascii=False)
     else:
         rendered = json.dumps(value, ensure_ascii=False)
     return [(prefix, rendered)]
@@ -755,7 +761,9 @@ def print_detail_field(label: str, value: str, *, indent: int = 4) -> None:
     )
 
 
-def print_report(report: dict[str, object], *, details: bool = False) -> None:
+def print_report(
+    report: dict[str, object], *, failure_details: bool = False, coverage: bool = False
+) -> None:
     period = report["period"]
     outcomes = report["outcomes"]
     failures = int(outcomes.get("failed", 0))
@@ -823,7 +831,7 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
                 f"failures={outcomes.get('failed', 0)} "
                 f"years={values['year_coverage']}"
             )
-        if details:
+        if failure_details:
             shown = len(orchestrate["failures"])
             groups = orchestrate["failure_group_count"]
             heading = "\nFailure details"
@@ -879,13 +887,17 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
                         )
 
     if set(report["processes"]) != {"orchestrate"}:
-        print("\nRequested-data coverage")
-        if not report["coverage"]:
-            print("  No input lineage was present in the inspected XML records.")
-        for name, values in report["coverage"].items():
-            print(f"  {name}: uses={values['uses']} distinct={values['distinct_values']}")
-            for item in values["top_values"]:
-                print(f"    {item['count']:>5}  {item['value']}")
+        if coverage:
+            print("\nRequested-data coverage")
+            if not report["coverage"]:
+                print("  No input lineage was present in the inspected XML records.")
+            for name, values in report["coverage"].items():
+                print(
+                    f"  {name}: uses={values['uses']} "
+                    f"distinct={values['distinct_values']}"
+                )
+                for item in values["top_values"]:
+                    print(f"    {item['count']:>5}  {item['value']}")
 
         heading = "All-process failure causes" if orchestrate is not None else "Failure causes"
         print(f"\n{heading}")
@@ -894,7 +906,7 @@ def print_report(report: dict[str, object], *, details: bool = False) -> None:
         for category, count in report["failure_categories"].items():
             percentage = (count / failures * 100) if failures else 0
             print(f"  {category}: {count} ({percentage:.1f}%)")
-        if details:
+        if failure_details:
             for item in report["failure_messages"]:
                 context = " ".join(
                     value for value in (item["code"], item["locator"]) if value
@@ -925,9 +937,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--top", type=int, default=10, help="values/messages per section")
     parser.add_argument(
-        "--details",
+        "--failures",
         action="store_true",
         help="include grouped failure messages and example job IDs",
+    )
+    parser.add_argument(
+        "--coverage",
+        action="store_true",
+        help="include detailed requested-data coverage in the text report",
     )
     parser.add_argument(
         "--sort",
@@ -971,7 +988,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print_report(report, details=args.details)
+        print_report(
+            report, failure_details=args.failures, coverage=args.coverage
+        )
     for error in errors:
         print(error, file=sys.stderr)
     return 1 if errors else 0

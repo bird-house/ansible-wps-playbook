@@ -117,6 +117,45 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(production["collections"][collection]["requests"], 1)
         self.assertEqual(production["collections"][collection]["year_coverage"], "2060-2070")
 
+    def test_coverage_hides_malformed_complex_data_and_compacts_values(self):
+        self.assertEqual(
+            MODULE.coverage_items(
+                "orchestrate",
+                "workflow",
+                {"type": "ComplexData", "value": '{"inputs": [truncated]'},
+            ),
+            [],
+        )
+        self.assertEqual(
+            MODULE.coverage_items(
+                "dashboard", "site", {"type": "LiteralData", "value": "dkrz"}
+            ),
+            [("dashboard.site", '"dkrz"')],
+        )
+        workflow = {
+            "inputs": {"tas": ["collection"]},
+            "steps": {
+                "subset": {
+                    "run": "subset",
+                    "in": {
+                        "collection": "inputs/tas",
+                        "time_components": "month:jan,feb|year:2015,2016,2017,2018",
+                    },
+                }
+            },
+        }
+        coverage = dict(
+            MODULE.coverage_items(
+                "orchestrate",
+                "workflow",
+                {"type": "ComplexData", "value": json.dumps(workflow)},
+            )
+        )
+        self.assertEqual(
+            coverage["orchestrate.workflow.steps.subset.time_components"],
+            '"month:jan,feb|year:2015-2018"',
+        )
+
     def test_orchestrate_failure_is_associated_with_collection(self):
         workflow = {
             "inputs": {"pr": ["c3s-cordex.output.EUR-11.example.day.pr"]},
@@ -383,6 +422,21 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertIn("Duration: median=1.0m  p95=1.0m  max=1.0m", text)
         self.assertNotIn("outcomes=", text)
 
+    def test_requested_data_coverage_is_opt_in_for_text_reports(self):
+        item = record("1", dataset="tas")
+        report = MODULE.aggregate([item], top=10)
+        compact = io.StringIO()
+        with redirect_stdout(compact):
+            MODULE.print_report(report)
+        self.assertNotIn("Requested-data coverage", compact.getvalue())
+        self.assertIn("Failure causes", compact.getvalue())
+
+        expanded = io.StringIO()
+        with redirect_stdout(expanded):
+            MODULE.print_report(report, coverage=True)
+        self.assertIn("Requested-data coverage", expanded.getvalue())
+        self.assertIn("subset.dataset: uses=1 distinct=1", expanded.getvalue())
+
     def test_detail_messages_are_limited_without_changing_short_messages(self):
         self.assertEqual(MODULE.truncate_detail_message("short reason"), "short reason")
         shortened = MODULE.truncate_detail_message("x" * 400)
@@ -462,7 +516,9 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertNotIn("Failure details", text)
         detailed = io.StringIO()
         with redirect_stdout(detailed):
-            MODULE.print_report(MODULE.aggregate([item], top=10), details=True)
+            MODULE.print_report(
+                MODULE.aggregate([item], top=10), failure_details=True
+            )
         detailed_text = detailed.getvalue()
         self.assertLess(
             detailed_text.index("c3s-cmip6.example.tas"),
