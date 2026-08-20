@@ -81,11 +81,32 @@ wps_cpus_resolved: >-
     if (wps_cpus | string | lower) == 'auto'
     else (wps_cpus | int)
   }}
+# Keep capacity for Gunicorn and other host services instead of advertising
+# every CPU to Slurm. "auto" reserves one CPU on hosts with up to four CPUs
+# and two CPUs on larger hosts, while always leaving Slurm at least one CPU.
+wps_service_cpus: auto
+wps_service_cpus_resolved: >-
+  {{
+    (
+      [
+        (2 if (wps_cpus_resolved | int) > 4 else 1),
+        ([(wps_cpus_resolved | int) - 1, 0] | max)
+      ] | min
+    )
+    if (wps_service_cpus | string | lower) == 'auto'
+    else (wps_service_cpus | int)
+  }}
 
 # slurm/drmaa
 # https://github.com/galaxyproject/ansible-slurm
 slurm_enabled: false
-slurm_cpus: "{{ wps_cpus_resolved }}"
+slurm_cpus: >-
+  {{
+    [
+      (wps_cpus_resolved | int) - (wps_service_cpus_resolved | int),
+      1
+    ] | max
+  }}
 slurm_drmaa_version: 1.1.4
 slurm_roles: ['controller', 'exec']
 # Keep host services outside Slurm's allocatable memory. Jobs receive an equal

@@ -5,12 +5,18 @@
       - >-
         (wps_cpus | string | lower) == 'auto'
         or (wps_cpus | string) is match('^[1-9][0-9]*$')
+      - >-
+        (wps_service_cpus | string | lower) == 'auto'
+        or (wps_service_cpus | string) is match('^[0-9]+$')
       - wps_cpus_resolved | int > 0
+      - wps_service_cpus_resolved | int >= 0
+      - wps_service_cpus_resolved | int < wps_cpus_resolved | int
       - gunicorn_workers | int > 0
     quiet: true
     fail_msg: >-
-      wps_cpus must be "auto" or a positive integer, and the resolved CPU and
-      Gunicorn worker counts must be positive.
+      wps_cpus must be "auto" or a positive integer. wps_service_cpus must be
+      "auto" or a non-negative integer smaller than the resolved host CPU
+      count. The resolved CPU and Gunicorn worker counts must be positive.
 
 - name: Include base installation tasks
   include_tasks: base.yml

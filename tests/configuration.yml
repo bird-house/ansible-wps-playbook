@@ -64,6 +64,9 @@
           - job_timeout_grace_minutes | float == 5
           - wps_cpus == 'auto'
           - wps_cpus_resolved | int == 4
+          - wps_service_cpus == 'auto'
+          - wps_service_cpus_resolved | int == 1
+          - slurm_cpus | int == 3
           - gunicorn_workers | int == 9
           - wps_tools_job_control_long_running_minutes | float == 10
           - wps_tools_job_control_stale_after_minutes | float == 95
@@ -115,7 +118,7 @@
           - not slurm_configure_munge
           - slurm_system_memory_reserve_percent | int == 20
           - slurm_real_memory_mb | int == 51200
-          - slurm_default_job_memory_mb | int == 12800
+          - slurm_default_job_memory_mb | int == 17066
           - slurm_max_job_memory_mb | int == 51200
           - slurm_config.SchedulerType == 'sched/backfill'
           - slurm_config.SelectType == 'select/cons_res'
@@ -184,11 +187,23 @@
       ansible.builtin.assert:
         quiet: true
         that:
+          - wps_cpus_resolved | int == 8
+          - wps_service_cpus_resolved | int == 2
+          - slurm_cpus | int == 6
+          - gunicorn_workers | int == 17
+      vars:
+        wps_cpus: 8
+
+    - name: Check explicit service CPU reserve override
+      ansible.builtin.assert:
+        quiet: true
+        that:
           - wps_cpus_resolved | int == 3
+          - wps_service_cpus_resolved | int == 0
           - slurm_cpus | int == 3
-          - gunicorn_workers | int == 7
       vars:
         wps_cpus: 3
+        wps_service_cpus: 0
 
     - name: Render primary service configuration
       ansible.builtin.set_fact:
@@ -364,11 +379,11 @@
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
           - >-
-            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=12800 '
+            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=17066 '
             'MaxMemPerNode=51200 MaxTime=90 Nodes=localhost'
             in test_slurm_config
           - >-
-            'NodeName=localhost CPUs=4 RealMemory=51200'
+            'NodeName=localhost CPUs=3 RealMemory=51200'
             in test_slurm_config
           - "'AllowedRAMSpace=100' in test_slurm_cgroup_config"
           - "'AllowedSwapSpace=0' in test_slurm_cgroup_config"
