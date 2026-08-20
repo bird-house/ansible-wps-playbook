@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-status_script="{{ slurm_job_status_script }}"
+status_script="{{ wps_tools_slurm_status_script }}"
 interval=${SLURM_TOP_INTERVAL:-1}
 
 has_user=false
@@ -14,7 +14,7 @@ done
 
 status_options=()
 if [[ $has_user == false ]]; then
-    status_options=(--user "{{ slurm_job_monitor_user }}")
+    status_options=(--user "{{ wps_tools_slurm_monitor_user }}")
 fi
 
 exec watch -n "$interval" -- "$status_script" "${status_options[@]}" "$@"

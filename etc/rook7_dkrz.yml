@@ -12,15 +12,10 @@ service_gid: 399
 # enable cronjob to clean outputs
 cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
-wps_outputs_keep_hours: 12
-wps_temp_keep_hours: 12
 # conda
 conda_env_use_spec: true
-# gunicorn
-gunicorn_workers: 13
 # slurm
 slurm_enabled: true
-slurm_cpus: 6
 # access control
 wps_enable_acl: false
 wps_acl_allow:
@@ -32,9 +27,6 @@ roocs_profile: dkrz
 # collectd
 collectd_disk_enabled: true
 collectd_disk_mount: /mnt/rook_disk7
-# recovery
-wps_job_control_recovery_enabled: true
-wps_missing_status_recovery_enabled: true
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git

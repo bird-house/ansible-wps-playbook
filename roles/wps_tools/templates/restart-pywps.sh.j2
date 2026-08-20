@@ -4,7 +4,7 @@ set -euo pipefail
 
 export PATH="/usr/local/bin:/usr/bin:/bin"
 cleanup_orphaned_processes={{ gunicorn_cleanup_orphaned_processes | bool | lower }}
-restart_enabled={{ wps_restart_enabled | bool | lower }}
+restart_enabled={{ wps_tools_restart_enabled | bool | lower }}
 
 log_info() {
     echo "[INFO] $*"

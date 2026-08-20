@@ -375,16 +375,37 @@ ln -s etc/custom-production.yml custom.yml
 > Do not commit database passwords, private keys, or other deployment secrets.
 > Store secrets in Ansible Vault or another untracked variables file.
 
+### Configure processing CPUs
+
+By default, Ansible uses the server's detected logical CPU count for WPS
+capacity:
+
+```yaml
+wps_cpus: auto
+```
+
+The resolved count is exposed as `wps_cpus_resolved`. Slurm advertises that
+many CPUs, while the Gunicorn default follows the existing `2 * CPUs + 1`
+rule. A deployment can constrain both defaults with one positive integer:
+
+```yaml
+wps_cpus: 8
+```
+
+`slurm_cpus` and `gunicorn_workers` remain independently overridable for hosts
+that need different scheduler or web-service tuning. Values other than `auto`
+or a positive integer fail validation.
+
 ### Configure output and temporary-file retention
 
 When the cleanup cron jobs are enabled, they run hourly at minute 3 and remove
-PyWPS outputs and temporary process directories older than 12 hours. Enable
+PyWPS outputs and temporary process directories older than six hours. Enable
 the jobs and configure their retention periods with:
 
 ```yaml
 cron_enabled: true
-wps_outputs_keep_hours: 12
-wps_temp_keep_hours: 12
+wps_outputs_keep_hours: 6
+wps_temp_keep_hours: 6
 ```
 
 The playbook converts the hour values to the minutes consumed by the cleanup
@@ -392,7 +413,8 @@ commands.
 
 ### PyWPS maintenance tool layout
 
-Ansible-managed maintenance tools are kept separate from PyWPS runtime state:
+The `wps_tools` role keeps Ansible-managed maintenance tools separate from
+PyWPS runtime state:
 
 ```text
 /opt/wps-tools/
@@ -409,7 +431,7 @@ Ansible-managed maintenance tools are kept separate from PyWPS runtime state:
 
 The locations are controlled by `wps_tools_dir`,
 `wps_tools_bin_dir`, `wps_tools_sbin_dir`,
-`wps_tools_script_dir`, and `pywps_state_dir`. The deployment migrates XML
+`wps_tools_script_dir`, and `wps_tools_state_dir`. The deployment migrates XML
 inspection state into `state/` before removing the old hidden state files and
 root-level tools from `/var/lib/pywps`.
 
@@ -430,8 +452,8 @@ Scheduled PyWPS restarts are disabled by default. Systems that need periodic
 restarts can enable the daily schedule or change it to hourly:
 
 ```yaml
-wps_restart_enabled: false
-wps_restart_schedule: daily  # hourly or daily
+wps_tools_restart_enabled: false
+wps_tools_restart_schedule: daily  # hourly or daily
 ```
 
 The script remains installed when the schedule is disabled and can still be
@@ -452,21 +474,21 @@ cron_enabled: true
 job_timeout_minutes: 90
 job_timeout_grace_minutes: 5
 job_long_running_minutes: 10
-wps_job_control_monitor_enabled: true
-wps_job_control_recovery_enabled: true
-wps_missing_status_recovery_enabled: true
-wps_job_control_schedule:
+wps_tools_job_control_monitor_enabled: true
+wps_tools_job_control_recovery_enabled: true
+wps_tools_missing_status_recovery_enabled: true
+wps_tools_job_control_schedule:
   minute: "*/5"
   hour: "*"
-wps_job_control_recovery_schedule:
+wps_tools_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
-wps_job_control_stale_after_minutes: 95
-wps_job_control_database_stale_after_minutes: 95
-wps_job_control_database_status_window_hours: 24
-wps_job_control_recovery_limit: 100
-wps_job_incident_archive_enabled: true
-wps_job_incident_keep_days: 30
+wps_tools_job_control_stale_after_minutes: 95
+wps_tools_job_control_database_stale_after_minutes: 95
+wps_tools_job_control_database_status_window_hours: 24
+wps_tools_job_control_recovery_limit: 100
+wps_tools_incident_archive_enabled: true
+wps_tools_incident_keep_days: 30
 ```
 
 The monitor runs every five minutes. It does not change live request state,
@@ -485,7 +507,7 @@ configured recent window, including final requests, and reports the status mix:
 summary layer=database total=20 running=8 accepted=2 failed=1 success=9 ...
 ```
 
-`wps_job_control_database_status_window_hours` defaults to 24 and accepts
+`wps_tools_job_control_database_status_window_hours` defaults to 24 and accepts
 values from 3 through 24 hours. This reporting window does not restrict stale
 detection or recovery; old `started` requests remain eligible for recovery.
 XML documents and database rows have separate stale thresholds, both derived
@@ -627,11 +649,11 @@ database. `--stale-after-minutes` overrides the XML threshold, while
 `--limit` caps the number of stalled jobs processed in each selected layer.
 The database applies a limit oldest-first in SQL, which keeps initial recovery
 batches bounded even when years of unfinished requests have accumulated.
-Recovery defaults to `wps_job_control_recovery_limit`, which is 100. Monitoring
+Recovery defaults to `wps_tools_job_control_recovery_limit`, which is 100. Monitoring
 remains unlimited unless `--limit` is explicitly supplied, so an old backlog
 cannot hide newer stalled requests. An explicit `--limit` overrides the
 configured recovery defaults for every selected layer. Polling recovery uses
-its separate default of `wps_missing_status_recovery_limit`, which is 20.
+its separate default of `wps_tools_missing_status_recovery_limit`, which is 20.
 The underlying `--status-counts` option enables a complete database aggregate
 for explicit low-level invocations.
 
@@ -641,9 +663,9 @@ Failed PyWPS status documents are copied into a separate, bounded archive
 before routine output cleanup can remove them:
 
 ```yaml
-wps_job_incident_archive_enabled: true
-wps_job_incident_archive_dir: /var/lib/pywps/job-incidents
-wps_job_incident_keep_days: 30
+wps_tools_incident_archive_enabled: true
+wps_tools_incident_archive_dir: /var/lib/pywps/job-incidents
+wps_tools_incident_keep_days: 30
 ```
 
 Each service has its own subdirectory. Files use UTC timestamps and searchable
@@ -672,8 +694,8 @@ When cron is enabled, a separate read-only statistics job runs hourly at four
 minutes past the hour by default:
 
 ```yaml
-wps_job_statistics_enabled: true
-wps_job_statistics_schedule:
+wps_tools_statistics_enabled: true
+wps_tools_statistics_schedule:
   minute: "4"
   hour: "*"
 ```
@@ -716,8 +738,8 @@ next scan; failures without surviving evidence remain unclassified rather
 than being guessed from their duration.
 
 ```yaml
-wps_job_inspect_enabled: true
-wps_job_inspect_schedule:
+wps_tools_inspect_enabled: true
+wps_tools_inspect_schedule:
   minute: "2-57/5"
   hour: "*"
 ```
@@ -842,14 +864,14 @@ a WPS 1.0 `ProcessFailed` status document so clients such as OWSLib can finish
 instead of polling forever.
 
 ```yaml
-wps_job_control_recovery_enabled: true
-wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: 190
-wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: 100
-wps_missing_status_recovery_limit: 20
-wps_missing_status_access_log: /var/log/nginx/access.log
-wps_missing_status_database_guard: true
+wps_tools_job_control_recovery_enabled: true
+wps_tools_missing_status_recovery_enabled: true
+wps_tools_missing_status_poll_window_minutes: 190
+wps_tools_missing_status_min_poll_count: 3
+wps_tools_missing_status_min_poll_duration_minutes: 100
+wps_tools_missing_status_recovery_limit: 20
+wps_tools_missing_status_access_log: /var/log/nginx/access.log
+wps_tools_missing_status_database_guard: true
 ```
 
 The default recovery schedule runs every five minutes at minute 1 and
@@ -941,16 +963,16 @@ wps_services:
     drmaa_native_specification: ""
 ```
 
-By default, Slurm advertises all configured CPUs but also treats memory as a
-consumable resource. Twenty percent of physical RAM is reserved for the OS and
-host services. Jobs that do not request memory receive an equal share of the
-remaining RAM based on `slurm_cpus`, and cgroups enforce the allocation so a
-worker cannot trigger a host-wide OOM. Memory-heavy deployments can raise the
-default allocation; this keeps all CPUs available but admits fewer heavy jobs
-at once:
+By default, Slurm advertises the CPU count resolved from `wps_cpus` and also
+treats memory as a consumable resource. Twenty percent of physical RAM is
+reserved for the OS and host services. Jobs that do not request memory receive
+an equal share of the remaining RAM based on `slurm_cpus`, and cgroups enforce
+the allocation so a worker cannot trigger a host-wide OOM. Memory-heavy
+deployments can raise the default allocation; this keeps all CPUs available
+but admits fewer heavy jobs at once:
 
 ```yaml
-slurm_cpus: 8
+wps_cpus: 8
 slurm_system_memory_reserve_percent: 20
 slurm_default_job_memory_mb: 20000
 ```
@@ -980,8 +1002,8 @@ job_timeout_minutes: 90
 job_timeout_grace_minutes: 5
 ```
 
-`slurm_job_timeout_minutes`, `wps_job_control_stale_after_minutes`,
-`wps_job_control_database_stale_after_minutes`, and the missing-status polling
+`slurm_job_timeout_minutes`, `wps_tools_job_control_stale_after_minutes`,
+`wps_tools_job_control_database_stale_after_minutes`, and the missing-status polling
 thresholds inherit these shared values. Each derived variable can still be
 overridden explicitly when a deployment needs different behavior, but the
 Slurm timeout must remain below both stale-recovery thresholds.
@@ -1000,13 +1022,13 @@ explicitly. Because every PyWPS service uses the same account on the dedicated
 VM, Ansible creates one cron entry rather than one per service.
 
 ```yaml
-slurm_job_monitor_enabled: true  # enabled by default when Slurm is enabled
-slurm_job_monitor_schedule:
+wps_tools_slurm_monitor_enabled: true  # enabled by default when Slurm is enabled
+wps_tools_slurm_monitor_schedule:
   minute: "*/5"
   hour: "*"
-slurm_job_monitor_user: wps
-slurm_job_monitor_pending_critical: 20
-slurm_job_monitor_alert_file: /run/pywps/slurm-red-alert.json
+wps_tools_slurm_monitor_user: wps
+wps_tools_slurm_monitor_pending_critical: 20
+wps_tools_slurm_monitor_alert_file: /run/pywps/slurm-red-alert.json
 ```
 
 The long-running warning defaults to ten minutes. Both WPS job control and the
@@ -1015,8 +1037,8 @@ independently without changing the global value:
 
 ```yaml
 job_long_running_minutes: 10
-wps_job_control_long_running_minutes: 15
-slurm_job_monitor_long_running_minutes: 20
+wps_tools_job_control_long_running_minutes: 15
+wps_tools_slurm_monitor_long_running_minutes: 20
 ```
 
 The default queue threshold
@@ -1051,7 +1073,7 @@ each refresh makes one `squeue` and at most one `sstat` request:
 /opt/wps-tools/bin/qtop
 ```
 
-The command refreshes every second and defaults to `slurm_job_monitor_user`.
+The command refreshes every second and defaults to `wps_tools_slurm_monitor_user`.
 Pass `--user USER` to select another account, or set `SLURM_TOP_INTERVAL` to
 change the refresh interval. The shortcut lives in `/opt/wps-tools/bin` and
 its `slurm-job-status.py` backend in `/opt/wps-tools/scripts`. `MAX RSS` is
