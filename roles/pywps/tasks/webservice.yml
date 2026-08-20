@@ -2,15 +2,6 @@
 - name: Include cleanup tasks
   include_tasks: clean.yml
 
-- name: Include cron tasks
-  ansible.builtin.include_tasks:
-    file: cronjob.yml
-    apply:
-      tags:
-        - update
-  tags:
-    - update
-
 - name: Include web service configuration tasks
   ansible.builtin.include_tasks:
     file: webservice_config.yml

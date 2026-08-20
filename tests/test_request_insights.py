@@ -11,7 +11,13 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "pywps-request-insights.py"
+SCRIPT = (
+    Path(__file__).parents[1]
+    / "roles"
+    / "wps_tools"
+    / "files"
+    / "pywps-request-insights.py"
+)
 SPEC = importlib.util.spec_from_file_location("pywps_request_insights", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

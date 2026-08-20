@@ -39,54 +39,54 @@
           - >-
             (wps_temp_keep_minutes | int) ==
             ((wps_temp_keep_hours | int) * 60)
-          - wps_restart_schedule in ['hourly', 'daily']
-          - not wps_restart_enabled
+          - wps_tools_restart_schedule in ['hourly', 'daily']
+          - not wps_tools_restart_enabled
           - wps_logrotate_min_size == '10M'
           - wps_logrotate_rotations == 7
-          - wps_job_control_schedule | type_debug == 'dict'
-          - wps_job_control_recovery_schedule | type_debug == 'dict'
-          - wps_job_statistics_schedule | type_debug == 'dict'
-          - wps_job_statistics_schedule.minute == '4'
-          - wps_job_statistics_schedule.hour == '*'
-          - wps_job_statistics_enabled
-          - wps_job_inspect_schedule | type_debug == 'dict'
-          - wps_job_inspect_schedule.minute == '2-57/5'
-          - wps_job_inspect_schedule.hour == '*'
-          - wps_job_inspect_enabled
-          - wps_job_control_schedule.minute == '*/5'
-          - wps_job_control_recovery_schedule.minute == '1-56/5'
-          - wps_job_control_schedule.hour == '*'
+          - wps_tools_job_control_schedule | type_debug == 'dict'
+          - wps_tools_job_control_recovery_schedule | type_debug == 'dict'
+          - wps_tools_statistics_schedule | type_debug == 'dict'
+          - wps_tools_statistics_schedule.minute == '4'
+          - wps_tools_statistics_schedule.hour == '*'
+          - wps_tools_statistics_enabled
+          - wps_tools_inspect_schedule | type_debug == 'dict'
+          - wps_tools_inspect_schedule.minute == '2-57/5'
+          - wps_tools_inspect_schedule.hour == '*'
+          - wps_tools_inspect_enabled
+          - wps_tools_job_control_schedule.minute == '*/5'
+          - wps_tools_job_control_recovery_schedule.minute == '1-56/5'
+          - wps_tools_job_control_schedule.hour == '*'
           - job_long_running_minutes | float == 10
           - job_timeout_minutes | float == 90
           - job_timeout_grace_minutes | float == 5
-          - wps_job_control_long_running_minutes | float == 10
-          - wps_job_control_stale_after_minutes | float == 95
-          - wps_job_control_database_stale_after_minutes | float == 95
-          - wps_job_control_database_status_window_hours | float == 24
+          - wps_tools_job_control_long_running_minutes | float == 10
+          - wps_tools_job_control_stale_after_minutes | float == 95
+          - wps_tools_job_control_database_stale_after_minutes | float == 95
+          - wps_tools_job_control_database_status_window_hours | float == 24
           - >-
-            wps_job_control_long_running_minutes | float
-            < wps_job_control_stale_after_minutes | float
-          - wps_job_control_recovery_limit | int == 100
-          - wps_job_incident_archive_enabled
-          - wps_job_incident_archive_dir == '/var/lib/pywps/job-incidents'
-          - pywps_state_dir == '/var/lib/pywps/state'
+            wps_tools_job_control_long_running_minutes | float
+            < wps_tools_job_control_stale_after_minutes | float
+          - wps_tools_job_control_recovery_limit | int == 100
+          - wps_tools_incident_archive_enabled
+          - wps_tools_incident_archive_dir == '/var/lib/pywps/job-incidents'
+          - wps_tools_state_dir == '/var/lib/pywps/state'
           - wps_tools_dir == '/opt/wps-tools'
           - wps_tools_bin_dir == '/opt/wps-tools/bin'
           - wps_tools_sbin_dir == '/opt/wps-tools/sbin'
           - wps_tools_script_dir == '/opt/wps-tools/scripts'
-          - wps_job_incident_keep_days == 30
-          - wps_job_incident_keep_minutes | int == 43200
+          - wps_tools_incident_keep_days == 30
+          - wps_tools_incident_keep_minutes | int == 43200
           - >-
-            wps_job_control_stale_after_minutes | float
+            wps_tools_job_control_stale_after_minutes | float
             < wps_outputs_keep_minutes | float
-          - wps_job_control_monitor_enabled
-          - wps_job_control_recovery_enabled
-          - wps_missing_status_recovery_enabled
-          - wps_missing_status_poll_window_minutes | int == 190
-          - wps_missing_status_min_poll_count == 3
-          - wps_missing_status_min_poll_duration_minutes | int == 100
-          - wps_missing_status_recovery_limit == 20
-          - wps_missing_status_database_guard
+          - wps_tools_job_control_monitor_enabled
+          - wps_tools_job_control_recovery_enabled
+          - wps_tools_missing_status_recovery_enabled
+          - wps_tools_missing_status_poll_window_minutes | int == 190
+          - wps_tools_missing_status_min_poll_count == 3
+          - wps_tools_missing_status_min_poll_duration_minutes | int == 100
+          - wps_tools_missing_status_recovery_limit == 20
+          - wps_tools_missing_status_database_guard
           - conda_env_spec_file == 'linux-64.spec'
           - wps_conda_channel == 'conda-forge'
           - "'psycopg2=2.9.12' in wps_conda_packages"
@@ -130,28 +130,28 @@
           - slurm_partitions[0].MaxTime | int == 90
           - >-
             slurm_job_timeout_minutes | int
-            < wps_job_control_stale_after_minutes | float
+            < wps_tools_job_control_stale_after_minutes | float
           - >-
             slurm_job_timeout_minutes | int
-            < wps_job_control_database_stale_after_minutes | float
-          - slurm_job_monitor_enabled
-          - slurm_job_monitor_schedule.minute == '*/5'
-          - slurm_job_monitor_user == 'wps'
-          - slurm_job_monitor_long_running_minutes | int == 10
-          - slurm_job_monitor_pending_critical == 20
+            < wps_tools_job_control_database_stale_after_minutes | float
+          - wps_tools_slurm_monitor_enabled
+          - wps_tools_slurm_monitor_schedule.minute == '*/5'
+          - wps_tools_slurm_monitor_user == 'wps'
+          - wps_tools_slurm_monitor_long_running_minutes | int == 10
+          - wps_tools_slurm_monitor_pending_critical == 20
           - >-
-            slurm_job_monitor_script
+            wps_tools_slurm_monitor_script
             == '/opt/wps-tools/scripts/slurm-job-monitor.py'
           - >-
-            slurm_job_status_script
+            wps_tools_slurm_status_script
             == '/opt/wps-tools/scripts/slurm-job-status.py'
-          - slurm_top_script == '/opt/wps-tools/bin/qtop'
-          - slurm_job_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
+          - wps_tools_slurm_top_script == '/opt/wps-tools/bin/qtop'
+          - wps_tools_slurm_monitor_lock_file == '/run/lock/slurm-job-monitor.lock'
           - >-
-            slurm_job_monitor_log_file
+            wps_tools_slurm_monitor_log_file
             == '/var/log/pywps/slurm-job-monitor.log'
           - >-
-            slurm_job_monitor_alert_file
+            wps_tools_slurm_monitor_alert_file
             == '/run/pywps/slurm-red-alert.json'
           - collectd_enabled
           - collectd_load_enabled
@@ -190,30 +190,30 @@
                     playbook_dir + '/../roles/pywps/templates/run.sh.j2') }}
         test_restart_script: >-
           {{ lookup('ansible.builtin.template',
-                    playbook_dir + '/../roles/pywps/templates/restart-pywps.sh.j2') }}
+                    playbook_dir + '/../roles/wps_tools/templates/restart-pywps.sh.j2') }}
         test_smoke_script: >-
           {{ lookup('ansible.builtin.template',
-                    playbook_dir + '/../roles/pywps/templates/smoke.sh.j2') }}
+                    playbook_dir + '/../roles/wps_tools/templates/smoke.sh.j2') }}
         test_job_control_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/pywps/templates/job-control-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/job-control-helper.sh.j2') }}
         test_db_monitor_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/pywps/templates/db-monitor-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/db-monitor-helper.sh.j2') }}
         test_request_insights_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/pywps/templates/request-insights-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/request-insights-helper.sh.j2') }}
         test_xml_inspect_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/pywps/templates/xml-inspect-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/xml-inspect-helper.sh.j2') }}
         test_slurm_top: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/pywps/templates/slurm-top.sh.j2') }}
+                    + '/../roles/wps_tools/templates/slurm-top.sh.j2') }}
         test_logrotate_config: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir + '/../roles/pywps/templates/logrotate.j2') }}

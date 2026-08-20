@@ -10,7 +10,7 @@ service_group: "{{ service_user }}"
 service_groups: "{{ service_group }}"
 # service_gid: 100
 service_user_home: /var/lib/pywps
-pywps_state_dir: "{{ service_user_home }}/state"
+wps_tools_state_dir: "{{ service_user_home }}/state"
 wps_tools_dir: /opt/wps-tools
 wps_tools_bin_dir: "{{ wps_tools_dir }}/bin"
 wps_tools_sbin_dir: "{{ wps_tools_dir }}/sbin"
@@ -122,24 +122,24 @@ slurm_configure_munge: false
 # Slurm limits running allocation time; pending queue time is not counted.
 slurm_job_timeout_minutes: "{{ job_timeout_minutes }}"
 # Report host-wide Slurm queue pressure and long-running jobs by default.
-slurm_job_monitor_enabled: true
-slurm_job_monitor_schedule:
+wps_tools_slurm_monitor_enabled: true
+wps_tools_slurm_monitor_schedule:
   minute: "*/5"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
-slurm_job_monitor_user: "{{ wps_user }}"
+wps_tools_slurm_monitor_user: "{{ wps_user }}"
 # Warn well before Slurm reaches the hard timeout.
-slurm_job_monitor_long_running_minutes: "{{ job_long_running_minutes }}"
-slurm_job_monitor_pending_critical: 20
-slurm_job_monitor_script: "{{ wps_tools_script_dir }}/slurm-job-monitor.py"
-slurm_job_monitor_lock_file: /run/lock/slurm-job-monitor.lock
-slurm_job_monitor_log_file: "{{ wps_log_dir }}/slurm-job-monitor.log"
-slurm_job_monitor_alert_file: "{{ wps_run_dir }}/slurm-red-alert.json"
+wps_tools_slurm_monitor_long_running_minutes: "{{ job_long_running_minutes }}"
+wps_tools_slurm_monitor_pending_critical: 20
+wps_tools_slurm_monitor_script: "{{ wps_tools_script_dir }}/slurm-job-monitor.py"
+wps_tools_slurm_monitor_lock_file: /run/lock/slurm-job-monitor.lock
+wps_tools_slurm_monitor_log_file: "{{ wps_log_dir }}/slurm-job-monitor.log"
+wps_tools_slurm_monitor_alert_file: "{{ wps_run_dir }}/slurm-red-alert.json"
 # Small interactive Slurm queue overview.
-slurm_job_status_script: "{{ wps_tools_script_dir }}/slurm-job-status.py"
-slurm_top_script: "{{ wps_tools_bin_dir }}/qtop"
+wps_tools_slurm_status_script: "{{ wps_tools_script_dir }}/slurm-job-status.py"
+wps_tools_slurm_top_script: "{{ wps_tools_bin_dir }}/qtop"
 
 # miniconda: we need to use Miniforge! See extra_vars.yml
 miniconda_parent_dir: "{{ prefix }}"
@@ -228,70 +228,70 @@ cron_enabled: false
 cron_disabled: "{{ cron_enabled | bool == false }}"
 cron_mailto: root
 cron_user: root
-wps_restart_enabled: false
-wps_restart_schedule: daily
+wps_tools_restart_enabled: false
+wps_tools_restart_schedule: daily
 # Rotate PyWPS logs after one day only when they exceed this size.
 wps_logrotate_min_size: 10M
 wps_logrotate_rotations: 7
 # Report stalled requests without changing them.
-wps_job_control_monitor_enabled: true
+wps_tools_job_control_monitor_enabled: true
 # Allow commands that recover stalled requests or status documents.
-wps_job_control_recovery_enabled: true
+wps_tools_job_control_recovery_enabled: true
 # Write a complete hourly job statistics report.
-wps_job_statistics_enabled: true
-wps_job_statistics_schedule:
+wps_tools_statistics_enabled: true
+wps_tools_statistics_schedule:
   minute: "4"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
 # Record completed status XML every five minutes, including before hourly cleanup.
-wps_job_inspect_enabled: true
-wps_job_inspect_schedule:
+wps_tools_inspect_enabled: true
+wps_tools_inspect_schedule:
   minute: "2-57/5"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
-wps_job_control_schedule:
+wps_tools_job_control_schedule:
   minute: "*/5"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
-wps_job_control_recovery_schedule:
+wps_tools_job_control_recovery_schedule:
   minute: "1-56/5"
   hour: "*"
   day: "*"
   month: "*"
   weekday: "*"
 # Warn about started database requests running this long; queue wait is excluded.
-wps_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
-wps_job_control_stale_after_minutes: >-
+wps_tools_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
+wps_tools_job_control_stale_after_minutes: >-
   {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
-wps_job_control_database_stale_after_minutes: >-
+wps_tools_job_control_database_stale_after_minutes: >-
   {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
 # Report the status mix for jobs started in this recent window.
-wps_job_control_database_status_window_hours: 24
+wps_tools_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
-wps_job_control_recovery_limit: 100
+wps_tools_job_control_recovery_limit: 100
 # Preserve failed status documents separately from routine output cleanup.
-wps_job_incident_archive_enabled: true
-wps_job_incident_archive_dir: "{{ service_user_home }}/job-incidents"
-wps_job_incident_keep_days: 30
-wps_job_incident_keep_minutes: "{{ (wps_job_incident_keep_days | int) * 1440 }}"
+wps_tools_incident_archive_enabled: true
+wps_tools_incident_archive_dir: "{{ service_user_home }}/job-incidents"
+wps_tools_incident_keep_days: 30
+wps_tools_incident_keep_minutes: "{{ (wps_tools_incident_keep_days | int) * 1440 }}"
 # Create failure XML for repeated Nginx 404 status polling.
-wps_missing_status_recovery_enabled: true
-wps_missing_status_poll_window_minutes: >-
+wps_tools_missing_status_recovery_enabled: true
+wps_tools_missing_status_poll_window_minutes: >-
   {{ ((job_timeout_minutes | int) * 2)
      + ((job_timeout_grace_minutes | int) * 2) }}
-wps_missing_status_min_poll_count: 3
-wps_missing_status_min_poll_duration_minutes: >-
+wps_tools_missing_status_min_poll_count: 3
+wps_tools_missing_status_min_poll_duration_minutes: >-
   {{ (job_timeout_minutes | int)
      + ((job_timeout_grace_minutes | int) * 2) }}
-wps_missing_status_recovery_limit: 20
-wps_missing_status_access_log: "{{ wps_http_log_dir }}/access.log"
-wps_missing_status_database_guard: true
+wps_tools_missing_status_recovery_limit: 20
+wps_tools_missing_status_access_log: "{{ wps_http_log_dir }}/access.log"
+wps_tools_missing_status_database_guard: true
 
 # selinux
 # https://docs.ansible.com/ansible/latest/collections/community/general/sefcontext_module.html

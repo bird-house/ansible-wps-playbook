@@ -32,6 +32,10 @@
       when: slurm_enabled
     - role: pywps
       wps_webservice_enabled: true  # noqa var-naming[no-role-prefix]
+    - role: wps_tools
+      tags:
+        - update
+        - wps_tools
     - role: roocs
       when: roocs_enabled
       tags:

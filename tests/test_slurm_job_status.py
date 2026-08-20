@@ -8,7 +8,13 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "slurm-job-status.py"
+SCRIPT = (
+    Path(__file__).parents[1]
+    / "roles"
+    / "wps_tools"
+    / "files"
+    / "slurm-job-status.py"
+)
 SPEC = importlib.util.spec_from_file_location("slurm_job_status", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

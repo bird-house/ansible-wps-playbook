@@ -66,7 +66,7 @@
 
 - name: Create PyWPS state directory
   ansible.builtin.file:
-    path: "{{ pywps_state_dir }}"
+    path: "{{ wps_tools_state_dir }}"
     state: directory
     owner: root
     group: root
@@ -76,47 +76,47 @@
   ansible.builtin.assert:
     that:
       - wps_tools_dir is match('^/')
-      - pywps_state_dir is match('^/')
+      - wps_tools_state_dir is match('^/')
       - wps_tools_dir != service_user_home
       - wps_tools_bin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_sbin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_script_dir.startswith(wps_tools_dir + '/')
-      - pywps_state_dir.startswith(service_user_home + '/')
-      - wps_job_control_schedule | type_debug == 'dict'
-      - wps_job_control_recovery_schedule | type_debug == 'dict'
-      - wps_job_statistics_schedule | type_debug == 'dict'
-      - wps_job_inspect_schedule | type_debug == 'dict'
+      - wps_tools_state_dir.startswith(service_user_home + '/')
+      - wps_tools_job_control_schedule | type_debug == 'dict'
+      - wps_tools_job_control_recovery_schedule | type_debug == 'dict'
+      - wps_tools_statistics_schedule | type_debug == 'dict'
+      - wps_tools_inspect_schedule | type_debug == 'dict'
       - job_timeout_minutes | float > 0
       - job_timeout_grace_minutes | float > 0
-      - wps_job_control_long_running_minutes | float > 0
-      - wps_job_control_stale_after_minutes | float > 0
-      - wps_job_control_database_stale_after_minutes | float > 0
-      - wps_job_control_database_status_window_hours | float >= 3
-      - wps_job_control_database_status_window_hours | float <= 24
+      - wps_tools_job_control_long_running_minutes | float > 0
+      - wps_tools_job_control_stale_after_minutes | float > 0
+      - wps_tools_job_control_database_stale_after_minutes | float > 0
+      - wps_tools_job_control_database_status_window_hours | float >= 3
+      - wps_tools_job_control_database_status_window_hours | float <= 24
       - >-
-        (wps_job_control_long_running_minutes | float)
-        < (wps_job_control_stale_after_minutes | float)
+        (wps_tools_job_control_long_running_minutes | float)
+        < (wps_tools_job_control_stale_after_minutes | float)
       - >-
-        (wps_job_control_long_running_minutes | float)
-        < (wps_job_control_database_stale_after_minutes | float)
-      - wps_job_control_recovery_limit | int > 0
-      - wps_job_incident_keep_days | int > 0
-      - wps_job_incident_keep_minutes | int > 0
-      - wps_job_incident_archive_dir | length > 0
+        (wps_tools_job_control_long_running_minutes | float)
+        < (wps_tools_job_control_database_stale_after_minutes | float)
+      - wps_tools_job_control_recovery_limit | int > 0
+      - wps_tools_incident_keep_days | int > 0
+      - wps_tools_incident_keep_minutes | int > 0
+      - wps_tools_incident_archive_dir | length > 0
       - >-
-        not (wps_job_control_recovery_enabled | bool)
-        or (wps_job_incident_archive_enabled | bool)
-      - wps_missing_status_poll_window_minutes | float > 0
-      - wps_missing_status_min_poll_count | int > 0
-      - wps_missing_status_min_poll_duration_minutes | float >= 0
+        not (wps_tools_job_control_recovery_enabled | bool)
+        or (wps_tools_incident_archive_enabled | bool)
+      - wps_tools_missing_status_poll_window_minutes | float > 0
+      - wps_tools_missing_status_min_poll_count | int > 0
+      - wps_tools_missing_status_min_poll_duration_minutes | float >= 0
       - >-
-        (wps_missing_status_min_poll_duration_minutes | float)
-        < (wps_missing_status_poll_window_minutes | float)
-      - wps_missing_status_recovery_limit | int > 0
+        (wps_tools_missing_status_min_poll_duration_minutes | float)
+        < (wps_tools_missing_status_poll_window_minutes | float)
+      - wps_tools_missing_status_recovery_limit | int > 0
       - >-
         not (cron_enabled | bool)
-        or not (wps_job_control_monitor_enabled | bool)
-        or (wps_job_control_stale_after_minutes | float) < (wps_outputs_keep_minutes | float)
+        or not (wps_tools_job_control_monitor_enabled | bool)
+        or (wps_tools_job_control_stale_after_minutes | float) < (wps_outputs_keep_minutes | float)
     fail_msg: >-
       PyWPS tool and state paths must be absolute, distinct, and nested below
       their configured base directories. The job-control schedule must be a
@@ -134,7 +134,7 @@
 
 - name: Install PyWPS job-control script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/pywps-job-control.py"
+    src: pywps-job-control.py
     dest: "{{ wps_tools_script_dir }}/pywps-job-control.py"
     owner: root
     group: root
@@ -142,7 +142,7 @@
 
 - name: Install PyWPS database-monitor script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/pywps-db-monitor.py"
+    src: pywps-db-monitor.py
     dest: "{{ wps_tools_script_dir }}/pywps-db-monitor.py"
     owner: root
     group: root
@@ -150,7 +150,7 @@
 
 - name: Install PyWPS database-monitor command
   ansible.builtin.template:
-    src: ./templates/db-monitor-helper.sh.j2
+    src: db-monitor-helper.sh.j2
     dest: "{{ wps_tools_bin_dir }}/db-monitor"
     owner: root
     group: root
@@ -158,7 +158,7 @@
 
 - name: Install PyWPS XML inspection script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/pywps-xml-inspect.py"
+    src: pywps-xml-inspect.py
     dest: "{{ wps_tools_script_dir }}/pywps-xml-inspect.py"
     owner: root
     group: root
@@ -166,7 +166,7 @@
 
 - name: Install PyWPS XML inspection command
   ansible.builtin.template:
-    src: ./templates/xml-inspect-helper.sh.j2
+    src: xml-inspect-helper.sh.j2
     dest: "{{ wps_tools_bin_dir }}/inspect-jobs"
     owner: root
     group: root
@@ -174,7 +174,7 @@
 
 - name: Install PyWPS request-insights script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/pywps-request-insights.py"
+    src: pywps-request-insights.py
     dest: "{{ wps_tools_script_dir }}/pywps-request-insights.py"
     owner: root
     group: root
@@ -187,7 +187,7 @@
 
 - name: Install PyWPS insights command
   ansible.builtin.template:
-    src: ./templates/request-insights-helper.sh.j2
+    src: request-insights-helper.sh.j2
     dest: "{{ wps_tools_bin_dir }}/insights"
     owner: root
     group: root
@@ -195,22 +195,22 @@
 
 - name: Create PyWPS job-incident archive base directory
   ansible.builtin.file:
-    path: "{{ wps_job_incident_archive_dir }}"
+    path: "{{ wps_tools_incident_archive_dir }}"
     state: directory
     owner: root
     group: root
     mode: "0750"
-  when: wps_job_incident_archive_enabled | bool
+  when: wps_tools_incident_archive_enabled | bool
 
 - name: Create per-service PyWPS job-incident archive directories
   ansible.builtin.file:
-    path: "{{ wps_job_incident_archive_dir }}/{{ item.name }}"
+    path: "{{ wps_tools_incident_archive_dir }}/{{ item.name }}"
     state: directory
     owner: root
     group: root
     mode: "0750"
   loop: "{{ wps_services }}"
-  when: wps_job_incident_archive_enabled | bool
+  when: wps_tools_incident_archive_enabled | bool
 
 - name: Clean up expired PyWPS job incidents
   ansible.builtin.cron:
@@ -219,14 +219,14 @@
     hour: "*"
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_job_incident_archive_dir }} -mindepth 2 -maxdepth 2
+      find {{ wps_tools_incident_archive_dir }} -mindepth 2 -maxdepth 2
       -ignore_readdir_race -type f
       \( -name "*.xml" -o -name "*.dump" \)
-      -mmin +{{ wps_job_incident_keep_minutes }} -delete
+      -mmin +{{ wps_tools_incident_keep_minutes }} -delete
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool)
-         or not (wps_job_incident_archive_enabled | bool) }}
+         or not (wps_tools_incident_archive_enabled | bool) }}
     state: present
 
 - name: Validate Slurm timeout and monitoring settings
@@ -235,17 +235,17 @@
       - slurm_job_timeout_minutes | int > 0
       - >-
         slurm_job_timeout_minutes | int
-        < wps_job_control_stale_after_minutes | float
+        < wps_tools_job_control_stale_after_minutes | float
       - >-
         slurm_job_timeout_minutes | int
-        < wps_job_control_database_stale_after_minutes | float
-      - slurm_job_monitor_schedule | type_debug == 'dict'
-      - slurm_job_monitor_user | length > 0
-      - slurm_job_monitor_long_running_minutes | int > 0
+        < wps_tools_job_control_database_stale_after_minutes | float
+      - wps_tools_slurm_monitor_schedule | type_debug == 'dict'
+      - wps_tools_slurm_monitor_user | length > 0
+      - wps_tools_slurm_monitor_long_running_minutes | int > 0
       - >-
-        slurm_job_monitor_long_running_minutes | int
+        wps_tools_slurm_monitor_long_running_minutes | int
         < slurm_job_timeout_minutes | int
-      - slurm_job_monitor_pending_critical | int > 0
+      - wps_tools_slurm_monitor_pending_critical | int > 0
     fail_msg: >-
       Slurm requires a positive runtime limit below the PyWPS stale threshold.
       Its optional monitor requires a cron-field mapping, a user, a positive
@@ -255,8 +255,8 @@
 
 - name: Install Slurm job-monitor script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/slurm-job-monitor.py"
-    dest: "{{ slurm_job_monitor_script }}"
+    src: slurm-job-monitor.py
+    dest: "{{ wps_tools_slurm_monitor_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -264,8 +264,8 @@
 
 - name: Install interactive Slurm job-status script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/slurm-job-status.py"
-    dest: "{{ slurm_job_status_script }}"
+    src: slurm-job-status.py
+    dest: "{{ wps_tools_slurm_status_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -281,8 +281,8 @@
 
 - name: Install Slurm live-view shortcut
   ansible.builtin.template:
-    src: ./templates/slurm-top.sh.j2
-    dest: "{{ slurm_top_script }}"
+    src: slurm-top.sh.j2
+    dest: "{{ wps_tools_slurm_top_script }}"
     owner: root
     group: root
     mode: "0755"
@@ -295,7 +295,7 @@
 
 - name: Remove Slurm job-monitor script when Slurm is disabled
   ansible.builtin.file:
-    path: "{{ slurm_job_monitor_script }}"
+    path: "{{ wps_tools_slurm_monitor_script }}"
     state: absent
   when: not (slurm_enabled | bool)
 
@@ -304,8 +304,8 @@
     path: "{{ item }}"
     state: absent
   loop:
-    - "{{ slurm_job_status_script }}"
-    - "{{ slurm_top_script }}"
+    - "{{ wps_tools_slurm_status_script }}"
+    - "{{ wps_tools_slurm_top_script }}"
   when: not (slurm_enabled | bool)
 
 - name: Remove obsolete Slurm job-control cron entry
@@ -325,28 +325,28 @@
 - name: Schedule host-wide Slurm job monitoring
   ansible.builtin.cron:
     name: monitor Slurm jobs
-    minute: "{{ slurm_job_monitor_schedule.minute | default('*/5') }}"
-    hour: "{{ slurm_job_monitor_schedule.hour | default('*') }}"
-    day: "{{ slurm_job_monitor_schedule.day | default('*') }}"
-    month: "{{ slurm_job_monitor_schedule.month | default('*') }}"
-    weekday: "{{ slurm_job_monitor_schedule.weekday | default('*') }}"
+    minute: "{{ wps_tools_slurm_monitor_schedule.minute | default('*/5') }}"
+    hour: "{{ wps_tools_slurm_monitor_schedule.hour | default('*') }}"
+    day: "{{ wps_tools_slurm_monitor_schedule.day | default('*') }}"
+    month: "{{ wps_tools_slurm_monitor_schedule.month | default('*') }}"
+    weekday: "{{ wps_tools_slurm_monitor_schedule.weekday | default('*') }}"
     user: root
     job: >-
-      {{ slurm_job_monitor_script }}
-      --user {{ slurm_job_monitor_user | quote }}
-      --long-running-minutes {{ slurm_job_monitor_long_running_minutes }}
-      --pending-critical {{ slurm_job_monitor_pending_critical }}
-      --lock-file {{ slurm_job_monitor_lock_file | quote }}
-      --log-file {{ slurm_job_monitor_log_file | quote }}
-      --alert-file {{ slurm_job_monitor_alert_file | quote }}
+      {{ wps_tools_slurm_monitor_script }}
+      --user {{ wps_tools_slurm_monitor_user | quote }}
+      --long-running-minutes {{ wps_tools_slurm_monitor_long_running_minutes }}
+      --pending-critical {{ wps_tools_slurm_monitor_pending_critical }}
+      --lock-file {{ wps_tools_slurm_monitor_lock_file | quote }}
+      --log-file {{ wps_tools_slurm_monitor_log_file | quote }}
+      --alert-file {{ wps_tools_slurm_monitor_alert_file | quote }}
     cron_file: ansible_slurm
     disabled: >-
-      {{ (cron_disabled | bool) or not (slurm_job_monitor_enabled | bool) }}
+      {{ (cron_disabled | bool) or not (wps_tools_slurm_monitor_enabled | bool) }}
     state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
 
 - name: Install PyWPS job operator commands
   ansible.builtin.template:
-    src: ./templates/job-control-helper.sh.j2
+    src: job-control-helper.sh.j2
     dest: "{{ wps_tools_sbin_dir }}/{{ item }}"
     owner: root
     group: root
@@ -393,11 +393,11 @@
 - name: Schedule PyWPS job monitoring
   ansible.builtin.cron:
     name: "monitor stalled PyWPS jobs for {{ item.name }}"
-    minute: "{{ wps_job_control_schedule.minute | default('*/5') }}"
-    hour: "{{ wps_job_control_schedule.hour | default('*') }}"
-    day: "{{ wps_job_control_schedule.day | default('*') }}"
-    month: "{{ wps_job_control_schedule.month | default('*') }}"
-    weekday: "{{ wps_job_control_schedule.weekday | default('*') }}"
+    minute: "{{ wps_tools_job_control_schedule.minute | default('*/5') }}"
+    hour: "{{ wps_tools_job_control_schedule.hour | default('*') }}"
+    day: "{{ wps_tools_job_control_schedule.day | default('*') }}"
+    month: "{{ wps_tools_job_control_schedule.month | default('*') }}"
+    weekday: "{{ wps_tools_job_control_schedule.weekday | default('*') }}"
     user: root
     job: >-
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
@@ -412,11 +412,11 @@
 - name: Schedule ordered PyWPS job recovery
   ansible.builtin.cron:
     name: "recover stalled PyWPS jobs for {{ item.name }}"
-    minute: "{{ wps_job_control_recovery_schedule.minute | default('1-56/5') }}"
-    hour: "{{ wps_job_control_recovery_schedule.hour | default('*') }}"
-    day: "{{ wps_job_control_recovery_schedule.day | default('*') }}"
-    month: "{{ wps_job_control_recovery_schedule.month | default('*') }}"
-    weekday: "{{ wps_job_control_recovery_schedule.weekday | default('*') }}"
+    minute: "{{ wps_tools_job_control_recovery_schedule.minute | default('1-56/5') }}"
+    hour: "{{ wps_tools_job_control_recovery_schedule.hour | default('*') }}"
+    day: "{{ wps_tools_job_control_recovery_schedule.day | default('*') }}"
+    month: "{{ wps_tools_job_control_recovery_schedule.month | default('*') }}"
+    weekday: "{{ wps_tools_job_control_recovery_schedule.weekday | default('*') }}"
     user: root
     job: >-
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
@@ -425,7 +425,7 @@
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool)
-         or not (wps_job_control_recovery_enabled | bool) }}
+         or not (wps_tools_job_control_recovery_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
@@ -448,11 +448,11 @@
 - name: Schedule hourly PyWPS job statistics
   ansible.builtin.cron:
     name: "record hourly PyWPS job statistics for {{ item.name }}"
-    minute: "{{ wps_job_statistics_schedule.minute | default('4') }}"
-    hour: "{{ wps_job_statistics_schedule.hour | default('*') }}"
-    day: "{{ wps_job_statistics_schedule.day | default('*') }}"
-    month: "{{ wps_job_statistics_schedule.month | default('*') }}"
-    weekday: "{{ wps_job_statistics_schedule.weekday | default('*') }}"
+    minute: "{{ wps_tools_statistics_schedule.minute | default('4') }}"
+    hour: "{{ wps_tools_statistics_schedule.hour | default('*') }}"
+    day: "{{ wps_tools_statistics_schedule.day | default('*') }}"
+    month: "{{ wps_tools_statistics_schedule.month | default('*') }}"
+    weekday: "{{ wps_tools_statistics_schedule.weekday | default('*') }}"
     user: root
     job: >-
       {{ conda_envs_dir }}/{{ item.name }}/bin/python
@@ -461,7 +461,7 @@
     cron_file: ansible_pywps
     disabled: >-
       {{ (cron_disabled | bool)
-         or not (wps_job_statistics_enabled | bool) }}
+         or not (wps_tools_statistics_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
@@ -477,50 +477,50 @@
   ansible.builtin.stat:
     path: "{{ service_user_home }}/.{{ item.name }}-xml-inspect-state.json"
   loop: "{{ wps_services }}"
-  register: pywps_legacy_inspection_states
+  register: wps_tools_legacy_inspection_states
 
 - name: Preserve legacy XML inspection state files
   ansible.builtin.copy:
     src: "{{ service_user_home }}/.{{ item.item.name }}-xml-inspect-state.json"
-    dest: "{{ pywps_state_dir }}/{{ item.item.name }}-xml-inspect.json"
+    dest: "{{ wps_tools_state_dir }}/{{ item.item.name }}-xml-inspect.json"
     remote_src: true
     force: false
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ pywps_legacy_inspection_states.results }}"
+  loop: "{{ wps_tools_legacy_inspection_states.results }}"
   when: item.stat.exists
 
 - name: Schedule PyWPS XML request inspection
   ansible.builtin.cron:
     name: "record PyWPS XML requests for {{ item.name }}"
-    minute: "{{ wps_job_inspect_schedule.minute | default('2-57/5') }}"
-    hour: "{{ wps_job_inspect_schedule.hour | default('*') }}"
-    day: "{{ wps_job_inspect_schedule.day | default('*') }}"
-    month: "{{ wps_job_inspect_schedule.month | default('*') }}"
-    weekday: "{{ wps_job_inspect_schedule.weekday | default('*') }}"
+    minute: "{{ wps_tools_inspect_schedule.minute | default('2-57/5') }}"
+    hour: "{{ wps_tools_inspect_schedule.hour | default('*') }}"
+    day: "{{ wps_tools_inspect_schedule.day | default('*') }}"
+    month: "{{ wps_tools_inspect_schedule.month | default('*') }}"
+    weekday: "{{ wps_tools_inspect_schedule.weekday | default('*') }}"
     user: root
     job: >-
       /usr/bin/python3 {{ wps_tools_script_dir }}/pywps-xml-inspect.py
       --config /etc/pywps/{{ item.name }}.cfg
       --service {{ item.name }}
-      --state-file {{ pywps_state_dir }}/{{ item.name }}-xml-inspect.json
+      --state-file {{ wps_tools_state_dir }}/{{ item.name }}-xml-inspect.json
       --log-file {{ wps_log_dir }}/{{ item.name }}-requests.log
       --lock-file {{ wps_run_dir }}/{{ item.name }}-xml-inspect.lock
     cron_file: ansible_pywps
-    disabled: "{{ (cron_disabled | bool) or not (wps_job_inspect_enabled | bool) }}"
+    disabled: "{{ (cron_disabled | bool) or not (wps_tools_inspect_enabled | bool) }}"
     state: present
   loop: "{{ wps_services }}"
 
 - name: Validate PyWPS restart schedule
   ansible.builtin.assert:
     that:
-      - wps_restart_schedule in ['hourly', 'daily']
-    fail_msg: wps_restart_schedule must be hourly or daily.
+      - wps_tools_restart_schedule in ['hourly', 'daily']
+    fail_msg: wps_tools_restart_schedule must be hourly or daily.
 
 - name: Copy restart script
   ansible.builtin.template:
-    src: ./templates/restart-pywps.sh.j2
+    src: restart-pywps.sh.j2
     dest: "{{ wps_tools_sbin_dir }}/restart-pywps"
     owner: root
     group: root
@@ -529,20 +529,20 @@
 - name: Schedule PyWPS service restarts
   ansible.builtin.cron:
     name: "restart pywps {{ item.name }}"
-    special_time: "{{ wps_restart_schedule }}"
+    special_time: "{{ wps_tools_restart_schedule }}"
     user: root
     job: >-
       {{ wps_tools_sbin_dir }}/restart-pywps {{ item.name }}
       > /var/log/pywps/restart-{{ item.name }}.log 2>&1
     cron_file: ansible_pywps
     disabled: >-
-      {{ (cron_disabled | bool) or not (wps_restart_enabled | bool) }}
+      {{ (cron_disabled | bool) or not (wps_tools_restart_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
 - name: Copy smoke test script
   ansible.builtin.template:
-    src: ./templates/smoke.sh.j2
+    src: smoke.sh.j2
     dest: "{{ wps_tools_sbin_dir }}/smoke"
     owner: root
     group: root
@@ -586,4 +586,4 @@
   ansible.builtin.file:
     path: /usr/local/sbin/slurm-job-monitor
     state: absent
-  when: slurm_job_monitor_script != '/usr/local/sbin/slurm-job-monitor'
+  when: wps_tools_slurm_monitor_script != '/usr/local/sbin/slurm-job-monitor'

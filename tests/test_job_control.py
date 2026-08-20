@@ -16,7 +16,13 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "pywps-job-control.py"
+SCRIPT = (
+    Path(__file__).parents[1]
+    / "roles"
+    / "wps_tools"
+    / "files"
+    / "pywps-job-control.py"
+)
 SPEC = importlib.util.spec_from_file_location("pywps_job_control", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
