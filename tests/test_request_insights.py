@@ -291,6 +291,35 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertNotIn("Requested-data coverage", output.getvalue())
         self.assertNotIn("\nFailure causes", output.getvalue())
 
+    def test_orchestrate_text_uses_one_line_per_collection(self):
+        workflow = {
+            "inputs": {"uas": ["c3s-cmip6.example.uas"]},
+            "steps": {
+                "subset": {
+                    "run": "subset",
+                    "in": {"collection": "inputs/uas", "time": "1980/2014"},
+                }
+            },
+        }
+        item = record("1")
+        item["process"] = "orchestrate"
+        item["inputs"] = {
+            "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+        }
+        report = MODULE.aggregate([item], top=10)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(report)
+        lines = output.getvalue().splitlines()
+        self.assertEqual(
+            [line for line in lines if "c3s-cmip6.example.uas" in line],
+            [
+                "  c3s-cmip6.example.uas: requests=1 "
+                "success=1 failures=0 years=1980-2014"
+            ],
+        )
+        self.assertNotIn("time=1980/2014", output.getvalue())
+
     def test_orchestrate_failure_categories_are_not_limited_by_top(self):
         records = []
         for number, message in enumerate(
@@ -311,6 +340,28 @@ class RequestInsightsTests(unittest.TestCase):
         )
         self.assertEqual(production["failure_group_count"], 3)
         self.assertEqual(len(production["failures"]), 1)
+
+    def test_orchestrate_failure_overview_precedes_collections(self):
+        workflow = {
+            "inputs": {"tas": ["c3s-cmip6.example.tas"]},
+            "steps": {
+                "subset": {
+                    "run": "subset",
+                    "in": {"collection": "inputs/tas", "time": "2050/2050"},
+                }
+            },
+        }
+        item = record("1", "failed", "Job cancelled due to time limit")
+        item["process"] = "orchestrate"
+        item["inputs"] = {
+            "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+        }
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(MODULE.aggregate([item], top=10))
+        text = output.getvalue()
+        self.assertLess(text.index("Failure causes"), text.index("c3s-cmip6.example.tas"))
+        self.assertLess(text.index("c3s-cmip6.example.tas"), text.index("Failed data"))
 
     def test_collection_sorting_by_name_and_frequency(self):
         records = []

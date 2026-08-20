@@ -647,20 +647,21 @@ def print_report(report: dict[str, object]) -> None:
             f"workflow_lineage={orchestrate['jobs_with_workflow_lineage']} "
             f"missing_lineage={orchestrate['jobs_without_workflow_lineage']}"
         )
-        if not orchestrate["collections"]:
-            print("  No requested collections were retained in XML lineage.")
-        for collection, values in orchestrate["collections"].items():
-            print(
-                f"  {collection}: requests={values['requests']} "
-                f"outcomes={values['outcomes']} years={values['year_coverage']}"
-            )
-            for time_range in values["time_ranges"]:
-                print(f"    {time_range['count']:>5}  time={time_range['value']}")
         print("  Failure causes (unique jobs)")
         if not orchestrate["failure_categories"]:
             print("    No orchestrate failures.")
         for category, count in orchestrate["failure_categories"].items():
             print(f"    {category}: {count}")
+        if not orchestrate["collections"]:
+            print("  No requested collections were retained in XML lineage.")
+        for collection, values in orchestrate["collections"].items():
+            outcomes = values["outcomes"]
+            print(
+                f"  {collection}: requests={values['requests']} "
+                f"success={outcomes.get('successful', 0)} "
+                f"failures={outcomes.get('failed', 0)} "
+                f"years={values['year_coverage']}"
+            )
         shown = len(orchestrate["failures"])
         groups = orchestrate["failure_group_count"]
         heading = "  Failed data"
