@@ -291,6 +291,21 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertNotIn("Requested-data coverage", output.getvalue())
         self.assertNotIn("\nFailure causes", output.getvalue())
 
+    def test_text_uses_compact_timestamps_and_outcomes(self):
+        item = dict(record("1"), process="orchestrate")
+        item["finished_at"] = "2026-08-01T10:00:00.123456+00:00"
+        output = io.StringIO()
+        with redirect_stdout(output):
+            MODULE.print_report(MODULE.aggregate([item], top=10))
+        text = output.getvalue()
+        self.assertIn(
+            "Period: 2026-08-01T10:00:00+00:00 "
+            "to 2026-08-01T10:00:00+00:00",
+            text,
+        )
+        self.assertIn("orchestrate: requests=1 success=1 failures=0", text)
+        self.assertNotIn("outcomes=", text)
+
     def test_orchestrate_text_uses_one_line_per_collection(self):
         workflow = {
             "inputs": {"uas": ["c3s-cmip6.example.uas"]},

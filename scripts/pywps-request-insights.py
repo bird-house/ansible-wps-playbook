@@ -618,6 +618,15 @@ def format_duration(seconds: object) -> str:
     return f"{seconds:.1f}s"
 
 
+def format_timestamp(value: object) -> str:
+    if not isinstance(value, str):
+        return "n/a"
+    try:
+        return datetime.fromisoformat(value).isoformat(timespec="seconds")
+    except ValueError:
+        return value
+
+
 def print_report(report: dict[str, object]) -> None:
     period = report["period"]
     outcomes = report["outcomes"]
@@ -626,14 +635,20 @@ def print_report(report: dict[str, object]) -> None:
     total = int(report["requests"])
     rate = (successful / total * 100) if total else 0
     print("PyWPS request insights")
-    print(f"Period: {period['first'] or 'n/a'} to {period['last'] or 'n/a'}")
+    print(
+        f"Period: {format_timestamp(period['first'])} "
+        f"to {format_timestamp(period['last'])}"
+    )
     print(f"Requests: {total}  successful={successful}  failed={failures}  success_rate={rate:.1f}%")
 
     print("\nProcesses")
     for name, values in report["processes"].items():
         duration = values["durations"]
+        process_outcomes = values["outcomes"]
         print(
-            f"  {name}: requests={values['requests']} outcomes={values['outcomes']} "
+            f"  {name}: requests={values['requests']} "
+            f"success={process_outcomes.get('successful', 0)} "
+            f"failures={process_outcomes.get('failed', 0)} "
             f"median={format_duration(duration['median_seconds'])} "
             f"p95={format_duration(duration['p95_seconds'])} "
             f"max={format_duration(duration['max_seconds'])}"

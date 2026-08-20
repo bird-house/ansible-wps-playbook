@@ -434,7 +434,9 @@
       {{ cron_script_dir }}/pywps-job-control.py
       --config /etc/pywps/{{ item.name }}.cfg statistics
     cron_file: ansible_pywps
-    disabled: "{{ cron_disabled }}"
+    disabled: >-
+      {{ (cron_disabled | bool)
+         or not (wps_job_statistics_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
@@ -461,6 +463,7 @@
       --service {{ item.name }}
       --state-file {{ cron_script_dir }}/.{{ item.name }}-xml-inspect-state.json
       --log-file {{ wps_log_dir }}/{{ item.name }}-requests.log
+      --lock-file {{ wps_run_dir }}/{{ item.name }}-xml-inspect.lock
     cron_file: ansible_pywps
     disabled: "{{ (cron_disabled | bool) or not (wps_job_inspect_enabled | bool) }}"
     state: present

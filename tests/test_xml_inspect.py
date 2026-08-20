@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import fcntl
 import io
 import json
 import os
@@ -88,6 +89,28 @@ class XmlInspectTests(unittest.TestCase):
         with redirect_stdout(second):
             self.assertEqual(MODULE.main(arguments), 0)
         self.assertEqual(second.getvalue(), "")
+
+    def test_active_lock_skips_overlapping_scan(self):
+        self.write()
+        lock_path = self.root / "inspect.lock"
+        state = self.root / "state.json"
+        with lock_path.open("w", encoding="utf-8") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = MODULE.main(
+                    [
+                        "--output-dir",
+                        str(self.output),
+                        "--state-file",
+                        str(state),
+                        "--lock-file",
+                        str(lock_path),
+                    ]
+                )
+        self.assertEqual(result, 0)
+        self.assertEqual(output.getvalue(), "")
+        self.assertFalse(state.exists())
 
     def test_loads_matching_job_error_diagnostic(self):
         process_dir = self.root / "work" / "pywps_process_subset"

@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import fcntl
 import json
 import os
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import unquote
@@ -197,6 +199,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--service", help="service name (defaults to config filename)")
     parser.add_argument("--state-file", type=Path, help="only emit newly completed jobs")
     parser.add_argument("--log-file", type=Path, help="append JSON lines instead of stdout")
+    parser.add_argument("--lock-file", type=Path, help="skip when another scan is active")
     args = parser.parse_args(argv)
     if args.config is None and args.output_dir is None:
         parser.error("one of --config or --output-dir is required")
@@ -205,49 +208,60 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    config = configparser.ConfigParser()
-    if args.config is not None:
-        with args.config.open(encoding="utf-8") as stream:
-            config.read_file(stream)
-    output_dir = args.output_dir
-    if output_dir is None:
-        output_dir = Path(config.get("server", "outputpath"))
-    service = args.service or (args.config.stem if args.config else output_dir.name)
-    work_dir = None
-    if args.config is not None:
-        configured_work_dir = config.get("server", "workdir", fallback="").strip()
-        work_dir = Path(configured_work_dir) if configured_work_dir else None
-    job_diagnostics = load_job_diagnostics(work_dir)
+    with ExitStack() as resources:
+        if args.lock_file is not None:
+            args.lock_file.parent.mkdir(parents=True, exist_ok=True)
+            lock = resources.enter_context(args.lock_file.open("w", encoding="utf-8"))
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return 0
+            lock.write(f"{os.getpid()}\n")
+            lock.flush()
 
-    previous = read_state(args.state_file)
-    current: set[str] = set()
-    records = []
-    errors = 0
-    for path in sorted(output_dir.glob("*.xml")):
-        try:
-            record = inspect(path, service, job_diagnostics.get(path.stem))
-        except (ET.ParseError, OSError, ValueError) as error:
-            print(f"{path}: {error}", file=sys.stderr)
-            errors += 1
-            continue
-        if record is None:
-            continue
-        job_id = str(record["job_id"])
-        current.add(job_id)
-        if args.state_file is None or job_id not in previous:
-            records.append(record)
+        config = configparser.ConfigParser()
+        if args.config is not None:
+            with args.config.open(encoding="utf-8") as stream:
+                config.read_file(stream)
+        output_dir = args.output_dir
+        if output_dir is None:
+            output_dir = Path(config.get("server", "outputpath"))
+        service = args.service or (args.config.stem if args.config else output_dir.name)
+        work_dir = None
+        if args.config is not None:
+            configured_work_dir = config.get("server", "workdir", fallback="").strip()
+            work_dir = Path(configured_work_dir) if configured_work_dir else None
+        job_diagnostics = load_job_diagnostics(work_dir)
 
-    if args.log_file:
-        args.log_file.parent.mkdir(parents=True, exist_ok=True)
-        with args.log_file.open("a", encoding="utf-8") as stream:
+        previous = read_state(args.state_file)
+        current: set[str] = set()
+        records = []
+        errors = 0
+        for path in sorted(output_dir.glob("*.xml")):
+            try:
+                record = inspect(path, service, job_diagnostics.get(path.stem))
+            except (ET.ParseError, OSError, ValueError) as error:
+                print(f"{path}: {error}", file=sys.stderr)
+                errors += 1
+                continue
+            if record is None:
+                continue
+            job_id = str(record["job_id"])
+            current.add(job_id)
+            if args.state_file is None or job_id not in previous:
+                records.append(record)
+
+        if args.log_file:
+            args.log_file.parent.mkdir(parents=True, exist_ok=True)
+            with args.log_file.open("a", encoding="utf-8") as stream:
+                for record in records:
+                    stream.write(json.dumps(record, sort_keys=True) + "\n")
+        else:
             for record in records:
-                stream.write(json.dumps(record, sort_keys=True) + "\n")
-    else:
-        for record in records:
-            print(json.dumps(record, sort_keys=True))
-    if args.state_file is not None:
-        write_state(args.state_file, current)
-    return 1 if errors else 0
+                print(json.dumps(record, sort_keys=True))
+        if args.state_file is not None:
+            write_state(args.state_file, current)
+        return 1 if errors else 0
 
 
 if __name__ == "__main__":
