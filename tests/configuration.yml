@@ -245,10 +245,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/wps_tools/templates/job-control-helper.sh.j2') }}
-        test_db_monitor_helper: >-
+        test_db_report_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
-                    + '/../roles/wps_tools/templates/db-monitor-helper.sh.j2') }}
+                    + '/../roles/wps_tools/templates/db-report-helper.sh.j2') }}
         test_request_insights_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -466,16 +466,18 @@
           - >-
             '/opt/wps-tools/scripts/pywps-xml-inspect.py'
             in test_xml_inspect_helper
-          - "'db-monitor SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_monitor_helper"
+          - "'db-report SERVICE_NAME [[START][/END] | --from START --to END]' in test_db_report_helper"
+          - "'--failures' in test_db_report_helper"
+          - "'--top N' in test_db_report_helper"
           - >-
-            'monitor_script="/opt/wps-tools/scripts/pywps-db-monitor.py"'
-            in test_db_monitor_helper
+            'report_script="/opt/wps-tools/scripts/pywps-db-report.py"'
+            in test_db_report_helper
           - >-
-            'exec "$python" "$monitor_script"'
-            in test_db_monitor_helper
+            'exec "$python" "$report_script"'
+            in test_db_report_helper
           - >-
             '--config "$config_file" "${range_option[@]}" "$@"'
-            in test_db_monitor_helper
+            in test_db_report_helper
           - >-
             'status_script="/opt/wps-tools/scripts/slurm-job-status.py"'
             in test_slurm_top

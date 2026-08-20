@@ -861,21 +861,18 @@ Because `orchestrate` is the default selection, its text report omits the
 generic coverage and failure sections that would duplicate the production-data
 view. They remain available with `--all-processes` or another `--process`.
 
-### Summarize historical PyWPS database activity
+### Inspect historical PyWPS database activity
 
-The read-only `db-monitor` operator command aggregates database requests for an
-explicit range. It reports every job state, success rate, request and duration
-statistics, successful-job runtime ranges and maximum duration, per-process
-totals, and failed messages grouped with their count and first and last
-occurrence:
+The specialist, read-only `db-report` command under `sbin/` aggregates database
+requests for an explicit range. It reports every job state, success rate,
+request and duration statistics, successful-job runtime ranges and maximum
+duration, and per-process totals:
 
 ```sh
-sudo /opt/wps-tools/bin/db-monitor rook 2026-08-01/2026-08-06
-sudo /opt/wps-tools/bin/db-monitor rook 2026-08
-sudo /opt/wps-tools/bin/db-monitor rook 2026
-sudo /opt/wps-tools/bin/db-monitor rook 2026-08/
-sudo /opt/wps-tools/bin/db-monitor rook /2026-08
-sudo /opt/wps-tools/bin/db-monitor rook --from 2026-01 --to 2026-08
+sudo /opt/wps-tools/sbin/db-report rook 2026-08-01/2026-08-06
+sudo /opt/wps-tools/sbin/db-report rook 2026-08
+sudo /opt/wps-tools/sbin/db-report rook --from 2026-01 --to 2026-08
+sudo /opt/wps-tools/sbin/db-report rook 2026-08 --failures --top 5
 ```
 
 One year, month, or date selects that complete local calendar period. A slash
@@ -883,11 +880,13 @@ sets separate inclusive bounds; omit its left or right side for an open-ended
 range, or omit the range entirely to report all recorded requests. Full ISO
 timestamps, including `Z` or explicit UTC offsets, are also accepted. The
 equivalent `--from` and `--to` options can be used independently. Add
-`--identifier orchestrate` to select one process or `--json` for structured
-output. The range selects `execute` requests by their start time; non-final
-requests are included, and completed-job duration uses the full elapsed time.
-The command queries only a timezone-safe range candidate rather than loading
-the complete PyWPS table.
+`--identifier orchestrate` to select one process. Failure messages are hidden
+by default; `--failures` shows them by frequency and `--top` limits the number
+of unique messages. JSON output always includes the complete error aggregation.
+The range selects `execute` requests by their start time; non-final requests are
+included, and completed-job duration uses the full elapsed time. The command
+queries only a timezone-safe range candidate rather than loading the complete
+PyWPS table.
 
 ### Recover repeatedly polled missing status documents
 

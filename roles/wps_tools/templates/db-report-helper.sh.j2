@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Read-only operator wrapper for pywps-db-monitor.py.
+# Read-only operator wrapper for the PyWPS database report.
 
 set -euo pipefail
 
@@ -11,7 +11,7 @@ fail() {
 
 usage() {
     local exit_code=${1:-2}
-    echo "Usage: db-monitor SERVICE_NAME [[START][/END] | --from START --to END] [--identifier PROCESS] [--json]" >&2
+    echo "Usage: db-report SERVICE_NAME [[START][/END] | --from START --to END] [--identifier PROCESS] [--failures] [--top N] [--json]" >&2
     exit "$exit_code"
 }
 
@@ -37,14 +37,14 @@ main() {
 
     local python="{{ conda_envs_dir }}/$app/bin/python"
     local config_file="/etc/pywps/$app.cfg"
-    local monitor_script="{{ wps_tools_script_dir }}/pywps-db-monitor.py"
+    local report_script="{{ wps_tools_script_dir }}/pywps-db-report.py"
 
     [[ -x $python ]] || fail "Python not found or not executable: $python"
     [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"
-    [[ -x $monitor_script ]] \
-        || fail "PyWPS database monitor not found or not executable: $monitor_script"
+    [[ -x $report_script ]] \
+        || fail "PyWPS database report not found or not executable: $report_script"
 
-    exec "$python" "$monitor_script" \
+    exec "$python" "$report_script" \
         --config "$config_file" "${range_option[@]}" "$@"
 }
 

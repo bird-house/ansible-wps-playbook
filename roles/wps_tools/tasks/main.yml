@@ -167,21 +167,31 @@
     group: root
     mode: "0755"
 
-- name: Install PyWPS database-monitor script
+- name: Install PyWPS database report script
   ansible.builtin.copy:
-    src: pywps-db-monitor.py
-    dest: "{{ wps_tools_script_dir }}/pywps-db-monitor.py"
+    src: pywps-db-report.py
+    dest: "{{ wps_tools_script_dir }}/pywps-db-report.py"
     owner: root
     group: root
     mode: "0755"
 
-- name: Install PyWPS database-monitor command
+- name: Install PyWPS database report command
   ansible.builtin.template:
-    src: db-monitor-helper.sh.j2
-    dest: "{{ wps_tools_bin_dir }}/db-monitor"
+    src: db-report-helper.sh.j2
+    dest: "{{ wps_tools_sbin_dir }}/db-report"
     owner: root
     group: root
     mode: "0755"
+
+- name: Remove obsolete database monitor shortcut
+  ansible.builtin.file:
+    path: "{{ wps_tools_bin_dir }}/db-monitor"
+    state: absent
+
+- name: Remove obsolete database monitor script
+  ansible.builtin.file:
+    path: "{{ wps_tools_script_dir }}/pywps-db-monitor.py"
+    state: absent
 
 - name: Install PyWPS XML inspection script
   ansible.builtin.copy:
@@ -598,6 +608,7 @@
   loop:
     - pywps-job-control.py
     - pywps-db-monitor.py
+    - pywps-db-report.py
     - pywps-xml-inspect.py
     - pywps-request-insights.py
     - slurm-job-status.py

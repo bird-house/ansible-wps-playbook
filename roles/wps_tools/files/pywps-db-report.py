@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize PyWPS database activity for an explicit time range."""
+"""Report PyWPS database activity for an explicit time range."""
 
 from __future__ import annotations
 
@@ -360,7 +360,7 @@ def display_error_message(value: object) -> str:
     return f"{message[:retained].rstrip()}{TRUNCATION_MARKER}"
 
 
-def print_report(report: dict) -> None:
+def print_report(report: dict, *, failures: bool = False, top: int = 10) -> None:
     request = report["requests"]
     total = request["total"]
     final = request["successful"] + request["failed"]
@@ -469,12 +469,18 @@ def print_report(report: dict) -> None:
         right_aligned={1, 2, 3, 4, 5, 6, 7},
     )
 
+    if not failures:
+        return
     errors = report["errors"]
     error_count = sum(error["count"] for error in errors)
-    print(f"\nErrors ({error_count} failures, {len(errors)} unique messages)")
+    shown = min(top, len(errors))
+    heading = f"\nFailure details ({error_count} failures, {len(errors)} unique messages)"
+    if shown < len(errors):
+        heading += f"; showing {shown}, increase --top to see more"
+    print(heading)
     if not errors:
         print("None")
-    for error in errors:
+    for error in errors[:top]:
         message = json.dumps(
             display_error_message(error["message"]), ensure_ascii=False
         )
@@ -494,7 +500,7 @@ def load_records(config_path: Path, period: TimeRange, identifier: str | None):
         from sqlalchemy.orm import sessionmaker
     except ImportError as error:
         raise RuntimeError(
-            "db-monitor must run with the service Conda environment"
+            "db-report must run with the service Conda environment"
         ) from error
 
     database_url = configuration.get_config_value("logging", "database")
@@ -558,11 +564,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="include only this PyWPS process identifier",
     )
     parser.add_argument(
+        "--failures",
+        action="store_true",
+        help="include grouped failure messages in the text report",
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=10,
+        help="maximum unique failure messages in the text report (default: 10)",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="write the complete report as JSON",
     )
     args = parser.parse_args(argv)
+    if args.top < 1:
+        parser.error("--top must be positive")
     if args.time_range is not None and (
         args.from_value is not None or args.to_value is not None
     ):
@@ -585,12 +604,12 @@ def main(argv: list[str] | None = None) -> int:
         records, wps_status = load_records(args.config, args.period, args.identifier)
         report = summarize(records, wps_status, args.period)
     except Exception as error:
-        print(f"db-monitor: {error}", file=sys.stderr)
+        print(f"db-report: {error}", file=sys.stderr)
         return 1
     if args.json:
         print(json.dumps(report, indent=2, default=json_default, ensure_ascii=False))
     else:
-        print_report(report)
+        print_report(report, failures=args.failures, top=args.top)
     return 0
 
 
