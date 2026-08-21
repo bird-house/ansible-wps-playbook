@@ -7,6 +7,12 @@ chunk_memory_limit = {{ roocs_chunk_memory_limit }}
 [clisops:write]
 file_size_limit = {{ roocs_file_size_limit }}
 
+[subset:batching]
+memory_limit = {{ roocs_batch_memory_limit }}
+
+[concat:batching]
+memory_limit = {{ roocs_batch_memory_limit }}
+
 [project:cmip5]
 base_dir = {{ roocs_cmip5_path }}
 use_inventory = False

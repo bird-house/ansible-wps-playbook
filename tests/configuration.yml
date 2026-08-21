@@ -123,6 +123,7 @@
           - supervisor_config_path == '/etc/supervisor'
           - roocs_chunk_memory_limit == '128MiB'
           - roocs_file_size_limit == '2GB'
+          - roocs_batch_memory_limit == '17066MB'
           - roocs_profile is none
           - roocs_project_path_defaults.cmip5 == '/data/cmip5'
           - roocs_project_path_defaults.cmip6 == '/data/CMIP6'
@@ -228,6 +229,7 @@
           - wps_service_cpus_resolved | int == 2
           - slurm_cpus | int == 3
           - slurm_default_job_memory_mb | int == 4266
+          - roocs_batch_memory_limit == '4266MB'
       vars:
         ansible_memtotal_mb: 16000
         wps_cpus: 8
@@ -675,6 +677,12 @@
           - "'server_name files.example.test;' in test_fileserver_config"
           - "'chunk_memory_limit = 128MiB' in test_roocs_config"
           - "'file_size_limit = 2GB' in test_roocs_config"
+          - "'[subset:batching]' in test_roocs_config"
+          - "'[concat:batching]' in test_roocs_config"
+          - "test_roocs_config.count('memory_limit = 17066MB') == 2"
+          - "'target_timesteps' not in test_roocs_config"
+          - "'min_batch_years' not in test_roocs_config"
+          - "'max_batch_years' not in test_roocs_config"
           - "'base_dir = /test/dkrz/CMIP6' in test_roocs_config"
           - >-
             'base_dir = /mnt/lustre/work/kd0956/CMIP5/data/cmip5'

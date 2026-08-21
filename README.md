@@ -231,20 +231,27 @@ tasks. Use `make quick` to run the complete deployment except Conda tasks, and
 `make play` after dependency or infrastructure changes.
 
 For the DKRZ ROOCS profile, clisops reads data in Dask chunks limited to
-`128MiB` and splits written output at `2GB` by default. The read limit is
-deliberately well below a 4 GB Slurm job limit, because a process can hold
-several chunks and intermediate arrays at once. Override either setting in
-`custom.yml` when a different balance between memory use, output size, and
-throughput is needed:
+`128MiB` and splits written output at `2GB` by default. Rook's subset and concat
+batching memory limits follow `slurm_default_job_memory_mb`, so they
+automatically stay aligned with the memory Slurm allocates to jobs that do not
+make an explicit request.
+The read limit remains deliberately smaller because a process can hold several
+chunks and intermediate arrays at once. Override any setting in `custom.yml`
+when a different balance between memory use, output size, and throughput is
+needed:
 
 ```yaml
 roocs_chunk_memory_limit: 512MiB
 roocs_file_size_limit: 1GB
+roocs_batch_memory_limit: 8GB
 ```
 
 The values must be positive integer byte sizes, for example `128MiB` or `2GB`.
 The read setting limits an individual chunk, not the job's total memory
-allocation; the write setting controls when clisops splits output files.
+allocation; the write setting controls when clisops splits output files. An
+explicit `roocs_batch_memory_limit` applies to both subset and concat batching
+and stops their limits from tracking later changes to
+`slurm_default_job_memory_mb`. Other batching options remain at Rook's defaults.
 
 ROOCS project options remain in one versioned template because they are
 coupled to the deployed Rook and clisops versions. Without a profile, ordinary
