@@ -497,6 +497,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
     def test_dump_backed_recovery_archives_exact_xml_and_job_dump(self):
         self.write_status()
         dump_path = self.write_job_dump()
+        error_log = dump_path.parent / "job-error.txt"
+        output_log = dump_path.parent / "job-output.txt"
+        error_log.write_bytes(b"scheduler error\n")
+        output_log.write_bytes(b"process output\n")
         document, _ = MODULE.read_xml_status(self.status)
         settings = self.settings("recover")
         settings.service_name = "alpha"
@@ -512,6 +516,29 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(dump_archive.read_bytes(), dump_path.read_bytes())
         self.assertEqual(xml_archive.stat().st_mode & 0o777, 0o640)
         self.assertEqual(dump_archive.stat().st_mode & 0o777, 0o640)
+        stem = xml_archive.name.removesuffix(".xml")
+        archived_error = settings.incident_archive_dir / f"{stem}.job-error.txt"
+        archived_output = settings.incident_archive_dir / f"{stem}.job-output.txt"
+        self.assertEqual(archived_error.read_bytes(), error_log.read_bytes())
+        self.assertEqual(archived_output.read_bytes(), output_log.read_bytes())
+        self.assertEqual(archived_error.stat().st_mode & 0o777, 0o640)
+        self.assertEqual(archived_output.stat().st_mode & 0o777, 0o640)
+
+    def test_dump_backed_recovery_ignores_unavailable_job_logs(self):
+        self.write_status()
+        self.write_job_dump()
+        document, _ = MODULE.read_xml_status(self.status)
+        settings = self.settings("recover")
+        settings.incident_archive_enabled = True
+        settings.incident_archive_dir = self.root / "incidents"
+        dump = MODULE.find_job_dump(settings, JOB_UUID)
+
+        MODULE.archive_recovery_sources(document, dump, settings)
+
+        self.assertEqual(
+            sorted(path.suffix for path in settings.incident_archive_dir.iterdir()),
+            [".dump", ".xml"],
+        )
 
     def test_dump_recovery_fails_without_changing_xml_when_dump_is_missing(self):
         self.write_status()

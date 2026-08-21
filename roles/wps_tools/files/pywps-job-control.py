@@ -468,6 +468,29 @@ def archive_recovery_sources(
         )
     )
 
+    optional_logs: dict[str, bytes] = {}
+    for filename in ("job-error.txt", "job-output.txt"):
+        source = dump.workdir / filename
+        if source.is_symlink():
+            raise ValueError(f"job log must not be a symlink: {source}")
+        try:
+            with source.open("rb") as stream:
+                before = os.fstat(stream.fileno())
+                contents = stream.read()
+                after = os.fstat(stream.fileno())
+        except FileNotFoundError:
+            continue
+        try:
+            source_stat = source.stat()
+        except FileNotFoundError as error:
+            raise RuntimeError(f"job log changed while it was read: {source}") from error
+        if (
+            stat_identity(before) != stat_identity(after)
+            or stat_identity(after) != stat_identity(source_stat)
+        ):
+            raise RuntimeError(f"job log changed while it was read: {source}")
+        optional_logs[filename] = contents
+
     def archive_bytes(destination: Path, contents: bytes) -> Path:
         fd, temporary_name = tempfile.mkstemp(
             prefix=f".{document.job_uuid}.", suffix=".tmp", dir=archive_dir
@@ -490,10 +513,11 @@ def archive_recovery_sources(
                 pass
         return destination
 
-    return (
-        archive_bytes(archive_dir / f"{stem}.xml", document.contents),
-        archive_bytes(archive_dir / f"{stem}.dump", dump.contents),
-    )
+    xml_archive = archive_bytes(archive_dir / f"{stem}.xml", document.contents)
+    dump_archive = archive_bytes(archive_dir / f"{stem}.dump", dump.contents)
+    for filename, contents in optional_logs.items():
+        archive_bytes(archive_dir / f"{stem}.{filename}", contents)
+    return xml_archive, dump_archive
 
 
 def update_from_job_dump(
