@@ -11,7 +11,7 @@ import statistics
 import sys
 import textwrap
 from collections import Counter, defaultdict
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, TextIO
 
@@ -53,10 +53,28 @@ TRACEBACK_BOUNDARY_RE = re.compile(
     r"\s+(?:During handling of the above exception|Traceback \(most recent call last\))",
     re.IGNORECASE,
 )
+INCIDENT_XML_RE = re.compile(
+    r"^[0-9]{8}T[0-9]{6}Z__(?P<kind>error|recovered)__.+__"
+    r"(?P<job_id>[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\.xml$"
+)
 
 
-def parse_time(value: str, *, end: bool = False) -> datetime:
+def parse_time(
+    value: str, *, end: bool = False, now: datetime | None = None
+) -> datetime:
     text = value.strip()
+    relative = text.lower()
+    if relative in {"today", "yesterday"}:
+        reference = now or datetime.now().astimezone()
+        if reference.tzinfo is None:
+            reference = reference.astimezone()
+        days_ago = 1 if relative == "yesterday" else 0
+        target = reference.date() - timedelta(days=days_ago)
+        return datetime.combine(
+            target,
+            time.max if end else time.min,
+            tzinfo=reference.tzinfo,
+        ).astimezone(UTC)
     normalized = f"{text[:-1]}+00:00" if text.endswith("Z") else text
     try:
         parsed = datetime.fromisoformat(normalized)
@@ -107,6 +125,53 @@ def load_records(paths: Iterable[Path]) -> tuple[list[dict[str, object]], list[s
         except OSError as error:
             errors.append(f"{path}: {error}")
     return records, errors
+
+
+def incident_xml_paths(
+    incident_dir: Path | None,
+) -> dict[str, list[dict[str, str]]]:
+    """Index archived error and recovered status documents by PyWPS job UUID."""
+    if incident_dir is None or not incident_dir.is_dir():
+        return {}
+    incidents: dict[str, list[dict[str, str]]] = defaultdict(list)
+    try:
+        paths = sorted(incident_dir.glob("*.xml"))
+    except OSError:
+        return {}
+    for path in paths:
+        match = INCIDENT_XML_RE.fullmatch(path.name)
+        if match and path.is_file():
+            incidents[match.group("job_id").lower()].append(
+                {"kind": match.group("kind"), "path": str(path)}
+            )
+    return dict(incidents)
+
+
+def example_job_ids(
+    job_ids: Iterable[str],
+    incident_xml: dict[str, list[dict[str, str]]] | None,
+    limit: int = 3,
+) -> list[str]:
+    """Prefer jobs with archived status XML in the small operator sample."""
+    ordered = sorted(set(job_ids))
+    if not incident_xml:
+        return ordered[:limit]
+    archived = [job_id for job_id in ordered if job_id.lower() in incident_xml]
+    ordinary = [job_id for job_id in ordered if job_id.lower() not in incident_xml]
+    return (archived + ordinary)[:limit]
+
+
+def incident_paths_for_jobs(
+    job_ids: Iterable[str],
+    incident_xml: dict[str, list[dict[str, str]]] | None,
+) -> dict[str, list[dict[str, str]]]:
+    if not incident_xml:
+        return {}
+    return {
+        job_id: incident_xml[job_id.lower()]
+        for job_id in job_ids
+        if job_id.lower() in incident_xml
+    }
 
 
 def record_time(record: dict[str, object]) -> datetime | None:
@@ -434,7 +499,10 @@ def concise_failure_message(message: str) -> str:
 
 
 def aggregate_orchestrate(
-    records: list[dict[str, object]], top: int, sort_by: str
+    records: list[dict[str, object]],
+    top: int,
+    sort_by: str,
+    incident_xml: dict[str, list[dict[str, str]]] | None = None,
 ) -> dict[str, object] | None:
     orchestrate = [record for record in records if record.get("process") == "orchestrate"]
     if not orchestrate:
@@ -516,18 +584,21 @@ def aggregate_orchestrate(
         if not added:
             break
         group_index += 1
-    failure_report = [
-        {
-            "count": count,
-            "collection": key[0],
-            "years": key[1],
-            "time_ranges": list(key[2]),
-            "category": key[3],
-            "message": key[4],
-            "example_jobs": sorted(failure_jobs[key])[:3],
-        }
-        for key, count in failure_items[:top]
-    ]
+    failure_report = []
+    for key, count in failure_items[:top]:
+        jobs = example_job_ids(failure_jobs[key], incident_xml)
+        failure_report.append(
+            {
+                "count": count,
+                "collection": key[0],
+                "years": key[1],
+                "time_ranges": list(key[2]),
+                "category": key[3],
+                "message": key[4],
+                "example_jobs": jobs,
+                "status_xml": incident_paths_for_jobs(jobs, incident_xml),
+            }
+        )
     return {
         "requests": len(orchestrate),
         "outcomes": dict(sorted(outcomes.items())),
@@ -541,7 +612,10 @@ def aggregate_orchestrate(
 
 
 def aggregate(
-    records: list[dict[str, object]], top: int, sort_by: str = "name"
+    records: list[dict[str, object]],
+    top: int,
+    sort_by: str = "name",
+    incident_xml: dict[str, list[dict[str, str]]] | None = None,
 ) -> dict[str, object]:
     outcomes: Counter[str] = Counter()
     processes: dict[str, Counter[str]] = defaultdict(Counter)
@@ -629,17 +703,20 @@ def aggregate(
                 for value, count in values.most_common(top)
             ],
         }
-    messages = [
-        {
-            "count": count,
-            "category": key[0],
-            "code": key[1] or None,
-            "locator": key[2] or None,
-            "message": key[3],
-            "example_jobs": sorted(failure_jobs[key])[:3],
-        }
-        for key, count in failure_messages.most_common(top)
-    ]
+    messages = []
+    for key, count in failure_messages.most_common(top):
+        jobs = example_job_ids(failure_jobs[key], incident_xml)
+        messages.append(
+            {
+                "count": count,
+                "category": key[0],
+                "code": key[1] or None,
+                "locator": key[2] or None,
+                "message": key[3],
+                "example_jobs": jobs,
+                "status_xml": incident_paths_for_jobs(jobs, incident_xml),
+            }
+        )
     return {
         "services": sorted(services),
         "period": {
@@ -653,7 +730,9 @@ def aggregate(
         },
         "processes": process_report,
         "coverage": coverage_report,
-        "orchestrate": aggregate_orchestrate(records, top, sort_by),
+        "orchestrate": aggregate_orchestrate(
+            records, top, sort_by, incident_xml
+        ),
         "failure_categories": dict(failure_categories.most_common()),
         "failure_messages": messages,
     }
@@ -701,6 +780,34 @@ def print_detail_field(label: str, value: str, *, indent: int = 4) -> None:
             break_on_hyphens=False,
         )
     )
+
+
+def print_status_xml(
+    status_xml: dict[str, list[dict[str, str]]],
+    job_ids: Iterable[str],
+    *,
+    indent: int,
+) -> None:
+    documents = [
+        (job_id, document)
+        for job_id in job_ids
+        for document in status_xml.get(job_id, [])
+    ]
+    if len(documents) == 1:
+        _, document = documents[0]
+        print_detail_field(
+            f"{document['kind'].capitalize()} XML",
+            document["path"],
+            indent=indent,
+        )
+    elif documents:
+        print(f"{' ' * indent}Status XML documents")
+        for job_id, document in documents:
+            print_detail_field(
+                f"{document['kind'].capitalize()} XML ({job_id})",
+                document["path"],
+                indent=indent + 2,
+            )
 
 
 def print_report(
@@ -834,8 +941,11 @@ def print_report(
                             truncate_detail_message(failure["message"]),
                             indent=8,
                         )
-                        print_detail_field(
-                            "Jobs", ", ".join(failure["example_jobs"]), indent=8
+                        job_ids = failure["example_jobs"]
+                        job_label = "Job ID" if len(job_ids) == 1 else "Job IDs"
+                        print_detail_field(job_label, ", ".join(job_ids), indent=8)
+                        print_status_xml(
+                            failure.get("status_xml", {}), job_ids, indent=8
                         )
 
     if not orchestrate_only:
@@ -864,18 +974,41 @@ def print_report(
                     value for value in (item["code"], item["locator"]) if value
                 )
                 suffix = f" ({context})" if context else ""
-                jobs = ",".join(item["example_jobs"])
+                job_ids = ", ".join(item["example_jobs"])
+                job_label = (
+                    "Job ID" if len(item["example_jobs"]) == 1 else "Job IDs"
+                )
                 print(
                     f"    {item['count']:>5} [{item['category']}] "
-                    f"{truncate_detail_message(item['message'])}{suffix} jobs={jobs}"
+                    f"{truncate_detail_message(item['message'])}{suffix} "
+                    f"{job_label}: {job_ids}"
+                )
+                print_status_xml(
+                    item.get("status_xml", {}), item["example_jobs"], indent=6
                 )
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(
+    argv: list[str] | None = None, *, now: datetime | None = None
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("logs", nargs="+", type=Path, help="request JSONL logs, optionally .gz")
-    parser.add_argument("--from", dest="start", help="inclusive ISO date or timestamp")
-    parser.add_argument("--to", dest="end", help="inclusive ISO date or timestamp")
+    time_start = parser.add_mutually_exclusive_group()
+    time_start.add_argument(
+        "--from",
+        dest="start",
+        help="inclusive ISO date/timestamp, today, or yesterday (default: yesterday)",
+    )
+    time_start.add_argument(
+        "--all-time",
+        action="store_true",
+        help="inspect all retained records instead of starting yesterday",
+    )
+    parser.add_argument(
+        "--to",
+        dest="end",
+        help="inclusive ISO date/timestamp, today, or yesterday",
+    )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--process",
@@ -899,6 +1032,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="include detailed requested-data coverage in the text report",
     )
     parser.add_argument(
+        "--incident-dir",
+        type=Path,
+        help="directory containing archived recovered XML status documents",
+    )
+    parser.add_argument(
         "--sort",
         choices=("name", "requests", "successful", "failed"),
         default="name",
@@ -909,8 +1047,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.top < 1:
         parser.error("--top must be positive")
     try:
-        args.start = parse_time(args.start) if args.start else None
-        args.end = parse_time(args.end, end=True) if args.end else None
+        if args.start:
+            args.start = parse_time(args.start, now=now)
+        elif not args.all_time:
+            args.start = parse_time("yesterday", now=now)
+        else:
+            args.start = None
+        args.end = parse_time(args.end, end=True, now=now) if args.end else None
     except argparse.ArgumentTypeError as error:
         parser.error(str(error))
     if args.start and args.end and args.start > args.end:
@@ -935,7 +1078,12 @@ def main(argv: list[str] | None = None) -> int:
         if not args.all_processes and record.get("process") != args.process:
             continue
         selected.append(record)
-    report = aggregate(selected, args.top, args.sort)
+    report = aggregate(
+        selected,
+        args.top,
+        args.sort,
+        incident_xml_paths(args.incident_dir),
+    )
     report["operations"] = aggregate_operations(operations, args.top)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

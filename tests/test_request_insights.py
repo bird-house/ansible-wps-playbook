@@ -367,7 +367,9 @@ class RequestInsightsTests(unittest.TestCase):
             )
             output = io.StringIO()
             with redirect_stdout(output):
-                result = MODULE.main([str(log), "--all-processes", "--json"])
+                result = MODULE.main(
+                    [str(log), "--all-time", "--all-processes", "--json"]
+                )
         report = json.loads(output.getvalue())
         self.assertEqual(result, 0)
         self.assertEqual(report["requests"], 1)
@@ -386,7 +388,7 @@ class RequestInsightsTests(unittest.TestCase):
             )
             output = io.StringIO()
             with redirect_stdout(output):
-                result = MODULE.main([str(log), "--json"])
+                result = MODULE.main([str(log), "--all-time", "--json"])
         self.assertEqual(result, 0)
         report = json.loads(output.getvalue())
         self.assertEqual(report["requests"], 1)
@@ -404,6 +406,35 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertNotIn("Processes", text)
         self.assertNotIn("Requested-data coverage", text)
         self.assertNotIn("All-process failure causes", text)
+
+    def test_default_time_window_starts_yesterday(self):
+        now = MODULE.datetime(2026, 8, 21, 10, 30, tzinfo=MODULE.UTC)
+
+        default = MODULE.parse_args(["requests.jsonl"], now=now)
+        today = MODULE.parse_args(
+            ["requests.jsonl", "--from", "today"], now=now
+        )
+        all_time = MODULE.parse_args(
+            ["requests.jsonl", "--all-time"], now=now
+        )
+
+        self.assertEqual(
+            default.start,
+            MODULE.datetime(2026, 8, 20, tzinfo=MODULE.UTC),
+        )
+        self.assertEqual(
+            today.start,
+            MODULE.datetime(2026, 8, 21, tzinfo=MODULE.UTC),
+        )
+        self.assertIsNone(all_time.start)
+
+        summer_time = MODULE.timezone(MODULE.timedelta(hours=2))
+        local_now = MODULE.datetime(2026, 8, 21, 10, 30, tzinfo=summer_time)
+        local_default = MODULE.parse_args(["requests.jsonl"], now=local_now)
+        self.assertEqual(
+            local_default.start,
+            MODULE.datetime(2026, 8, 19, 22, 0, tzinfo=MODULE.UTC),
+        )
 
     def test_text_uses_compact_timestamps_and_outcomes(self):
         item = dict(record("1"), process="orchestrate")
@@ -543,7 +574,84 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertIn("      1 request", detailed_text)
         self.assertIn("        Selection: years=2050  time=2050/2050", detailed_text)
         self.assertIn("        Reason: Job cancelled due to time limit", detailed_text)
-        self.assertIn("        Jobs: 1", detailed_text)
+        self.assertIn("        Job ID: 1", detailed_text)
+
+    def test_recovered_xml_is_matched_by_job_id(self):
+        job_id = "fb1c6d4a-9ccd-11f1-8dad-fa163eb671ca"
+        item = record(job_id, "failed", "Job cancelled due to time limit")
+        item["finished_at"] = "2026-08-20T19:46:04+00:00"
+        item["process"] = "orchestrate"
+        with tempfile.TemporaryDirectory() as temporary:
+            incident_dir = Path(temporary)
+            recovered = incident_dir / (
+                "20260820T194604Z__recovered__rook__regrid__"
+                f"{job_id}.xml"
+            )
+            recovered.write_text("<status />", encoding="utf-8")
+            paths = MODULE.incident_xml_paths(incident_dir)
+            report = MODULE.aggregate(
+                [item], top=10, incident_xml=paths
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                MODULE.print_report(report, failure_details=True)
+
+        failure = report["orchestrate"]["failures"][0]
+        self.assertEqual(
+            failure["status_xml"],
+            {job_id: [{"kind": "recovered", "path": str(recovered)}]},
+        )
+        self.assertIn(f"        Job ID: {job_id}", output.getvalue())
+        self.assertIn(f"        Recovered XML: {recovered}", output.getvalue())
+
+    def test_error_xml_is_matched_by_job_id(self):
+        job_id = "fb1c6d4a-9ccd-11f1-8dad-fa163eb671ca"
+        item = record(job_id, "failed", "No timesteps are matching")
+        item["finished_at"] = "2026-08-20T19:46:04+00:00"
+        item["process"] = "orchestrate"
+        with tempfile.TemporaryDirectory() as temporary:
+            incident_dir = Path(temporary)
+            error_xml = incident_dir / (
+                "20260820T194604Z__error__rook__regrid__"
+                f"{job_id}.xml"
+            )
+            error_xml.write_text("<status />", encoding="utf-8")
+            paths = MODULE.incident_xml_paths(incident_dir)
+            report = MODULE.aggregate([item], top=10, incident_xml=paths)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                MODULE.print_report(report, failure_details=True)
+
+        failure = report["orchestrate"]["failures"][0]
+        self.assertEqual(
+            failure["status_xml"],
+            {job_id: [{"kind": "error", "path": str(error_xml)}]},
+        )
+        self.assertIn(f"        Error XML: {error_xml}", output.getvalue())
+
+    def test_recovered_job_is_prioritized_in_group_examples(self):
+        recovered_job = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        incidents = {
+            recovered_job: [
+                {"kind": "recovered", "path": "/incidents/recovered.xml"}
+            ]
+        }
+        self.assertEqual(
+            MODULE.example_job_ids(
+                {
+                    "00000000-0000-0000-0000-000000000001",
+                    "00000000-0000-0000-0000-000000000002",
+                    "00000000-0000-0000-0000-000000000003",
+                    recovered_job,
+                },
+                incidents,
+            ),
+            [
+                recovered_job,
+                "00000000-0000-0000-0000-000000000001",
+                "00000000-0000-0000-0000-000000000002",
+            ],
+        )
 
     def test_classifies_common_time_selection_failures(self):
         no_timesteps = record(

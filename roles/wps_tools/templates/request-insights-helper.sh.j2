@@ -5,7 +5,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 || $1 == -h || $1 == --help ]]; then
-    echo "Usage: insights SERVICE_NAME [--from TIME] [--to TIME] [--process PROCESS | --all-processes] [--sort name|requests|successful|failed] [--top N] [--failures] [--coverage] [--json]" >&2
+    echo "Usage: insights SERVICE_NAME [--from TIME | --all-time] [--to TIME] [--process PROCESS | --all-processes] [--sort name|requests|successful|failed] [--top N] [--failures] [--coverage] [--json]" >&2
     [[ ${1:-} == -h || ${1:-} == --help ]] && exit 0
     exit 2
 fi
@@ -26,4 +26,6 @@ if [[ -z ${logs[0]:-} ]]; then
     exit 1
 fi
 exec /usr/bin/python3 "{{ wps_tools_script_dir }}/pywps-request-insights.py" \
-    "${logs[@]}" "$@"
+    "${logs[@]}" \
+    --incident-dir "{{ wps_tools_incident_archive_dir }}/$service" \
+    "$@"
