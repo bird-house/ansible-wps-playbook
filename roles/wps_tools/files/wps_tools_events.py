@@ -27,6 +27,59 @@ TIMEOUT_FAILURE_RE = re.compile(
     r"exceeded[^\n]*(?:run|execution) time",
     re.IGNORECASE,
 )
+FAILURE_PATTERNS = (
+    ("memory", MEMORY_FAILURE_RE),
+    ("timeout", TIMEOUT_FAILURE_RE),
+    (
+        "no-data",
+        re.compile(
+            r"no valid data points|no data (?:found|available)|"
+            r"empty (?:subset|selection)|"
+            r"no timesteps? (?:are )?matching (?:the )?selection criteria",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "spatial",
+        re.compile(
+            r"not within (?:the )?(?:longitude|latitude) bounds|"
+            r"longitude frame|outside (?:the )?(?:spatial|longitude|latitude) "
+            r"bounds|invalid bounding box|\b(?:longitude|latitude)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "input",
+        re.compile(
+            r"invalid (?:input|parameter)|missing (?:input|parameter)|"
+            r"not found|unavailable|permission denied|access denied|"
+            r"cannot create TimeComponentsParameter",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "scheduler",
+        re.compile(
+            r"\b(?:slurm|drmaa|scheduler|sbatch|srun|squeue)\b",
+            re.IGNORECASE,
+        ),
+    ),
+)
+GENERIC_FAILURE_RE = re.compile(
+    r"^(?:NoApplicableCode\s+(?:None\s+)?)?"
+    r"(?:Process failed, please check server error log|Process error: unknown)\s*$",
+    re.IGNORECASE,
+)
+
+
+def failure_category_from_text(text: str) -> str:
+    """Classify a WPS failure message using the shared operator categories."""
+    for name, pattern in FAILURE_PATTERNS:
+        if pattern.search(text):
+            return name
+    if GENERIC_FAILURE_RE.match(text.strip()):
+        return "unknown"
+    return "other" if text.strip() else "unknown"
 
 
 def now_text() -> str:

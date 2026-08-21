@@ -15,58 +15,13 @@ from datetime import datetime, time, timezone
 from pathlib import Path
 from typing import Iterable, TextIO
 
-from wps_tools_events import MEMORY_FAILURE_RE, TIMEOUT_FAILURE_RE
+from wps_tools_events import failure_category_from_text
 
 
 UTC = timezone.utc
 DETAIL_CATEGORY_PRIORITY = ("memory", "timeout")
 MAX_DETAIL_MESSAGE_LENGTH = 300
 TRUNCATION_MARKER = " [..]"
-FAILURE_PATTERNS = (
-    (
-        "memory",
-        MEMORY_FAILURE_RE,
-    ),
-    (
-        "timeout",
-        TIMEOUT_FAILURE_RE,
-    ),
-    (
-        "no-data",
-        re.compile(
-            r"no valid data points|no data (?:found|available)|empty (?:subset|selection)|"
-            r"no timesteps? (?:are )?matching (?:the )?selection criteria",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "spatial",
-        re.compile(
-            r"not within (?:the )?(?:longitude|latitude) bounds|longitude frame|"
-            r"outside (?:the )?(?:spatial|longitude|latitude) bounds|invalid bounding box|"
-            r"\b(?:longitude|latitude)\b",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "input",
-        re.compile(
-            r"invalid (?:input|parameter)|missing (?:input|parameter)|not found|"
-            r"unavailable|permission denied|access denied|"
-            r"cannot create TimeComponentsParameter",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "scheduler",
-        re.compile(r"\b(?:slurm|drmaa|scheduler|sbatch|srun|squeue)\b", re.IGNORECASE),
-    ),
-)
-GENERIC_FAILURE_RE = re.compile(
-    r"^(?:NoApplicableCode\s+(?:None\s+)?)?"
-    r"(?:Process failed, please check server error log|Process error: unknown)\s*$",
-    re.IGNORECASE,
-)
 STEP_OUTPUT_RE = re.compile(r"^[A-Za-z0-9_.-]+/output$")
 NO_DATA_RE = re.compile(
     r"There were no valid data points found in the requested subset\."
@@ -238,13 +193,7 @@ def failure_text(record: dict[str, object]) -> str:
 
 
 def failure_category(record: dict[str, object]) -> str:
-    text = failure_text(record)
-    for name, pattern in FAILURE_PATTERNS:
-        if pattern.search(text):
-            return name
-    if GENERIC_FAILURE_RE.match(text.strip()):
-        return "unknown"
-    return "other" if text.strip() else "unknown"
+    return failure_category_from_text(failure_text(record))
 
 
 def detail_category_order(counts: dict[str, int] | Counter[str]) -> list[str]:

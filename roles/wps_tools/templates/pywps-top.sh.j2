@@ -12,7 +12,7 @@ fail() {
 usage() {
     local exit_code=${1:-2}
     echo "Usage: ptop SERVICE_NAME [--window 1h|24h] [--top N]" >&2
-    echo "Set PTOP_INTERVAL to change the refresh interval (default: 5 seconds)." >&2
+    echo "Set PTOP_INTERVAL to change the refresh interval (default: 2 seconds)." >&2
     exit "$exit_code"
 }
 
@@ -29,7 +29,7 @@ main() {
         usage 0
     fi
 
-    local interval=${PTOP_INTERVAL:-5}
+    local interval=${PTOP_INTERVAL:-2}
     [[ $interval =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "PTOP_INTERVAL must be a positive number"
     [[ $interval != 0 && $interval != 0.0 ]] || fail "PTOP_INTERVAL must be positive"
 

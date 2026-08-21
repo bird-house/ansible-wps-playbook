@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Iterable
 from uuid import UUID
 
+from wps_tools_events import failure_category_from_text
+
 
 UTC = timezone.utc
 MAX_DATABASE_UTC_OFFSET = timedelta(hours=14)
@@ -23,6 +25,7 @@ UUID_EPOCH_100NS = 0x01B21DD213814000
 TIMESTAMP_TOLERANCE = timedelta(minutes=5)
 WINDOW_RE = re.compile(r"^([1-9][0-9]*)([mhd])$")
 ACTIVE_STATES = {"accepted", "running"}
+FAILURE_CATEGORY_PRIORITY = ("memory", "timeout")
 
 
 def parse_window(value: str) -> timedelta:
@@ -137,6 +140,7 @@ def summarize(
     durations: list[float] = []
     process_statuses: dict[str, Counter[str]] = defaultdict(Counter)
     process_durations: dict[str, list[float]] = defaultdict(list)
+    failure_categories: Counter[str] = Counter()
     active_jobs = []
 
     for record in records:
@@ -156,6 +160,9 @@ def summarize(
                 if duration is not None:
                     durations.append(duration)
                     process_durations[identifier].append(duration)
+            if state == "failed":
+                message = str(getattr(record, "message", None) or "")
+                failure_categories[failure_category_from_text(message)] += 1
 
         if state in ACTIVE_STATES:
             age = active_age_seconds(record, now)
@@ -206,6 +213,7 @@ def summarize(
         "other": statuses["dismissed"] + statuses["other"],
         "success_rate": (statuses["successful"] / final * 100) if final else None,
         "duration_seconds": duration_summary(durations),
+        "failure_categories": dict(failure_categories.most_common()),
         "processes": processes,
         "active_jobs": active_jobs,
     }
@@ -261,6 +269,19 @@ def print_report(report: dict, *, service: str, window_label: str, top: int) -> 
         f"p95={format_duration(duration['p95'])}  "
         f"max={format_duration(duration['max'])}"
     )
+    failure_categories = report["failure_categories"]
+    prioritized = [
+        name for name in FAILURE_CATEGORY_PRIORITY if failure_categories.get(name)
+    ]
+    remaining = sorted(
+        (name for name in failure_categories if name not in prioritized),
+        key=lambda name: (-failure_categories[name], name),
+    )
+    category_order = prioritized + remaining
+    causes = "  ".join(
+        f"{name}={failure_categories[name]}" for name in category_order
+    )
+    print(f"Failure causes: {causes or 'none'}")
 
     print("\nProcesses — window requests; non-final includes all ages")
     rows = []
