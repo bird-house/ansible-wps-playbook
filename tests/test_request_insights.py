@@ -588,32 +588,54 @@ class RequestInsightsTests(unittest.TestCase):
                 f"{job_id}.xml"
             )
             recovered.write_text("<status />", encoding="utf-8")
-            paths = MODULE.recovered_xml_paths(incident_dir)
+            paths = MODULE.incident_xml_paths(incident_dir)
             report = MODULE.aggregate(
-                [item], top=10, recovered_xml=paths
+                [item], top=10, incident_xml=paths
             )
             output = io.StringIO()
             with redirect_stdout(output):
                 MODULE.print_report(report, failure_details=True)
 
         failure = report["orchestrate"]["failures"][0]
-        self.assertEqual(failure["recovered_xml"], {job_id: [str(recovered)]})
+        self.assertEqual(
+            failure["status_xml"],
+            {job_id: [{"kind": "recovered", "path": str(recovered)}]},
+        )
         self.assertIn(f"        Job ID: {job_id}", output.getvalue())
         self.assertIn(f"        Recovered XML: {recovered}", output.getvalue())
 
-    def test_regular_error_xml_is_not_reported_as_recovered(self):
+    def test_error_xml_is_matched_by_job_id(self):
         job_id = "fb1c6d4a-9ccd-11f1-8dad-fa163eb671ca"
+        item = record(job_id, "failed", "No timesteps are matching")
+        item["finished_at"] = "2026-08-20T19:46:04+00:00"
+        item["process"] = "orchestrate"
         with tempfile.TemporaryDirectory() as temporary:
             incident_dir = Path(temporary)
-            (incident_dir / (
+            error_xml = incident_dir / (
                 "20260820T194604Z__error__rook__regrid__"
                 f"{job_id}.xml"
-            )).write_text("<status />", encoding="utf-8")
-            self.assertEqual(MODULE.recovered_xml_paths(incident_dir), {})
+            )
+            error_xml.write_text("<status />", encoding="utf-8")
+            paths = MODULE.incident_xml_paths(incident_dir)
+            report = MODULE.aggregate([item], top=10, incident_xml=paths)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                MODULE.print_report(report, failure_details=True)
+
+        failure = report["orchestrate"]["failures"][0]
+        self.assertEqual(
+            failure["status_xml"],
+            {job_id: [{"kind": "error", "path": str(error_xml)}]},
+        )
+        self.assertIn(f"        Error XML: {error_xml}", output.getvalue())
 
     def test_recovered_job_is_prioritized_in_group_examples(self):
         recovered_job = "ffffffff-ffff-ffff-ffff-ffffffffffff"
-        recovered = {recovered_job: ["/incidents/recovered.xml"]}
+        incidents = {
+            recovered_job: [
+                {"kind": "recovered", "path": "/incidents/recovered.xml"}
+            ]
+        }
         self.assertEqual(
             MODULE.example_job_ids(
                 {
@@ -622,7 +644,7 @@ class RequestInsightsTests(unittest.TestCase):
                     "00000000-0000-0000-0000-000000000003",
                     recovered_job,
                 },
-                recovered,
+                incidents,
             ),
             [
                 recovered_job,

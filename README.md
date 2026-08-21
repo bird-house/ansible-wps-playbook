@@ -852,9 +852,11 @@ and one line per requested dataset. A process table
 is shown only when multiple processes are selected. Use `--coverage` to append
 the detailed requested-input dimensions to a text report. Use `--failures` to
 append failure blocks grouped by dataset, with their selection, concise reason
-and example job IDs. JSON always retains both coverage and failure details. The
-detailed view shows `memory` and `timeout` first, then the remaining categories
-by total frequency. Within each category, datasets and selection groups are
+and example job IDs. When an archived `error` or `recovered` status document is
+available for an example job, its path is shown as well. JSON always retains
+both coverage and failure details. The detailed view shows `memory` and
+`timeout` first, then the remaining categories by total frequency. Within each
+category, datasets and selection groups are
 ordered by frequency. The `--top` allowance is distributed across categories
 so one noisy cause does not hide every other cause. Verbose `cftime` datetime
 representations are reduced to their requested years, and traceback text is
