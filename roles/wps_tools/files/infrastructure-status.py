@@ -369,12 +369,18 @@ def value_or_dash(value: float | None, suffix: str = "") -> str:
 
 
 def signed_or_dash(value: float | None, suffix: str = "") -> str:
-    return "-" if value is None else f"{value:+.1f}{suffix}"
+    if value is None:
+        return "-"
+    if abs(value) < 0.05:
+        return f"0.0{suffix}"
+    return f"{value:+.1f}{suffix}"
 
 
 def signed_bytes_or_dash(value: float | None) -> str:
     if value is None:
         return "-"
+    if abs(value) < 0.5:
+        return "0B"
     sign = "+" if value >= 0 else "-"
     return f"{sign}{format_bytes(abs(value))}"
 
@@ -399,18 +405,18 @@ def print_report(report: dict[str, object]) -> None:
     load = report["load"]
     load_history = report["load_history"]
     print(
-        f"Load: 1m={value_or_dash(load[0])}  5m={value_or_dash(load[1])}  "
+        f"\nLoad: 1m={value_or_dash(load[0])}  5m={value_or_dash(load[1])}  "
         f"15m={value_or_dash(load[2])}  cores={report['cpu_count'] or '-'}"
     )
     print(
-        f"Load window (1m): change={signed_or_dash(load_history['change'])}  "
+        f"  Window (1m): change={signed_or_dash(load_history['change'])}  "
         f"min={value_or_dash(load_history['min'])}  "
         f"avg={value_or_dash(load_history['average'])}  "
         f"max={value_or_dash(load_history['max'])}"
     )
     memory = report["memory"]
     if memory["total"] is None or memory["used"] is None:
-        print("Memory: unavailable")
+        print("\nMemory: unavailable")
     else:
         available = (
             format_bytes(memory["available"])
@@ -418,26 +424,26 @@ def print_report(report: dict[str, object]) -> None:
             else "-"
         )
         print(
-            f"Memory: used={format_bytes(memory['used'])}/{format_bytes(memory['total'])} "
+            f"\nMemory: used={format_bytes(memory['used'])}/{format_bytes(memory['total'])} "
             f"({value_or_dash(memory['percent'], '%')})  available={available}"
         )
     memory_history = report["memory_history"]
     print(
-        f"Memory window: change={signed_bytes_or_dash(memory_history['change'])}  "
+        f"  Window: change={signed_bytes_or_dash(memory_history['change'])}  "
         f"min={bytes_or_dash(memory_history['min'])}  "
         f"avg={bytes_or_dash(memory_history['average'])}  "
         f"max={bytes_or_dash(memory_history['max'])}"
     )
     swap = report["swap"]
     if swap["total"] is None:
-        print("Swap: unavailable")
+        print("  Swap: unavailable")
     elif swap["total"]:
         print(
-            f"Swap: used={format_bytes(swap['used'])}/{format_bytes(swap['total'])} "
+            f"  Swap: used={format_bytes(swap['used'])}/{format_bytes(swap['total'])} "
             f"({value_or_dash(swap['percent'], '%')})"
         )
     else:
-        print("Swap: disabled")
+        print("  Swap: disabled")
 
     print("\nFilesystems")
     print("Path                         Used     Free    Total    Use  Change    Min    Avg    Max")

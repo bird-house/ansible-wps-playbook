@@ -167,17 +167,17 @@ class InfrastructureStatusTests(unittest.TestCase):
         self.assertIn("Infrastructure — rook7", text)
         self.assertIn("Collectd: fresh", text)
         self.assertIn("Window: last 1h", text)
-        self.assertIn("Load: 1m=1.0  5m=0.8  15m=0.5  cores=8", text)
+        self.assertIn("\n\nLoad: 1m=1.0  5m=0.8  15m=0.5  cores=8", text)
         self.assertIn(
-            "Load window (1m): change=+0.5  min=0.5  avg=0.8  max=1.0",
+            "  Window (1m): change=+0.5  min=0.5  avg=0.8  max=1.0",
             text,
         )
         self.assertIn("Memory: used=4.0G/16.0G (25.0%)", text)
         self.assertIn(
-            "Memory window: change=+512.0M  min=3.5G  avg=3.8G  max=4.0G",
+            "  Window: change=+512.0M  min=3.5G  avg=3.8G  max=4.0G",
             text,
         )
-        self.assertIn("Swap: used=512.0M/2.0G (25.0%)", text)
+        self.assertIn("  Swap: used=512.0M/2.0G (25.0%)", text)
         self.assertIn("Filesystems", text)
 
     def test_window_statistics_include_disk_change(self):
@@ -238,6 +238,10 @@ class InfrastructureStatusTests(unittest.TestCase):
         self.assertEqual(MODULE.parse_window("30m"), timedelta(minutes=30))
         self.assertEqual(MODULE.parse_window("24h"), timedelta(hours=24))
         self.assertEqual(MODULE.parse_window("7d"), timedelta(days=7))
+
+    def test_tiny_changes_do_not_render_as_negative_zero(self):
+        self.assertEqual(MODULE.signed_or_dash(-0.001, "pp"), "0.0pp")
+        self.assertEqual(MODULE.signed_bytes_or_dash(-0.1), "0B")
 
 
 if __name__ == "__main__":
