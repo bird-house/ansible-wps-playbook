@@ -8,10 +8,10 @@ chunk_memory_limit = {{ roocs_chunk_memory_limit }}
 file_size_limit = {{ roocs_file_size_limit }}
 
 [subset:batching]
-target_timesteps = 2000
 memory_limit = {{ roocs_batch_memory_limit }}
-min_batch_years = 1
-max_batch_years = 10
+
+[concat:batching]
+memory_limit = {{ roocs_batch_memory_limit }}
 
 [project:cmip5]
 base_dir = {{ roocs_cmip5_path }}

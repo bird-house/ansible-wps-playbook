@@ -678,10 +678,11 @@
           - "'chunk_memory_limit = 128MiB' in test_roocs_config"
           - "'file_size_limit = 2GB' in test_roocs_config"
           - "'[subset:batching]' in test_roocs_config"
-          - "'target_timesteps = 2000' in test_roocs_config"
-          - "'memory_limit = 17066MB' in test_roocs_config"
-          - "'min_batch_years = 1' in test_roocs_config"
-          - "'max_batch_years = 10' in test_roocs_config"
+          - "'[concat:batching]' in test_roocs_config"
+          - "test_roocs_config.count('memory_limit = 17066MB') == 2"
+          - "'target_timesteps' not in test_roocs_config"
+          - "'min_batch_years' not in test_roocs_config"
+          - "'max_batch_years' not in test_roocs_config"
           - "'base_dir = /test/dkrz/CMIP6' in test_roocs_config"
           - >-
             'base_dir = /mnt/lustre/work/kd0956/CMIP5/data/cmip5'
