@@ -493,6 +493,7 @@
           - >-
             'status_script="/opt/wps-tools/scripts/pywps-job-status.py"'
             in test_pywps_top
+          - "'local interval=${PTOP_INTERVAL:-2}' in test_pywps_top"
           - >-
             'exec watch -n "$interval" -- "$python" "$status_script"'
             in test_pywps_top

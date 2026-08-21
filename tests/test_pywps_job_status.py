@@ -17,6 +17,7 @@ SCRIPT = (
     / "files"
     / "pywps-job-status.py"
 )
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("pywps_job_status", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -33,13 +34,14 @@ class Status:
     DISMISSED = 5
 
 
-def record(job_id, process, status, started, ended=None):
+def record(job_id, process, status, started, ended=None, message=None):
     return SimpleNamespace(
         uuid=job_id,
         identifier=process,
         status=status,
         time_start=started,
         time_end=ended,
+        message=message,
     )
 
 
@@ -67,6 +69,7 @@ class PywpsJobStatusTests(unittest.TestCase):
                 Status.FAILED,
                 now - timedelta(minutes=20),
                 now - timedelta(minutes=18),
+                "No timesteps are matching the selection criteria.",
             ),
             record(
                 "recent-run",
@@ -99,6 +102,7 @@ class PywpsJobStatusTests(unittest.TestCase):
         self.assertEqual(report["requests"], 3)
         self.assertEqual(report["successful"], 1)
         self.assertEqual(report["failed"], 1)
+        self.assertEqual(report["failure_categories"], {"no-data": 1})
         self.assertEqual(report["active_in_window"], 1)
         self.assertEqual(len(report["active_jobs"]), 2)
         orchestrate = next(
@@ -130,6 +134,7 @@ class PywpsJobStatusTests(unittest.TestCase):
         text = output.getvalue()
         self.assertIn("PyWPS database — rook", text)
         self.assertIn("Window: last 1h", text)
+        self.assertIn("Failure causes: none", text)
         self.assertIn("Processes — window requests; non-final includes all ages", text)
         self.assertIn("Non-final database jobs — all ages (1)", text)
         self.assertIn("2026-08-20", text)
@@ -147,6 +152,53 @@ class PywpsJobStatusTests(unittest.TestCase):
         )
 
         self.assertEqual(MODULE.active_age_seconds(job, now), 3 * 60 * 60)
+
+    def test_failure_summary_uses_insights_categories_and_priority(self):
+        now = datetime(2026, 8, 20, 20, tzinfo=timezone.utc)
+        report = MODULE.summarize(
+            [
+                record(
+                    "memory",
+                    "orchestrate",
+                    Status.FAILED,
+                    now - timedelta(minutes=5),
+                    now - timedelta(minutes=4),
+                    "Detected 1 oom-kill event",
+                ),
+                record(
+                    "spatial",
+                    "subset",
+                    Status.FAILED,
+                    now - timedelta(minutes=3),
+                    now - timedelta(minutes=2),
+                    "Input longitude bounds cross the 0 degree meridian",
+                ),
+                record(
+                    "no-data",
+                    "subset",
+                    Status.FAILED,
+                    now - timedelta(minutes=2),
+                    now - timedelta(minutes=1),
+                    "No timesteps are matching the selection criteria.",
+                ),
+            ],
+            Status,
+            now=now,
+            window=timedelta(hours=1),
+        )
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            MODULE.print_report(report, service="rook", window_label="1h", top=10)
+
+        self.assertEqual(
+            report["failure_categories"],
+            {"memory": 1, "spatial": 1, "no-data": 1},
+        )
+        self.assertIn(
+            "Failure causes: memory=1  no-data=1  spatial=1",
+            output.getvalue(),
+        )
 
 
 if __name__ == "__main__":

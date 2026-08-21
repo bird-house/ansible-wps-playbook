@@ -872,8 +872,10 @@ For a compact live view of recent database activity and all active jobs, use
 Windows accept minutes (`30m`), hours (`24h`), or days (`7d`). The request and
 process totals cover jobs started inside that window. The non-final database
 section also includes older accepted and running records so long or stale jobs
-do not disappear from the display. Set `PTOP_INTERVAL` to change the five-second
-refresh interval, and use `--top N` to change the number of records shown.
+do not disappear from the display. A compact failure-cause line uses the same
+memory, timeout, no-data, spatial, input, scheduler, and fallback categories as
+`insights`. Set `PTOP_INTERVAL` to change the two-second refresh interval, and
+use `--top N` to change the number of records shown.
 
 The specialist, read-only `db-report` command under `sbin/` aggregates database
 requests for an explicit range. It reports every job state, success rate,
