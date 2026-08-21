@@ -4,6 +4,8 @@
 
 Changes:
 
+- preserve available `job-error.txt` and `job-output.txt` process logs alongside
+  the source XML and scheduler dump during stalled-job recovery
 - add a focused `make update` deployment path which reinstalls WPS application
   sources without dependency resolution, refreshes PyWPS/ROOCS configuration
   and cron jobs, and restarts services without Conda or infrastructure roles
