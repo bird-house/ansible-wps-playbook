@@ -409,7 +409,8 @@ def print_report(report: dict[str, object]) -> None:
         f"15m={value_or_dash(load[2])}  cores={report['cpu_count'] or '-'}"
     )
     print(
-        f"  Window (1m): change={signed_or_dash(load_history['change'])}  "
+        f"  Last {report['window']} (1m load): "
+        f"change={signed_or_dash(load_history['change'])}  "
         f"min={value_or_dash(load_history['min'])}  "
         f"avg={value_or_dash(load_history['average'])}  "
         f"max={value_or_dash(load_history['max'])}"
@@ -429,7 +430,8 @@ def print_report(report: dict[str, object]) -> None:
         )
     memory_history = report["memory_history"]
     print(
-        f"  Window: change={signed_bytes_or_dash(memory_history['change'])}  "
+        f"  Last {report['window']}: "
+        f"change={signed_bytes_or_dash(memory_history['change'])}  "
         f"min={bytes_or_dash(memory_history['min'])}  "
         f"avg={bytes_or_dash(memory_history['average'])}  "
         f"max={bytes_or_dash(memory_history['max'])}"

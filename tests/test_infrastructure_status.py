@@ -169,12 +169,12 @@ class InfrastructureStatusTests(unittest.TestCase):
         self.assertIn("Window: last 1h", text)
         self.assertIn("\n\nLoad: 1m=1.0  5m=0.8  15m=0.5  cores=8", text)
         self.assertIn(
-            "  Window (1m): change=+0.5  min=0.5  avg=0.8  max=1.0",
+            "  Last 1h (1m load): change=+0.5  min=0.5  avg=0.8  max=1.0",
             text,
         )
         self.assertIn("Memory: used=4.0G/16.0G (25.0%)", text)
         self.assertIn(
-            "  Window: change=+512.0M  min=3.5G  avg=3.8G  max=4.0G",
+            "  Last 1h: change=+512.0M  min=3.5G  avg=3.8G  max=4.0G",
             text,
         )
         self.assertIn("  Swap: used=512.0M/2.0G (25.0%)", text)
