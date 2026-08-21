@@ -10,6 +10,8 @@
     fail_msg: >-
       Unknown ROOCS path profile '{{ roocs_profile }}'. Available profiles:
       {{ roocs_project_path_profiles.keys() | sort | join(', ') }}.
+  tags:
+    - live_update
 
 - name: Validate ROOCS project paths
   ansible.builtin.assert:
@@ -33,6 +35,8 @@
       c3s_cica_atlas: "{{ roocs_c3s_cica_atlas_path }}"
       copernicus_interactive_climate_atlas: >-
         {{ roocs_copernicus_interactive_climate_atlas_path }}
+  tags:
+    - live_update
 
 - name: Validate ROOCS read and write limits
   ansible.builtin.assert:
@@ -48,6 +52,8 @@
     fail_msg: >-
       roocs_chunk_memory_limit and roocs_file_size_limit must be positive
       integer sizes such as 128MiB or 2GB.
+  tags:
+    - live_update
 
 - name: Clean roocs cache dir
   file:
@@ -61,3 +67,5 @@
     owner: root
     group: "{{ wps_group }}"
     mode: "0640"
+  tags:
+    - live_update

@@ -13,6 +13,8 @@ help:
 	@echo "  play        to run ansible playbook."
 	@echo "  quick       to run all tasks except Conda tasks."
 	@echo "  update      to update WPS sources, configuration, and cron jobs."
+	@echo "  live-update"
+	@echo "              to safely update tools, cron, and runtime configuration without restarts."
 	@echo "  lint        to lint YAML, Ansible, and test shell scripts."
 	@echo "  check       to run an Ansible syntax check."
 	@echo "  config-check"
@@ -39,6 +41,11 @@ quick: roles
 update: roles
 	echo "Updating PyWPS sources, configuration, and cron jobs with Ansible ..."
 	ansible-playbook -c local --tags update --skip-tags conda -i hosts playbook.yml
+
+.PHONY: live-update
+live-update: roles
+	@echo "Safely updating WPS tools, cron jobs, and runtime configuration ..."
+	ansible-playbook -c local --tags live_update --skip-tags conda,slurm -i hosts playbook.yml
 
 .PHONY: play
 play: roles

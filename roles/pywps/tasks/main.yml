@@ -22,6 +22,7 @@
   include_tasks: base.yml
   tags:
     - update
+    - live_update
 
 - name: Include web service tasks
   include_tasks: webservice.yml

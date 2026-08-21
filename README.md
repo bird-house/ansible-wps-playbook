@@ -286,6 +286,24 @@ roocs_project_path_profiles:
 When project semantics need to change for a newer Rook or clisops release,
 update the single template together with the deployed application version.
 
+### Update a running production service safely
+
+Use the narrowly scoped live update when maintenance tools or runtime
+configuration need to be deployed without interrupting active services or
+Slurm jobs:
+
+```sh
+make live-update
+```
+
+This updates the non-Slurm parts of `wps_tools`, its PyWPS cron definitions,
+`/etc/pywps/*.cfg`, `/usr/lib/tmpfiles.d/pywps.conf`, and `/etc/roocs.ini`. It
+does not update application sources or Conda environments, touch Slurm or
+PostgreSQL, delete the ROOCS cache, change web-service process configuration, or
+restart/reload services. Existing processes may retain configuration already
+loaded in memory until they recycle naturally; the command deliberately does
+not force that transition.
+
 ### Configure collectd monitoring
 
 Collectd monitoring is enabled by default and supports Red Hat family version
