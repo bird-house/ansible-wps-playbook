@@ -50,7 +50,9 @@ class InfrastructureStatusTests(unittest.TestCase):
         )
         (self.proc_root / "meminfo").write_text(
             "MemTotal:       16777216 kB\n"
-            "MemAvailable:   12582912 kB\n",
+            "MemAvailable:   12582912 kB\n"
+            "SwapTotal:       2097152 kB\n"
+            "SwapFree:        1572864 kB\n",
             encoding="utf-8",
         )
 
@@ -83,6 +85,8 @@ class InfrastructureStatusTests(unittest.TestCase):
         self.assertEqual(report["memory"]["used"], 4 * 1024**3)
         self.assertEqual(report["memory"]["total"], 16 * 1024**3)
         self.assertEqual(report["memory"]["percent"], 25)
+        self.assertEqual(report["memory_history"]["average"], 4 * 1024**3)
+        self.assertEqual(report["swap"]["used"], 512 * 1024**2)
         self.assertTrue(report["collectd"]["fresh"])
         self.assertEqual(len(report["filesystems"]), 1)
 
@@ -130,6 +134,19 @@ class InfrastructureStatusTests(unittest.TestCase):
                 "available": 12 * 1024**3,
                 "percent": 25.0,
             },
+            "memory_history": {
+                "count": 3,
+                "current": 4 * 1024**3,
+                "change": 512 * 1024**2,
+                "min": 3.5 * 1024**3,
+                "average": 3.75 * 1024**3,
+                "max": 4 * 1024**3,
+            },
+            "swap": {
+                "used": 512 * 1024**2,
+                "total": 2 * 1024**3,
+                "percent": 25.0,
+            },
             "filesystems": [
                 {
                     "path": "/",
@@ -156,6 +173,11 @@ class InfrastructureStatusTests(unittest.TestCase):
             text,
         )
         self.assertIn("Memory: used=4.0G/16.0G (25.0%)", text)
+        self.assertIn(
+            "Memory window: change=+512.0M  min=3.5G  avg=3.8G  max=4.0G",
+            text,
+        )
+        self.assertIn("Swap: used=512.0M/2.0G (25.0%)", text)
         self.assertIn("Filesystems", text)
 
     def test_window_statistics_include_disk_change(self):
@@ -185,6 +207,32 @@ class InfrastructureStatusTests(unittest.TestCase):
         self.assertEqual(history["min"], 40)
         self.assertEqual(history["average"], 43)
         self.assertEqual(history["max"], 46)
+
+    def test_memory_window_statistics_include_change(self):
+        first = int((self.now - timedelta(minutes=50)).timestamp())
+        last = int((self.now - timedelta(minutes=5)).timestamp())
+        self.write_metric(
+            "memory",
+            "memory-used",
+            "epoch,value",
+            f"{first},{3 * 1024**3}\n{last},{5 * 1024**3}",
+        )
+        self.write_proc()
+
+        report = MODULE.snapshot(
+            csv_dir=self.csv_dir,
+            proc_root=self.proc_root,
+            filesystems=[self.root],
+            collectd_interval=60,
+            window=timedelta(hours=1),
+            now=self.now,
+        )
+
+        history = report["memory_history"]
+        self.assertEqual(history["change"], 2 * 1024**3)
+        self.assertEqual(history["min"], 3 * 1024**3)
+        self.assertEqual(history["average"], 4 * 1024**3)
+        self.assertEqual(history["max"], 5 * 1024**3)
 
     def test_parse_window_matches_other_top_commands(self):
         self.assertEqual(MODULE.parse_window("30m"), timedelta(minutes=30))

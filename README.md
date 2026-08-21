@@ -334,12 +334,13 @@ ITOP_INTERVAL=10 /opt/wps-tools/bin/itop
 
 It shows collectd's latest 1, 5, and 15-minute load values, windowed load change,
 minimum/average/maximum, memory use, collectd freshness, and current filesystem
-capacity. The default window is one hour and accepts the same minute, hour, and
-day notation as `ptop`. The root filesystem is always included. When collectd
-disk monitoring is enabled, its configured mount also shows percentage change,
-minimum, average, and maximum over the window. The display refreshes every five
-seconds by default, although collectd values change at `collectd_interval` (60
-seconds by default).
+capacity. Memory also shows change/minimum/average/maximum over the window and
+current swap use. The default window is one hour and accepts the same minute,
+hour, and day notation as `ptop`. The root filesystem is always included. When
+collectd disk monitoring is enabled, its configured mount also shows percentage
+change, minimum, average, and maximum over the window. The display refreshes
+every five seconds by default, although collectd values change at
+`collectd_interval` (60 seconds by default).
 
 The daily summary is written to `/var/log/collectd-daily-summary.log`. Hourly
 summaries are written separately to `/var/log/collectd-hourly-summary.log`.
