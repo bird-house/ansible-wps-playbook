@@ -22,6 +22,9 @@ wps_tools_statistics_keep_days: 0
 # Compact interactive PyWPS database overview.
 wps_tools_pywps_status_script: "{{ wps_tools_script_dir }}/pywps-job-status.py"
 wps_tools_pywps_top_script: "{{ wps_tools_bin_dir }}/ptop"
+wps_tools_infrastructure_status_script: >-
+  {{ wps_tools_script_dir }}/infrastructure-status.py
+wps_tools_infrastructure_top_script: "{{ wps_tools_bin_dir }}/itop"
 
 # collectd host monitoring (Red Hat family version 9 only)
 collectd_enabled: true

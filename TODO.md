@@ -62,6 +62,21 @@ by the PyWPS deployment.
   measurement before it disappears. Keep non-Slurm PyWPS jobs visible with
   unavailable memory reported clearly rather than inferred.
 
+### Health-check telemetry for `itop`
+
+- Extend Rook's configurable health process to write one structured JSONL
+  record for each actual health evaluation, including filesystem and especially
+  Lustre mount checks. Do not write another record for every Route 53 request
+  served from the health-response cache.
+- Use a small stable schema containing the timestamp, service, overall state,
+  and named check results with status, duration, and a short sanitized error.
+  Health-log writes must be best-effort and must not delay or change the health
+  response when logging fails.
+- Rotate, compress, and bound retention for the health log. Teach `itop` to
+  read only its latest complete record and report healthy, degraded, failed, or
+  stale checks without rerunning filesystem or Lustre probes itself. Base
+  staleness on the configured health evaluation/cache interval.
+
 ### Follow-up release: modernize Slurm conservatively
 
 - Make the AlmaLinux Slurm RPM version reproducible or at least report the

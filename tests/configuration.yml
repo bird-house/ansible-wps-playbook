@@ -90,6 +90,10 @@
             wps_tools_pywps_status_script
             == '/opt/wps-tools/scripts/pywps-job-status.py'
           - wps_tools_pywps_top_script == '/opt/wps-tools/bin/ptop'
+          - >-
+            wps_tools_infrastructure_status_script
+            == '/opt/wps-tools/scripts/infrastructure-status.py'
+          - wps_tools_infrastructure_top_script == '/opt/wps-tools/bin/itop'
           - wps_tools_statistics_dir == '/var/lib/pywps/statistics'
           - wps_tools_event_keep_days | int == 42
           - wps_tools_statistics_keep_days | int == 0
@@ -263,6 +267,10 @@
           {{ lookup('ansible.builtin.template',
                     playbook_dir
                     + '/../roles/wps_tools/templates/pywps-top.sh.j2') }}
+        test_infrastructure_top: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir
+                    + '/../roles/wps_tools/templates/infrastructure-top.sh.j2') }}
         test_request_insights_helper: >-
           {{ lookup('ansible.builtin.template',
                     playbook_dir
@@ -497,6 +505,17 @@
           - >-
             'exec watch -n "$interval" -- "$python" "$status_script"'
             in test_pywps_top
+          - >-
+            'status_script="/opt/wps-tools/scripts/infrastructure-status.py"'
+            in test_infrastructure_top
+          - "'interval=${ITOP_INTERVAL:-5}' in test_infrastructure_top"
+          - "'filesystems=(--filesystem /)' in test_infrastructure_top"
+          - >-
+            '--csv-dir "/var/lib/collectd/csv/localhost"'
+            in test_infrastructure_top
+          - >-
+            'exec watch -n "$interval" -- "$status_script"'
+            in test_infrastructure_top
           - >-
             'status_script="/opt/wps-tools/scripts/slurm-job-status.py"'
             in test_slurm_top
