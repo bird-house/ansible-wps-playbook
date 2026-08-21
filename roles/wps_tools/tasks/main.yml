@@ -355,6 +355,8 @@
       pending-job critical threshold, and a positive long-running threshold
       below the hard runtime limit.
   when: slurm_enabled | bool
+  tags:
+    - slurm
 
 - name: Install Slurm job-monitor script
   ansible.builtin.copy:
@@ -364,6 +366,8 @@
     group: root
     mode: "0755"
   when: slurm_enabled | bool
+  tags:
+    - slurm
 
 - name: Install interactive Slurm job-status script
   ansible.builtin.copy:
@@ -373,6 +377,8 @@
     group: root
     mode: "0755"
   when: slurm_enabled | bool
+  tags:
+    - slurm
 
 - name: Remove legacy Slurm live-view shortcuts
   ansible.builtin.file:
@@ -381,6 +387,8 @@
   loop:
     - "{{ wps_tools_bin_dir }}/slurm-top"
     - "{{ wps_tools_bin_dir }}/top"
+  tags:
+    - slurm
 
 - name: Install Slurm live-view shortcut
   ansible.builtin.template:
@@ -390,17 +398,23 @@
     group: root
     mode: "0755"
   when: slurm_enabled | bool
+  tags:
+    - slurm
 
 - name: Remove obsolete Slurm job-control script
   ansible.builtin.file:
     path: /usr/local/sbin/slurm-job-control
     state: absent
+  tags:
+    - slurm
 
 - name: Remove Slurm job-monitor script when Slurm is disabled
   ansible.builtin.file:
     path: "{{ wps_tools_slurm_monitor_script }}"
     state: absent
   when: not (slurm_enabled | bool)
+  tags:
+    - slurm
 
 - name: Remove Slurm job-status tools when Slurm is disabled
   ansible.builtin.file:
@@ -410,12 +424,16 @@
     - "{{ wps_tools_slurm_status_script }}"
     - "{{ wps_tools_slurm_top_script }}"
   when: not (slurm_enabled | bool)
+  tags:
+    - slurm
 
 - name: Remove stale Slurm alert when monitoring is disabled
   ansible.builtin.file:
     path: "{{ wps_tools_slurm_monitor_alert_file }}"
     state: absent
   when: not (wps_tools_slurm_monitor_enabled | bool)
+  tags:
+    - slurm
 
 - name: Remove obsolete Slurm job-control cron entry
   ansible.builtin.cron:
@@ -423,6 +441,8 @@
     user: root
     cron_file: ansible_slurm
     state: absent
+  tags:
+    - slurm
 
 - name: Add MAILTO to Slurm cron file
   community.general.cronvar:
@@ -430,6 +450,8 @@
     value: "{{ cron_mailto }}"
     cron_file: ansible_slurm
     state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
+  tags:
+    - slurm
 
 - name: Schedule host-wide Slurm job monitoring
   ansible.builtin.cron:
@@ -452,6 +474,8 @@
     disabled: >-
       {{ (cron_disabled | bool) or not (wps_tools_slurm_monitor_enabled | bool) }}
     state: "{{ 'present' if slurm_enabled | bool else 'absent' }}"
+  tags:
+    - slurm
 
 - name: Install PyWPS job operator commands
   ansible.builtin.template:
@@ -715,3 +739,5 @@
     path: /usr/local/sbin/slurm-job-monitor
     state: absent
   when: wps_tools_slurm_monitor_script != '/usr/local/sbin/slurm-job-monitor'
+  tags:
+    - slurm

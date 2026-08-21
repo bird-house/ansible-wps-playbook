@@ -35,5 +35,7 @@
     apply:
       tags:
         - update
+        - live_update
   tags:
     - update
+    - live_update
