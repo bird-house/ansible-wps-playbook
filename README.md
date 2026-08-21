@@ -323,6 +323,20 @@ collectd_compress_after_days: 7
 collectd_keep_days: 30
 ```
 
+When collectd is enabled, the read-only `itop` command provides a compact live
+host overview:
+
+```sh
+/opt/wps-tools/bin/itop
+ITOP_INTERVAL=10 /opt/wps-tools/bin/itop
+```
+
+It shows collectd's latest 1, 5, and 15-minute load values, memory use,
+collectd freshness, and current filesystem capacity. The root filesystem is
+always included; `collectd_disk_mount` is included when disk collection is
+enabled. The display refreshes every five seconds by default, although the
+collectd values change at `collectd_interval` (60 seconds by default).
+
 The daily summary is written to `/var/log/collectd-daily-summary.log`. Hourly
 summaries are written separately to `/var/log/collectd-hourly-summary.log`.
 Inspect timer state and recent errors with `systemctl list-timers` and
@@ -457,8 +471,9 @@ command directory to their shell configuration:
 export PATH="/opt/wps-tools/bin:$PATH"
 ```
 
-Routine maintainer commands are `insights`, `ptop`, `smoke`, and, when Slurm is
-enabled, `qtop`. Specialist and state-changing commands remain under `sbin/`.
+Routine maintainer commands are `insights`, `ptop`, `smoke`, `itop` when
+collectd is enabled, and `qtop` when Slurm is enabled. Specialist and
+state-changing commands remain under `sbin/`.
 The playbook deliberately does not add either tool directory to the global
 `PATH`, and administrative commands remain explicitly addressed through
 `/opt/wps-tools/sbin`.

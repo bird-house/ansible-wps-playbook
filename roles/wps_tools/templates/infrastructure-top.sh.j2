@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# Live, read-only host infrastructure overview.
+
+set -euo pipefail
+
+status_script="{{ wps_tools_infrastructure_status_script }}"
+interval=${ITOP_INTERVAL:-5}
+
+[[ -x $status_script ]] || {
+    echo "[ERROR] Infrastructure status script not found: $status_script" >&2
+    exit 1
+}
+[[ $interval =~ ^[0-9]+([.][0-9]+)?$ ]] || {
+    echo "[ERROR] ITOP_INTERVAL must be a positive number" >&2
+    exit 1
+}
+[[ $interval != 0 && $interval != 0.0 ]] || {
+    echo "[ERROR] ITOP_INTERVAL must be positive" >&2
+    exit 1
+}
+
+filesystems=(--filesystem /)
+{% if collectd_disk_enabled | bool and collectd_disk_mount != '/' %}
+filesystems+=(--filesystem "{{ collectd_disk_mount }}")
+{% endif %}
+
+exec watch -n "$interval" -- "$status_script" \
+    --csv-dir "{{ collectd_csv_dir }}/{{ collectd_hostname }}" \
+    --collectd-interval "{{ collectd_interval }}" \
+    "${filesystems[@]}" "$@"
