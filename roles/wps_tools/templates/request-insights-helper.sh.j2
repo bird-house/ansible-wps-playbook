@@ -26,4 +26,6 @@ if [[ -z ${logs[0]:-} ]]; then
     exit 1
 fi
 exec /usr/bin/python3 "{{ wps_tools_script_dir }}/pywps-request-insights.py" \
-    "${logs[@]}" "$@"
+    "${logs[@]}" \
+    --incident-dir "{{ wps_tools_incident_archive_dir }}/$service" \
+    "$@"

@@ -53,6 +53,10 @@ TRACEBACK_BOUNDARY_RE = re.compile(
     r"\s+(?:During handling of the above exception|Traceback \(most recent call last\))",
     re.IGNORECASE,
 )
+RECOVERED_XML_RE = re.compile(
+    r"^[0-9]{8}T[0-9]{6}Z__recovered__.+__"
+    r"(?P<job_id>[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\.xml$"
+)
 
 
 def parse_time(value: str, *, end: bool = False) -> datetime:
@@ -107,6 +111,48 @@ def load_records(paths: Iterable[Path]) -> tuple[list[dict[str, object]], list[s
         except OSError as error:
             errors.append(f"{path}: {error}")
     return records, errors
+
+
+def recovered_xml_paths(incident_dir: Path | None) -> dict[str, list[str]]:
+    """Index archived recovered status documents by PyWPS job UUID."""
+    if incident_dir is None or not incident_dir.is_dir():
+        return {}
+    recovered: dict[str, list[str]] = defaultdict(list)
+    try:
+        paths = sorted(incident_dir.glob("*__recovered__*.xml"))
+    except OSError:
+        return {}
+    for path in paths:
+        match = RECOVERED_XML_RE.fullmatch(path.name)
+        if match and path.is_file():
+            recovered[match.group("job_id").lower()].append(str(path))
+    return dict(recovered)
+
+
+def example_job_ids(
+    job_ids: Iterable[str],
+    recovered_xml: dict[str, list[str]] | None,
+    limit: int = 3,
+) -> list[str]:
+    """Prefer recovered jobs when selecting the small set shown to operators."""
+    ordered = sorted(set(job_ids))
+    if not recovered_xml:
+        return ordered[:limit]
+    recovered = [job_id for job_id in ordered if job_id.lower() in recovered_xml]
+    ordinary = [job_id for job_id in ordered if job_id.lower() not in recovered_xml]
+    return (recovered + ordinary)[:limit]
+
+
+def recovered_paths_for_jobs(
+    job_ids: Iterable[str], recovered_xml: dict[str, list[str]] | None
+) -> dict[str, list[str]]:
+    if not recovered_xml:
+        return {}
+    return {
+        job_id: recovered_xml[job_id.lower()]
+        for job_id in job_ids
+        if job_id.lower() in recovered_xml
+    }
 
 
 def record_time(record: dict[str, object]) -> datetime | None:
@@ -434,7 +480,10 @@ def concise_failure_message(message: str) -> str:
 
 
 def aggregate_orchestrate(
-    records: list[dict[str, object]], top: int, sort_by: str
+    records: list[dict[str, object]],
+    top: int,
+    sort_by: str,
+    recovered_xml: dict[str, list[str]] | None = None,
 ) -> dict[str, object] | None:
     orchestrate = [record for record in records if record.get("process") == "orchestrate"]
     if not orchestrate:
@@ -516,18 +565,21 @@ def aggregate_orchestrate(
         if not added:
             break
         group_index += 1
-    failure_report = [
-        {
-            "count": count,
-            "collection": key[0],
-            "years": key[1],
-            "time_ranges": list(key[2]),
-            "category": key[3],
-            "message": key[4],
-            "example_jobs": sorted(failure_jobs[key])[:3],
-        }
-        for key, count in failure_items[:top]
-    ]
+    failure_report = []
+    for key, count in failure_items[:top]:
+        jobs = example_job_ids(failure_jobs[key], recovered_xml)
+        failure_report.append(
+            {
+                "count": count,
+                "collection": key[0],
+                "years": key[1],
+                "time_ranges": list(key[2]),
+                "category": key[3],
+                "message": key[4],
+                "example_jobs": jobs,
+                "recovered_xml": recovered_paths_for_jobs(jobs, recovered_xml),
+            }
+        )
     return {
         "requests": len(orchestrate),
         "outcomes": dict(sorted(outcomes.items())),
@@ -541,7 +593,10 @@ def aggregate_orchestrate(
 
 
 def aggregate(
-    records: list[dict[str, object]], top: int, sort_by: str = "name"
+    records: list[dict[str, object]],
+    top: int,
+    sort_by: str = "name",
+    recovered_xml: dict[str, list[str]] | None = None,
 ) -> dict[str, object]:
     outcomes: Counter[str] = Counter()
     processes: dict[str, Counter[str]] = defaultdict(Counter)
@@ -629,17 +684,20 @@ def aggregate(
                 for value, count in values.most_common(top)
             ],
         }
-    messages = [
-        {
-            "count": count,
-            "category": key[0],
-            "code": key[1] or None,
-            "locator": key[2] or None,
-            "message": key[3],
-            "example_jobs": sorted(failure_jobs[key])[:3],
-        }
-        for key, count in failure_messages.most_common(top)
-    ]
+    messages = []
+    for key, count in failure_messages.most_common(top):
+        jobs = example_job_ids(failure_jobs[key], recovered_xml)
+        messages.append(
+            {
+                "count": count,
+                "category": key[0],
+                "code": key[1] or None,
+                "locator": key[2] or None,
+                "message": key[3],
+                "example_jobs": jobs,
+                "recovered_xml": recovered_paths_for_jobs(jobs, recovered_xml),
+            }
+        )
     return {
         "services": sorted(services),
         "period": {
@@ -653,7 +711,9 @@ def aggregate(
         },
         "processes": process_report,
         "coverage": coverage_report,
-        "orchestrate": aggregate_orchestrate(records, top, sort_by),
+        "orchestrate": aggregate_orchestrate(
+            records, top, sort_by, recovered_xml
+        ),
         "failure_categories": dict(failure_categories.most_common()),
         "failure_messages": messages,
     }
@@ -834,9 +894,23 @@ def print_report(
                             truncate_detail_message(failure["message"]),
                             indent=8,
                         )
-                        print_detail_field(
-                            "Jobs", ", ".join(failure["example_jobs"]), indent=8
-                        )
+                        job_ids = failure["example_jobs"]
+                        job_label = "Job ID" if len(job_ids) == 1 else "Job IDs"
+                        print_detail_field(job_label, ", ".join(job_ids), indent=8)
+                        recovered = failure.get("recovered_xml", {})
+                        recovered_paths = [
+                            (job_id, path)
+                            for job_id in job_ids
+                            for path in recovered.get(job_id, [])
+                        ]
+                        if len(recovered_paths) == 1:
+                            print_detail_field(
+                                "Recovered XML", recovered_paths[0][1], indent=8
+                            )
+                        elif recovered_paths:
+                            print("        Recovered XML documents")
+                            for job_id, path in recovered_paths:
+                                print_detail_field(job_id, path, indent=10)
 
     if not orchestrate_only:
         if coverage:
@@ -864,11 +938,23 @@ def print_report(
                     value for value in (item["code"], item["locator"]) if value
                 )
                 suffix = f" ({context})" if context else ""
-                jobs = ",".join(item["example_jobs"])
+                job_ids = ", ".join(item["example_jobs"])
+                job_label = (
+                    "Job ID" if len(item["example_jobs"]) == 1 else "Job IDs"
+                )
                 print(
                     f"    {item['count']:>5} [{item['category']}] "
-                    f"{truncate_detail_message(item['message'])}{suffix} jobs={jobs}"
+                    f"{truncate_detail_message(item['message'])}{suffix} "
+                    f"{job_label}: {job_ids}"
                 )
+                for recovered_job_id, paths in item.get("recovered_xml", {}).items():
+                    for path in paths:
+                        label = (
+                            "Recovered XML"
+                            if len(item["recovered_xml"]) == 1 and len(paths) == 1
+                            else f"Recovered XML ({recovered_job_id})"
+                        )
+                        print_detail_field(label, path, indent=6)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -897,6 +983,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--coverage",
         action="store_true",
         help="include detailed requested-data coverage in the text report",
+    )
+    parser.add_argument(
+        "--incident-dir",
+        type=Path,
+        help="directory containing archived recovered XML status documents",
     )
     parser.add_argument(
         "--sort",
@@ -935,7 +1026,12 @@ def main(argv: list[str] | None = None) -> int:
         if not args.all_processes and record.get("process") != args.process:
             continue
         selected.append(record)
-    report = aggregate(selected, args.top, args.sort)
+    report = aggregate(
+        selected,
+        args.top,
+        args.sort,
+        recovered_xml_paths(args.incident_dir),
+    )
     report["operations"] = aggregate_operations(operations, args.top)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
