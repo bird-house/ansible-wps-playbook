@@ -24,8 +24,12 @@ filesystems=(--filesystem /)
 {% if collectd_disk_enabled | bool and collectd_disk_mount != '/' %}
 filesystems+=(--filesystem "{{ collectd_disk_mount }}")
 {% endif %}
+disk_history=()
+{% if collectd_disk_enabled | bool %}
+disk_history=(--collectd-disk-mount "{{ collectd_disk_mount }}")
+{% endif %}
 
 exec watch -n "$interval" -- "$status_script" \
     --csv-dir "{{ collectd_csv_dir }}/{{ collectd_hostname }}" \
     --collectd-interval "{{ collectd_interval }}" \
-    "${filesystems[@]}" "$@"
+    "${filesystems[@]}" "${disk_history[@]}" "$@"

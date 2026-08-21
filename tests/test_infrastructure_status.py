@@ -75,6 +75,7 @@ class InfrastructureStatusTests(unittest.TestCase):
             proc_root=self.proc_root,
             filesystems=[self.root],
             collectd_interval=60,
+            window=timedelta(hours=1),
             now=self.now,
         )
 
@@ -93,6 +94,7 @@ class InfrastructureStatusTests(unittest.TestCase):
             proc_root=self.proc_root,
             filesystems=[self.root],
             collectd_interval=60,
+            window=timedelta(hours=1),
             now=self.now,
         )
 
@@ -104,6 +106,8 @@ class InfrastructureStatusTests(unittest.TestCase):
         disk = shutil.disk_usage(self.root)
         report = {
             "generated_at": self.now,
+            "since": self.now - timedelta(hours=1),
+            "window": "1h",
             "hostname": "rook7",
             "collectd": {
                 "latest": self.now - timedelta(seconds=20),
@@ -112,6 +116,14 @@ class InfrastructureStatusTests(unittest.TestCase):
             },
             "cpu_count": 8,
             "load": (1.0, 0.8, 0.5),
+            "load_history": {
+                "count": 3,
+                "current": 1.0,
+                "change": 0.5,
+                "min": 0.5,
+                "average": 0.75,
+                "max": 1.0,
+            },
             "memory": {
                 "used": 4 * 1024**3,
                 "total": 16 * 1024**3,
@@ -125,6 +137,7 @@ class InfrastructureStatusTests(unittest.TestCase):
                     "free": disk.free,
                     "total": disk.total,
                     "percent": disk.used / disk.total * 100,
+                    "history": None,
                 }
             ],
         }
@@ -136,9 +149,47 @@ class InfrastructureStatusTests(unittest.TestCase):
         text = output.getvalue()
         self.assertIn("Infrastructure — rook7", text)
         self.assertIn("Collectd: fresh", text)
+        self.assertIn("Window: last 1h", text)
         self.assertIn("Load: 1m=1.0  5m=0.8  15m=0.5  cores=8", text)
+        self.assertIn(
+            "Load window (1m): change=+0.5  min=0.5  avg=0.8  max=1.0",
+            text,
+        )
         self.assertIn("Memory: used=4.0G/16.0G (25.0%)", text)
         self.assertIn("Filesystems", text)
+
+    def test_window_statistics_include_disk_change(self):
+        first = int((self.now - timedelta(minutes=50)).timestamp())
+        last = int((self.now - timedelta(minutes=5)).timestamp())
+        plugin = f"df-{MODULE.disk_plugin_instance(self.root)}"
+        self.write_metric(
+            plugin,
+            "percent_bytes-used",
+            "epoch,value",
+            f"{first},40\n{last},46",
+        )
+        self.write_proc()
+
+        report = MODULE.snapshot(
+            csv_dir=self.csv_dir,
+            proc_root=self.proc_root,
+            filesystems=[self.root],
+            collectd_interval=60,
+            window=timedelta(hours=1),
+            collectd_disk_mount=self.root,
+            now=self.now,
+        )
+
+        history = report["filesystems"][0]["history"]
+        self.assertEqual(history["change"], 6)
+        self.assertEqual(history["min"], 40)
+        self.assertEqual(history["average"], 43)
+        self.assertEqual(history["max"], 46)
+
+    def test_parse_window_matches_other_top_commands(self):
+        self.assertEqual(MODULE.parse_window("30m"), timedelta(minutes=30))
+        self.assertEqual(MODULE.parse_window("24h"), timedelta(hours=24))
+        self.assertEqual(MODULE.parse_window("7d"), timedelta(days=7))
 
 
 if __name__ == "__main__":

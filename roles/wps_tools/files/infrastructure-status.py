@@ -7,6 +7,7 @@ import argparse
 import csv
 import gzip
 import os
+import re
 import shutil
 import socket
 import sys
@@ -17,12 +18,25 @@ from typing import Callable, TextIO
 
 
 UTC = timezone.utc
+WINDOW_RE = re.compile(r"^([1-9][0-9]*)([mhd])$")
 
 
 @dataclass(frozen=True)
 class Metric:
     timestamp: datetime
     values: dict[str, float]
+
+
+def parse_window(value: str) -> timedelta:
+    match = WINDOW_RE.fullmatch(value.strip().lower())
+    if not match:
+        raise ValueError("window must be a positive number followed by m, h, or d")
+    amount = int(match.group(1))
+    return {
+        "m": timedelta(minutes=amount),
+        "h": timedelta(hours=amount),
+        "d": timedelta(days=amount),
+    }[match.group(2)]
 
 
 def open_metric(path: Path) -> TextIO:
@@ -52,6 +66,76 @@ def latest_metric(path: Path, columns: tuple[str, ...]) -> Metric:
     if latest is None:
         raise ValueError(f"no metric rows in {path}")
     return latest
+
+
+def metrics_in_file(
+    path: Path,
+    columns: tuple[str, ...],
+    start: datetime,
+    end: datetime,
+) -> list[Metric]:
+    with open_metric(path) as source:
+        reader = csv.DictReader(source)
+        required = {"epoch", *columns}
+        if not reader.fieldnames or not required.issubset(reader.fieldnames):
+            raise ValueError(f"invalid metric columns in {path}")
+        result = []
+        for row in reader:
+            if not row.get("epoch"):
+                continue
+            timestamp = datetime.fromtimestamp(float(row["epoch"]), UTC)
+            if start <= timestamp <= end:
+                result.append(
+                    Metric(
+                        timestamp,
+                        {name: float(row[name]) for name in columns},
+                    )
+                )
+    return result
+
+
+def window_metrics(
+    csv_dir: Path,
+    plugin: str,
+    metric: str,
+    columns: tuple[str, ...],
+    start: datetime,
+    end: datetime,
+) -> list[Metric]:
+    first_date = start.astimezone().date()
+    last_date = end.astimezone().date()
+    result = []
+    file_date = first_date
+    while file_date <= last_date:
+        path = csv_dir / plugin / f"{metric}-{file_date.isoformat()}"
+        try:
+            result.extend(metrics_in_file(path, columns, start, end))
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError):
+            return []
+        file_date += timedelta(days=1)
+    return sorted(result, key=lambda item: item.timestamp)
+
+
+def value_summary(values: list[float]) -> dict[str, float | int | None]:
+    if not values:
+        return {
+            "count": 0,
+            "current": None,
+            "change": None,
+            "min": None,
+            "average": None,
+            "max": None,
+        }
+    return {
+        "count": len(values),
+        "current": values[-1],
+        "change": values[-1] - values[0],
+        "min": min(values),
+        "average": sum(values) / len(values),
+        "max": max(values),
+    }
 
 
 def recent_metric(
@@ -106,8 +190,18 @@ def format_age(value: float) -> str:
     return f"{value / 3600:.1f}h"
 
 
+def format_window(value: timedelta) -> str:
+    seconds = int(value.total_seconds())
+    if seconds % 86400 == 0:
+        return f"{seconds // 86400}d"
+    if seconds % 3600 == 0:
+        return f"{seconds // 3600}h"
+    return f"{seconds // 60}m"
+
+
 def filesystem_rows(
     paths: list[Path],
+    history: dict[str, dict[str, float | int | None]] | None = None,
     usage: Callable[[Path], object] = shutil.disk_usage,
 ) -> list[dict[str, object]]:
     rows = []
@@ -130,6 +224,7 @@ def filesystem_rows(
                 "used": disk.used,
                 "free": disk.free,
                 "percent": percent,
+                "history": (history or {}).get(str(path)),
             }
         )
     return rows
@@ -141,9 +236,12 @@ def snapshot(
     proc_root: Path,
     filesystems: list[Path],
     collectd_interval: float,
+    window: timedelta,
+    collectd_disk_mount: Path | None = None,
     now: datetime | None = None,
 ) -> dict[str, object]:
     current = now or datetime.now(UTC)
+    since = current - window
     load_metric = recent_metric(
         csv_dir,
         "load",
@@ -173,6 +271,17 @@ def snapshot(
         if load_metric
         else fallback_load
     )
+    load_samples = window_metrics(
+        csv_dir,
+        "load",
+        "load",
+        ("shortterm",),
+        since,
+        current,
+    )
+    load_history = value_summary(
+        [metric.values["shortterm"] for metric in load_samples]
+    )
     try:
         memory = read_meminfo(proc_root)
     except (OSError, ValueError):
@@ -184,8 +293,24 @@ def snapshot(
         used = total - available
     memory_percent = used / total * 100 if used is not None and total else None
 
+    disk_history = {}
+    if collectd_disk_mount is not None:
+        disk_samples = window_metrics(
+            csv_dir,
+            f"df-{disk_plugin_instance(collectd_disk_mount)}",
+            "percent_bytes-used",
+            ("value",),
+            since,
+            current,
+        )
+        disk_history[str(collectd_disk_mount)] = value_summary(
+            [metric.values["value"] for metric in disk_samples]
+        )
+
     return {
         "generated_at": current,
+        "since": since,
+        "window": format_window(window),
         "hostname": socket.gethostname(),
         "collectd": {
             "latest": latest,
@@ -194,24 +319,37 @@ def snapshot(
         },
         "cpu_count": os.cpu_count(),
         "load": load,
+        "load_history": load_history,
         "memory": {
             "total": total,
             "used": used,
             "available": available,
             "percent": memory_percent,
         },
-        "filesystems": filesystem_rows(filesystems),
+        "filesystems": filesystem_rows(filesystems, disk_history),
     }
+
+
+def disk_plugin_instance(mount_point: Path) -> str:
+    if mount_point == Path("/"):
+        return "root"
+    return str(mount_point).strip("/").replace("/", "-")
 
 
 def value_or_dash(value: float | None, suffix: str = "") -> str:
     return "-" if value is None else f"{value:.1f}{suffix}"
 
 
+def signed_or_dash(value: float | None, suffix: str = "") -> str:
+    return "-" if value is None else f"{value:+.1f}{suffix}"
+
+
 def print_report(report: dict[str, object]) -> None:
     local_timezone = datetime.now().astimezone().tzinfo
     generated = report["generated_at"].astimezone(local_timezone)
     print(f"Infrastructure — {report['hostname']} — {generated:%Y-%m-%d %H:%M:%S %Z}")
+    since = report["since"].astimezone(local_timezone)
+    print(f"Window: last {report['window']} (since {since:%Y-%m-%d %H:%M %Z})")
     collectd = report["collectd"]
     if collectd["latest"] is None:
         print("Collectd: no recent load or memory data")
@@ -220,9 +358,16 @@ def print_report(report: dict[str, object]) -> None:
         print(f"Collectd: {state}  age={format_age(collectd['age_seconds'])}")
 
     load = report["load"]
+    load_history = report["load_history"]
     print(
         f"Load: 1m={value_or_dash(load[0])}  5m={value_or_dash(load[1])}  "
         f"15m={value_or_dash(load[2])}  cores={report['cpu_count'] or '-'}"
+    )
+    print(
+        f"Load window (1m): change={signed_or_dash(load_history['change'])}  "
+        f"min={value_or_dash(load_history['min'])}  "
+        f"avg={value_or_dash(load_history['average'])}  "
+        f"max={value_or_dash(load_history['max'])}"
     )
     memory = report["memory"]
     if memory["total"] is None or memory["used"] is None:
@@ -239,8 +384,8 @@ def print_report(report: dict[str, object]) -> None:
         )
 
     print("\nFilesystems")
-    print("Path                         Used     Free    Total    Use")
-    print("-------------------------  -------  -------  -------  -----")
+    print("Path                         Used     Free    Total    Use  Change    Min    Avg    Max")
+    print("-------------------------  -------  -------  -------  -----  ------  -----  -----  -----")
     for row in report["filesystems"]:
         if "error" in row:
             print(f"{row['path']:<25}  unavailable")
@@ -248,7 +393,11 @@ def print_report(report: dict[str, object]) -> None:
         print(
             f"{row['path']:<25}  {format_bytes(row['used']):>7}  "
             f"{format_bytes(row['free']):>7}  {format_bytes(row['total']):>7}  "
-            f"{row['percent']:>4.1f}%"
+            f"{row['percent']:>4.1f}%  "
+            f"{signed_or_dash((row['history'] or {}).get('change'), 'pp'):>6}  "
+            f"{value_or_dash((row['history'] or {}).get('min'), '%'):>5}  "
+            f"{value_or_dash((row['history'] or {}).get('average'), '%'):>5}  "
+            f"{value_or_dash((row['history'] or {}).get('max'), '%'):>5}"
         )
 
 
@@ -256,11 +405,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--csv-dir", required=True, type=Path)
     parser.add_argument("--collectd-interval", type=float, default=60)
+    parser.add_argument("--window", default="1h")
+    parser.add_argument("--collectd-disk-mount", type=Path)
     parser.add_argument("--filesystem", action="append", type=Path, default=[])
     parser.add_argument("--proc-root", type=Path, default=Path("/proc"))
     args = parser.parse_args(argv)
     if args.collectd_interval <= 0:
         parser.error("--collectd-interval must be positive")
+    try:
+        args.window_delta = parse_window(args.window)
+    except ValueError as error:
+        parser.error(str(error))
     if not args.filesystem:
         args.filesystem = [Path("/")]
     return args
@@ -274,6 +429,8 @@ def main(argv: list[str] | None = None) -> int:
             proc_root=args.proc_root,
             filesystems=args.filesystem,
             collectd_interval=args.collectd_interval,
+            window=args.window_delta,
+            collectd_disk_mount=args.collectd_disk_mount,
         )
         print_report(report)
     except Exception as error:
