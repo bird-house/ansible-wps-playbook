@@ -8,6 +8,10 @@ roocs_cache_dir: /tmp/inventory_cache
 roocs_chunk_memory_limit: 128MiB
 # Split written output before an individual file grows beyond this size.
 roocs_file_size_limit: 2GB
+# Keep Rook's batching within the default memory allocated to a Slurm job.
+# This remains directly overridable for deployments with a separate job limit.
+roocs_batch_memory_limit: >-
+  {{ ((slurm_default_job_memory_mb | default(4096)) | int | string) ~ 'MB' }}
 
 # Generic local data-pool paths used when no profile is selected.
 roocs_project_path_defaults:
