@@ -824,6 +824,8 @@ Aggregate the current and rotated event files with:
 
 ```sh
 sudo /opt/wps-tools/bin/insights SERVICE_NAME
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --from today
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --all-time
 sudo /opt/wps-tools/bin/insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --process subset --json
@@ -832,8 +834,13 @@ sudo /opt/wps-tools/bin/insights SERVICE_NAME --failures --top 20
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --all-processes --coverage
 ```
 
-`insights` selects `orchestrate` by default. Use `--all-processes` for
-the whole-service view, or `--process PROCESS` to select another process.
+`insights` starts at midnight yesterday by default, using the server's local
+calendar. Use `--from today` for the current day only, or `--all-time` for all
+retained records. The `today` and `yesterday` shortcuts also work with `--to`.
+The report timestamps remain in UTC.
+
+`insights` selects `orchestrate` by default. Use `--all-processes` for the
+whole-service view, or `--process PROCESS` to select another process.
 Collections are ordered alphabetically by default. Use `--sort requests`,
 `--sort successful`, or `--sort failed` for descending frequency; names break
 ties deterministically.

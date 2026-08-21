@@ -11,7 +11,7 @@ import statistics
 import sys
 import textwrap
 from collections import Counter, defaultdict
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, TextIO
 
@@ -59,8 +59,22 @@ RECOVERED_XML_RE = re.compile(
 )
 
 
-def parse_time(value: str, *, end: bool = False) -> datetime:
+def parse_time(
+    value: str, *, end: bool = False, now: datetime | None = None
+) -> datetime:
     text = value.strip()
+    relative = text.lower()
+    if relative in {"today", "yesterday"}:
+        reference = now or datetime.now().astimezone()
+        if reference.tzinfo is None:
+            reference = reference.astimezone()
+        days_ago = 1 if relative == "yesterday" else 0
+        target = reference.date() - timedelta(days=days_ago)
+        return datetime.combine(
+            target,
+            time.max if end else time.min,
+            tzinfo=reference.tzinfo,
+        ).astimezone(UTC)
     normalized = f"{text[:-1]}+00:00" if text.endswith("Z") else text
     try:
         parsed = datetime.fromisoformat(normalized)
@@ -957,11 +971,27 @@ def print_report(
                         print_detail_field(label, path, indent=6)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(
+    argv: list[str] | None = None, *, now: datetime | None = None
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("logs", nargs="+", type=Path, help="request JSONL logs, optionally .gz")
-    parser.add_argument("--from", dest="start", help="inclusive ISO date or timestamp")
-    parser.add_argument("--to", dest="end", help="inclusive ISO date or timestamp")
+    time_start = parser.add_mutually_exclusive_group()
+    time_start.add_argument(
+        "--from",
+        dest="start",
+        help="inclusive ISO date/timestamp, today, or yesterday (default: yesterday)",
+    )
+    time_start.add_argument(
+        "--all-time",
+        action="store_true",
+        help="inspect all retained records instead of starting yesterday",
+    )
+    parser.add_argument(
+        "--to",
+        dest="end",
+        help="inclusive ISO date/timestamp, today, or yesterday",
+    )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--process",
@@ -1000,8 +1030,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.top < 1:
         parser.error("--top must be positive")
     try:
-        args.start = parse_time(args.start) if args.start else None
-        args.end = parse_time(args.end, end=True) if args.end else None
+        if args.start:
+            args.start = parse_time(args.start, now=now)
+        elif not args.all_time:
+            args.start = parse_time("yesterday", now=now)
+        else:
+            args.start = None
+        args.end = parse_time(args.end, end=True, now=now) if args.end else None
     except argparse.ArgumentTypeError as error:
         parser.error(str(error))
     if args.start and args.end and args.start > args.end:

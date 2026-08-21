@@ -367,7 +367,9 @@ class RequestInsightsTests(unittest.TestCase):
             )
             output = io.StringIO()
             with redirect_stdout(output):
-                result = MODULE.main([str(log), "--all-processes", "--json"])
+                result = MODULE.main(
+                    [str(log), "--all-time", "--all-processes", "--json"]
+                )
         report = json.loads(output.getvalue())
         self.assertEqual(result, 0)
         self.assertEqual(report["requests"], 1)
@@ -386,7 +388,7 @@ class RequestInsightsTests(unittest.TestCase):
             )
             output = io.StringIO()
             with redirect_stdout(output):
-                result = MODULE.main([str(log), "--json"])
+                result = MODULE.main([str(log), "--all-time", "--json"])
         self.assertEqual(result, 0)
         report = json.loads(output.getvalue())
         self.assertEqual(report["requests"], 1)
@@ -404,6 +406,35 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertNotIn("Processes", text)
         self.assertNotIn("Requested-data coverage", text)
         self.assertNotIn("All-process failure causes", text)
+
+    def test_default_time_window_starts_yesterday(self):
+        now = MODULE.datetime(2026, 8, 21, 10, 30, tzinfo=MODULE.UTC)
+
+        default = MODULE.parse_args(["requests.jsonl"], now=now)
+        today = MODULE.parse_args(
+            ["requests.jsonl", "--from", "today"], now=now
+        )
+        all_time = MODULE.parse_args(
+            ["requests.jsonl", "--all-time"], now=now
+        )
+
+        self.assertEqual(
+            default.start,
+            MODULE.datetime(2026, 8, 20, tzinfo=MODULE.UTC),
+        )
+        self.assertEqual(
+            today.start,
+            MODULE.datetime(2026, 8, 21, tzinfo=MODULE.UTC),
+        )
+        self.assertIsNone(all_time.start)
+
+        summer_time = MODULE.timezone(MODULE.timedelta(hours=2))
+        local_now = MODULE.datetime(2026, 8, 21, 10, 30, tzinfo=summer_time)
+        local_default = MODULE.parse_args(["requests.jsonl"], now=local_now)
+        self.assertEqual(
+            local_default.start,
+            MODULE.datetime(2026, 8, 19, 22, 0, tzinfo=MODULE.UTC),
+        )
 
     def test_text_uses_compact_timestamps_and_outcomes(self):
         item = dict(record("1"), process="orchestrate")
