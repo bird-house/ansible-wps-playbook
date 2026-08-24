@@ -4,6 +4,9 @@
 
 Changes:
 
+- link routine read-only WPS maintenance commands into `/usr/local/bin`, while
+  keeping privileged and state-changing commands isolated under
+  `/opt/wps-tools/sbin`
 - preserve available `job-error.txt` and `job-output.txt` process logs alongside
   the source XML and scheduler dump during stalled-job recovery
 - add a focused `make quick` deployment path which reinstalls WPS application
