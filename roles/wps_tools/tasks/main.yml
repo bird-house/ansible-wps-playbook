@@ -752,29 +752,6 @@
       item.stat.lnk_source
       == wps_tools_bin_dir + '/' + item.item.name
 
-- name: Inspect legacy WPS tool links in /usr/local/bin
-  ansible.builtin.stat:
-    path: "/usr/local/bin/{{ item }}"
-    follow: false
-  register: wps_tools_legacy_system_links
-  loop:
-    - insights
-    - ptop
-    - smoke
-    - itop
-    - qtop
-  when: wps_tools_path_dir != '/usr/local/bin'
-
-- name: Remove legacy /usr/local/bin links managed by the WPS tools role
-  ansible.builtin.file:
-    path: "/usr/local/bin/{{ item.item }}"
-    state: absent
-  loop: "{{ wps_tools_legacy_system_links.results }}"
-  when:
-    - not (item.skipped | default(false))
-    - item.stat.islnk | default(false)
-    - item.stat.lnk_source == wps_tools_bin_dir + '/' + item.item
-
 - name: Remove obsolete administrative smoke command
   ansible.builtin.file:
     path: "{{ wps_tools_sbin_dir }}/smoke"

@@ -114,9 +114,6 @@ docker exec "$container_name" bash -c '
   test "$(readlink /usr/local/sbin/ptop)" = /opt/wps-tools/bin/ptop
   test ! -e /usr/local/sbin/itop
   test ! -e /usr/local/sbin/qtop
-  for command in insights ptop smoke itop qtop; do
-    test ! -L "/usr/local/bin/$command"
-  done
   for command in monitor recover stats db-report restart-pywps; do
     test -x "/opt/wps-tools/sbin/$command"
   done
