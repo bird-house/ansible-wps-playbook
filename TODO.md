@@ -62,6 +62,15 @@ by the PyWPS deployment.
   measurement before it disappears. Keep non-Slurm PyWPS jobs visible with
   unavailable memory reported clearly rather than inferred.
 
+### Dataset catalog coverage view
+
+- Add an `insights` coverage view that compares datasets used by retained
+  requests with all datasets available in the Intake catalog, using the catalog
+  metadata already cached in the database.
+- Summarize coverage by project and dataset, including used, available, and
+  unused counts, while allowing the uncovered dataset details to be inspected
+  without making the default report excessively long.
+
 ### Health-check telemetry for `itop`
 
 - Extend Rook's configurable health process to write one structured JSONL
