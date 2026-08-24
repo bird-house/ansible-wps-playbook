@@ -61,6 +61,22 @@ by the PyWPS deployment.
   `sacct` when durable accounting is available; otherwise capture the final
   measurement before it disappears. Keep non-Slurm PyWPS jobs visible with
   unavailable memory reported clearly rather than inferred.
+- Make active jobs explain what they are doing, not only that they are running.
+  The PyWPS database queried by `ptop` does not contain the detailed inputs, so
+  do not use `ptop` as their source. Extend the existing status-XML/job scanner
+  to report every accepted or running job it finds, including its PyWPS UUID,
+  process, state, age, and sanitized input parameters and references. Write the
+  records to the service JSONL event log so an operator-facing report can show
+  the current work. Define snapshot or lifecycle semantics that avoid inflating
+  evaluation counts when the same job is found by consecutive scans. Bound large
+  complex inputs and exclude credentials or other sensitive values.
+- Successful jobs produce provenance files that can enrich the submission
+  record after completion. Evaluate collecting their contents in the same
+  append-only JSONL lifecycle or a linked JSONL file so completed work can be
+  analyzed across jobs. Define a stable schema with job and process identifiers,
+  lifecycle timestamps, the source provenance-file reference, and the fields
+  needed for evaluation; handle duplicate collection and malformed or incomplete
+  files explicitly.
 
 ### Dataset catalog coverage view
 
