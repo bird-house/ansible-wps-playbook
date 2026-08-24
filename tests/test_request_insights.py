@@ -531,6 +531,11 @@ class RequestInsightsTests(unittest.TestCase):
         expanded = io.StringIO()
         with redirect_stdout(expanded):
             MODULE.print_report(report, datasets=True)
+        self.assertIn("Projects (1)", expanded.getvalue())
+        self.assertIn(
+            "  c3s-cmip6: datasets=2 requests=2 success=2 failures=0",
+            expanded.getvalue(),
+        )
         self.assertIn("Datasets (2)", expanded.getvalue())
         self.assertIn(
             "  c3s-cmip6.example.uas: requests=1 success=1 failures=0 "

@@ -912,27 +912,37 @@ def print_report(
                 print(f"  {category}: {count}")
         section_indent = "" if orchestrate_only else "  "
         item_indent = "  " if orchestrate_only else "    "
-        items = orchestrate["collections"] if datasets else orchestrate["projects"]
-        label = "Datasets" if datasets else "Projects"
-        print(f"\n{section_indent}{label} ({len(items)})")
-        if not items:
+        projects = orchestrate["projects"]
+        print(f"\n{section_indent}Projects ({len(projects)})")
+        if not projects:
             print(
                 f"{item_indent}No datasets were identified in the retained "
                 "request metadata."
             )
-        for name, values in items.items():
+        for name, values in projects.items():
             outcomes = values["outcomes"]
-            line = f"{item_indent}{name}: "
-            if not datasets:
-                line += f"datasets={values['datasets']} "
-            line += (
+            print(
+                f"{item_indent}{name}: datasets={values['datasets']} "
                 f"requests={values['requests']} "
                 f"success={outcomes.get('successful', 0)} "
                 f"failures={outcomes.get('failed', 0)}"
             )
-            if datasets:
-                line += f" years={values['year_coverage']}"
-            print(line)
+        if datasets:
+            collections = orchestrate["collections"]
+            print(f"\n{section_indent}Datasets ({len(collections)})")
+            if not collections:
+                print(
+                    f"{item_indent}No datasets were identified in the retained "
+                    "request metadata."
+                )
+            for collection, values in collections.items():
+                outcomes = values["outcomes"]
+                print(
+                    f"{item_indent}{collection}: requests={values['requests']} "
+                    f"success={outcomes.get('successful', 0)} "
+                    f"failures={outcomes.get('failed', 0)} "
+                    f"years={values['year_coverage']}"
+                )
         if failure_details and orchestrate_only:
             shown = len(orchestrate["failures"])
             groups = orchestrate["failure_group_count"]
@@ -1077,7 +1087,7 @@ def parse_args(
     parser.add_argument(
         "--datasets",
         action="store_true",
-        help="list individual datasets instead of the default project aggregation",
+        help="append individual datasets after the project aggregation",
     )
     parser.add_argument(
         "--incident-dir",
