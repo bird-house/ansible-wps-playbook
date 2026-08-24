@@ -242,6 +242,15 @@ class RequestInsightsTests(unittest.TestCase):
         item = record("1", "failed", "Process error: unknown")
         self.assertEqual(MODULE.failure_category(item), "unknown")
 
+    def test_collection_missing_from_catalog_has_distinct_category(self):
+        item = record(
+            "1",
+            "failed",
+            "Some or all of the requested collection are not in the list of "
+            "available data.",
+        )
+        self.assertEqual(MODULE.failure_category(item), "catalog")
+
     def test_scheduler_timeout_discards_preceding_warning(self):
         item = record(
             "1",
@@ -275,8 +284,11 @@ class RequestInsightsTests(unittest.TestCase):
         item = record(
             "1",
             "failed",
-            "The requested longitude subset -0.37, 1.63 is not within the longitude "
-            "bounds of this dataset and could not be converted to this longitude frame.",
+            """The requested longitude subset -0.46654618800000003, """
+            """1.5334538119999999 is not
+                within the longitude bounds of this dataset and the data could not be
+                converted to this longitude frame successfully. Please re-run your
+                request with longitudes within the bounds of the dataset: 0.00, 358.88""",
         )
         self.assertEqual(MODULE.failure_category(item), "spatial")
 

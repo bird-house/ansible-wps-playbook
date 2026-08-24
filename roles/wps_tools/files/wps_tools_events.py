@@ -27,9 +27,15 @@ TIMEOUT_FAILURE_RE = re.compile(
     r"exceeded[^\n]*(?:run|execution) time",
     re.IGNORECASE,
 )
+CATALOG_FAILURE_RE = re.compile(
+    r"some or all of the requested collections?\s+(?:is|are)\s+not in "
+    r"(?:the )?list of available data",
+    re.IGNORECASE,
+)
 FAILURE_PATTERNS = (
     ("memory", MEMORY_FAILURE_RE),
     ("timeout", TIMEOUT_FAILURE_RE),
+    ("catalog", CATALOG_FAILURE_RE),
     (
         "no-data",
         re.compile(
