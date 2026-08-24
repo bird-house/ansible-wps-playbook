@@ -215,20 +215,20 @@ host:
 make play
 ```
 
-During development, update the WPS source checkouts, reinstall the application
+For a quick installation, update the WPS source checkouts, reinstall the application
 packages in their existing Conda environments, refresh PyWPS/ROOCS and web
 service configuration, cron jobs and helper scripts, then restart the affected
 services with:
 
 ```sh
-make update
+make quick
 ```
 
 The application reinstall uses pip's `--no-deps` option and does not resolve or
 install dependencies. This focused update does not run Conda, operating-system,
 database, Slurm, collectd, Supervisor installation, or Nginx installation
-tasks. Use `make quick` to run the complete deployment except Conda tasks, and
-`make play` after dependency or infrastructure changes.
+tasks. Use the full `make play` installation after dependency or infrastructure
+changes.
 
 For the DKRZ ROOCS profile, clisops reads data in Dask chunks limited to
 `128MiB` and splits written output at `2GB` by default. Rook's subset and concat
@@ -300,7 +300,7 @@ configuration need to be deployed without interrupting active services or
 Slurm jobs:
 
 ```sh
-make live-update
+make live
 ```
 
 This updates the non-Slurm parts of `wps_tools`, its PyWPS cron definitions,

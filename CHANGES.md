@@ -6,9 +6,11 @@ Changes:
 
 - preserve available `job-error.txt` and `job-output.txt` process logs alongside
   the source XML and scheduler dump during stalled-job recovery
-- add a focused `make update` deployment path which reinstalls WPS application
+- add a focused `make quick` deployment path which reinstalls WPS application
   sources without dependency resolution, refreshes PyWPS/ROOCS configuration
   and cron jobs, and restarts services without Conda or infrastructure roles
+- provide a narrow `make live` path for safely updating maintenance tools and
+  runtime configuration without restarting active services or Slurm jobs
 - add an hourly XML request inspector which records per-job process, inputs,
   estimated duration, outcome, and failure details before output cleanup
 - aggregate current and rotated request-inspection logs into process, input
