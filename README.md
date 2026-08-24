@@ -840,6 +840,7 @@ sudo /opt/wps-tools/bin/insights SERVICE_NAME \
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --process subset --json
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --sort failed
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --failures --top 20
+sudo /opt/wps-tools/bin/insights SERVICE_NAME --datasets
 sudo /opt/wps-tools/bin/insights SERVICE_NAME --all-processes --coverage
 ```
 
@@ -857,7 +858,9 @@ ties deterministically.
 The default report is a compact operational overview: request outcomes,
 median, 95th-percentile and maximum durations, retained workflow metadata,
 failure-category totals, recovered and long-running jobs, operation errors,
-and one line per requested dataset. A process table
+and one line per dataset project (the part before the first dot), including its
+dataset, request, success and failure counts. Use `--datasets` to replace the
+project summary with one line per requested dataset. A process table
 is shown only when multiple processes are selected. Use `--coverage` to append
 the detailed requested-input dimensions to a text report. Use `--failures` to
 append failure blocks grouped by dataset, with their selection, concise reason
