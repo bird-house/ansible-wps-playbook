@@ -71,6 +71,13 @@ by the PyWPS deployment.
   unused counts, while allowing the uncovered dataset details to be inspected
   without making the default report excessively long.
 
+### Insights error classification cleanup
+
+- Review and simplify the `insights` error-message classification rules. Make
+  categories consistent, reduce overlapping heuristics, improve recognized
+  root-cause extraction, and collect representative unknown or misclassified
+  production messages as regression fixtures.
+
 ### Health-check telemetry for `itop`
 
 - Extend Rook's configurable health process to write one structured JSONL
