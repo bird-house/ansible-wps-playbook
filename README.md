@@ -490,15 +490,15 @@ PyWPS runtime state:
 The locations are controlled by `wps_tools_dir`,
 `wps_tools_bin_dir`, `wps_tools_sbin_dir`,
 `wps_tools_script_dir`, `wps_tools_state_dir`, and
-`wps_tools_statistics_dir`, while `wps_tools_system_bin_dir` controls the
+`wps_tools_statistics_dir`, while `wps_tools_path_dir` controls the
 standard command-link location. The deployment migrates XML
 inspection state into `state/` before removing the old hidden state files and
 root-level tools from `/var/lib/pywps`.
 
 Routine maintainer commands are `insights`, `ptop`, `smoke`, `itop` when
 collectd is enabled, and `qtop` when Slurm is enabled. The playbook links these
-commands into `/usr/local/bin` by default, controlled by
-`wps_tools_system_bin_dir`. Specialist and state-changing commands remain under
+commands into `/usr/local/sbin` by default, controlled by
+`wps_tools_path_dir`. Specialist and state-changing commands remain under
 `sbin/` and are explicitly addressed through `/opt/wps-tools/sbin`.
 
 The routine commands do not inherently require root. `insights`, `itop`, and
@@ -506,7 +506,9 @@ The routine commands do not inherently require root. `insights`, `itop`, and
 read access to the selected service's `/etc/pywps/*.cfg`; add trusted
 maintainers to `wps_group` or run those commands with `sudo`. Use `sudo` for
 administrative `sbin/` commands and when `insights --failures` must show paths
-from the root-only incident archive.
+from the root-only incident archive. A normal user's shell may not include
+`/usr/local/sbin`; in that case, add it to `PATH` or invoke the command by its
+absolute path.
 
 ### Configure scheduled service restarts
 
@@ -1184,7 +1186,7 @@ qtop
 The command refreshes every second and defaults to `wps_tools_slurm_monitor_user`.
 Pass `--user USER` to select another account, or set `SLURM_TOP_INTERVAL` to
 change the refresh interval. The shortcut is installed in
-`/opt/wps-tools/bin` and linked into `/usr/local/bin`; its
+`/opt/wps-tools/bin` and linked into `/usr/local/sbin`; its
 `slurm-job-status.py` backend remains in `/opt/wps-tools/scripts`. `MAX RSS` is
 Slurm's high-water mark for the batch step rather than an instantaneous or
 whole-job aggregate. A dash means accounting data is not yet available, which

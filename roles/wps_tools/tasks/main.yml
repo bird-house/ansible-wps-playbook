@@ -103,8 +103,8 @@
       - wps_tools_bin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_sbin_dir.startswith(wps_tools_dir + '/')
       - wps_tools_script_dir.startswith(wps_tools_dir + '/')
-      - wps_tools_system_bin_dir is match('^/')
-      - wps_tools_system_bin_dir != wps_tools_bin_dir
+      - wps_tools_path_dir is match('^/')
+      - wps_tools_path_dir != wps_tools_bin_dir
       - wps_tools_pywps_status_script.startswith(wps_tools_script_dir + '/')
       - wps_tools_pywps_top_script.startswith(wps_tools_bin_dir + '/')
       - >-
@@ -696,7 +696,7 @@
 
 - name: Create standard command directory for WPS tool links
   ansible.builtin.file:
-    path: "{{ wps_tools_system_bin_dir }}"
+    path: "{{ wps_tools_path_dir }}"
     state: directory
     owner: root
     group: root
@@ -705,7 +705,7 @@
 - name: Link routine WPS tools into the standard command path
   ansible.builtin.file:
     src: "{{ wps_tools_bin_dir }}/{{ item }}"
-    dest: "{{ wps_tools_system_bin_dir }}/{{ item }}"
+    dest: "{{ wps_tools_path_dir }}/{{ item }}"
     state: link
     owner: root
     group: root
@@ -717,7 +717,7 @@
 - name: Link enabled optional WPS tools into the standard command path
   ansible.builtin.file:
     src: "{{ wps_tools_bin_dir }}/{{ item.name }}"
-    dest: "{{ wps_tools_system_bin_dir }}/{{ item.name }}"
+    dest: "{{ wps_tools_path_dir }}/{{ item.name }}"
     state: link
     owner: root
     group: root
@@ -730,7 +730,7 @@
 
 - name: Inspect disabled optional WPS tool links in the standard command path
   ansible.builtin.stat:
-    path: "{{ wps_tools_system_bin_dir }}/{{ item.name }}"
+    path: "{{ wps_tools_path_dir }}/{{ item.name }}"
     follow: false
   register: wps_tools_optional_system_links
   loop:
@@ -742,7 +742,7 @@
 
 - name: Remove disabled optional links managed by the WPS tools role
   ansible.builtin.file:
-    path: "{{ wps_tools_system_bin_dir }}/{{ item.item.name }}"
+    path: "{{ wps_tools_path_dir }}/{{ item.item.name }}"
     state: absent
   loop: "{{ wps_tools_optional_system_links.results }}"
   when:
@@ -751,6 +751,29 @@
     - >-
       item.stat.lnk_source
       == wps_tools_bin_dir + '/' + item.item.name
+
+- name: Inspect legacy WPS tool links in /usr/local/bin
+  ansible.builtin.stat:
+    path: "/usr/local/bin/{{ item }}"
+    follow: false
+  register: wps_tools_legacy_system_links
+  loop:
+    - insights
+    - ptop
+    - smoke
+    - itop
+    - qtop
+  when: wps_tools_path_dir != '/usr/local/bin'
+
+- name: Remove legacy /usr/local/bin links managed by the WPS tools role
+  ansible.builtin.file:
+    path: "/usr/local/bin/{{ item.item }}"
+    state: absent
+  loop: "{{ wps_tools_legacy_system_links.results }}"
+  when:
+    - not (item.skipped | default(false))
+    - item.stat.islnk | default(false)
+    - item.stat.lnk_source == wps_tools_bin_dir + '/' + item.item
 
 - name: Remove obsolete administrative smoke command
   ansible.builtin.file:

@@ -4,7 +4,7 @@
 
 Changes:
 
-- link routine read-only WPS maintenance commands into `/usr/local/bin`, while
+- link routine read-only WPS maintenance commands into `/usr/local/sbin`, while
   keeping privileged and state-changing commands isolated under
   `/opt/wps-tools/sbin`
 - preserve available `job-error.txt` and `job-output.txt` process logs alongside
