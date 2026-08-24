@@ -215,20 +215,20 @@ host:
 make play
 ```
 
-During development, update the WPS source checkouts, reinstall the application
+For a quick installation, update the WPS source checkouts, reinstall the application
 packages in their existing Conda environments, refresh PyWPS/ROOCS and web
 service configuration, cron jobs and helper scripts, then restart the affected
 services with:
 
 ```sh
-make update
+make quick
 ```
 
 The application reinstall uses pip's `--no-deps` option and does not resolve or
 install dependencies. This focused update does not run Conda, operating-system,
 database, Slurm, collectd, Supervisor installation, or Nginx installation
-tasks. Use `make quick` to run the complete deployment except Conda tasks, and
-`make play` after dependency or infrastructure changes.
+tasks. Use the full `make play` installation after dependency or infrastructure
+changes.
 
 For the DKRZ ROOCS profile, clisops reads data in Dask chunks limited to
 `128MiB` and splits written output at `2GB` by default. Rook's subset and concat
@@ -300,7 +300,7 @@ configuration need to be deployed without interrupting active services or
 Slurm jobs:
 
 ```sh
-make live-update
+make live
 ```
 
 This updates the non-Slurm parts of `wps_tools`, its PyWPS cron definitions,
@@ -352,9 +352,9 @@ When collectd is enabled, the read-only `itop` command provides a compact live
 host overview:
 
 ```sh
-/opt/wps-tools/bin/itop
-/opt/wps-tools/bin/itop --window 24h
-ITOP_INTERVAL=10 /opt/wps-tools/bin/itop
+itop
+itop --window 24h
+ITOP_INTERVAL=10 itop
 ```
 
 It shows collectd's latest 1, 5, and 15-minute load values, windowed load change,
@@ -490,23 +490,25 @@ PyWPS runtime state:
 The locations are controlled by `wps_tools_dir`,
 `wps_tools_bin_dir`, `wps_tools_sbin_dir`,
 `wps_tools_script_dir`, `wps_tools_state_dir`, and
-`wps_tools_statistics_dir`. The deployment migrates XML
+`wps_tools_statistics_dir`, while `wps_tools_path_dir` controls the
+standard command-link location. The deployment migrates XML
 inspection state into `state/` before removing the old hidden state files and
 root-level tools from `/var/lib/pywps`.
 
-Maintainers who prefer short interactive commands can add only the read-only
-command directory to their shell configuration:
-
-```sh
-export PATH="/opt/wps-tools/bin:$PATH"
-```
-
 Routine maintainer commands are `insights`, `ptop`, `smoke`, `itop` when
-collectd is enabled, and `qtop` when Slurm is enabled. Specialist and
-state-changing commands remain under `sbin/`.
-The playbook deliberately does not add either tool directory to the global
-`PATH`, and administrative commands remain explicitly addressed through
-`/opt/wps-tools/sbin`.
+collectd is enabled, and `qtop` when Slurm is enabled. The playbook links these
+commands into `/usr/local/sbin` by default, controlled by
+`wps_tools_path_dir`. Specialist and state-changing commands remain under
+`sbin/` and are explicitly addressed through `/opt/wps-tools/sbin`.
+
+The routine commands do not inherently require root. `insights`, `itop`, and
+`qtop` can normally run as an unprivileged user. `ptop` and `smoke` also need
+read access to the selected service's `/etc/pywps/*.cfg`; add trusted
+maintainers to `wps_group` or run those commands with `sudo`. Use `sudo` for
+administrative `sbin/` commands and when `insights --failures` must show paths
+from the root-only incident archive. A normal user's shell may not include
+`/usr/local/sbin`; in that case, add it to `PATH` or invoke the command by its
+absolute path.
 
 ### Configure scheduled service restarts
 
@@ -832,15 +834,16 @@ is therefore an operational estimate rather than a database-quality timing.
 Aggregate the current and rotated event files with:
 
 ```sh
-sudo /opt/wps-tools/bin/insights SERVICE_NAME
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --from today
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --all-time
-sudo /opt/wps-tools/bin/insights SERVICE_NAME \
+insights SERVICE_NAME
+insights SERVICE_NAME --from today
+insights SERVICE_NAME --all-time
+insights SERVICE_NAME \
   --from 2026-08-01 --to 2026-08-12
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --process subset --json
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --sort failed
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --failures --top 20
-sudo /opt/wps-tools/bin/insights SERVICE_NAME --all-processes --coverage
+insights SERVICE_NAME --process subset --json
+insights SERVICE_NAME --sort failed
+sudo insights SERVICE_NAME --failures --top 20
+insights SERVICE_NAME --datasets
+insights SERVICE_NAME --all-processes --coverage
 ```
 
 `insights` starts at midnight yesterday by default, using the server's local
@@ -857,7 +860,9 @@ ties deterministically.
 The default report is a compact operational overview: request outcomes,
 median, 95th-percentile and maximum durations, retained workflow metadata,
 failure-category totals, recovered and long-running jobs, operation errors,
-and one line per requested dataset. A process table
+and one line per dataset project (the part before the first dot), including its
+dataset, request, success and failure counts. Use `--datasets` to append one
+line per requested dataset while retaining the project summary. A process table
 is shown only when multiple processes are selected. Use `--coverage` to append
 the detailed requested-input dimensions to a text report. Use `--failures` to
 append failure blocks grouped by dataset, with their selection, concise reason
@@ -883,7 +888,9 @@ payloads are omitted from human coverage instead of printing the raw blob, and
 consecutive component years are shown as ranges. Derived references such as
 `subset_tas_1/output` are not counted as source collections. Failures are
 grouped into `memory`,
-`timeout`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and `unknown`.
+`timeout`, `catalog`, `no-data`, `spatial`, `input`, `scheduler`, `other`, and
+`unknown`. A requested collection missing from the available-data catalog is
+`catalog`; an available dataset with an empty selection is `no-data`.
 Failures mentioning longitude or latitude are classified as `spatial`.
 Detailed output includes concise root-cause messages and example job IDs for
 log or incident follow-up.
@@ -921,17 +928,17 @@ For a compact live view of recent database activity and all active jobs, use
 `ptop`. The default window is one hour:
 
 ```sh
-/opt/wps-tools/bin/ptop rook
-/opt/wps-tools/bin/ptop rook --window 24h
+ptop rook
+ptop rook --window 24h
 ```
 
 Windows accept minutes (`30m`), hours (`24h`), or days (`7d`). The request and
 process totals cover jobs started inside that window. The non-final database
 section also includes older accepted and running records so long or stale jobs
 do not disappear from the display. A compact failure-cause line uses the same
-memory, timeout, no-data, spatial, input, scheduler, and fallback categories as
-`insights`. Set `PTOP_INTERVAL` to change the two-second refresh interval, and
-use `--top N` to change the number of records shown.
+memory, timeout, catalog, no-data, spatial, input, scheduler, and fallback
+categories as `insights`. Set `PTOP_INTERVAL` to change the two-second refresh
+interval, and use `--top N` to change the number of records shown.
 
 The specialist, read-only `db-report` command under `sbin/` aggregates database
 requests for an explicit range. It reports every job state, success rate,
@@ -1175,13 +1182,14 @@ use the interactive `qtop` command. It batches the accounting lookup, so
 each refresh makes one `squeue` and at most one `sstat` request:
 
 ```sh
-/opt/wps-tools/bin/qtop
+qtop
 ```
 
 The command refreshes every second and defaults to `wps_tools_slurm_monitor_user`.
 Pass `--user USER` to select another account, or set `SLURM_TOP_INTERVAL` to
-change the refresh interval. The shortcut lives in `/opt/wps-tools/bin` and
-its `slurm-job-status.py` backend in `/opt/wps-tools/scripts`. `MAX RSS` is
+change the refresh interval. The shortcut is installed in
+`/opt/wps-tools/bin` and linked into `/usr/local/sbin`; its
+`slurm-job-status.py` backend remains in `/opt/wps-tools/scripts`. `MAX RSS` is
 Slurm's high-water mark for the batch step rather than an instantaneous or
 whole-job aggregate. A dash means accounting data is not yet available, which
 is normal just after a job starts or finishes.

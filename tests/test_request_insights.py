@@ -242,6 +242,15 @@ class RequestInsightsTests(unittest.TestCase):
         item = record("1", "failed", "Process error: unknown")
         self.assertEqual(MODULE.failure_category(item), "unknown")
 
+    def test_collection_missing_from_catalog_has_distinct_category(self):
+        item = record(
+            "1",
+            "failed",
+            "Some or all of the requested collection are not in the list of "
+            "available data.",
+        )
+        self.assertEqual(MODULE.failure_category(item), "catalog")
+
     def test_scheduler_timeout_discards_preceding_warning(self):
         item = record(
             "1",
@@ -275,8 +284,11 @@ class RequestInsightsTests(unittest.TestCase):
         item = record(
             "1",
             "failed",
-            "The requested longitude subset -0.37, 1.63 is not within the longitude "
-            "bounds of this dataset and could not be converted to this longitude frame.",
+            """The requested longitude subset -0.46654618800000003, """
+            """1.5334538119999999 is not
+                within the longitude bounds of this dataset and the data could not be
+                converted to this longitude frame successfully. Please re-run your
+                request with longitudes within the bounds of the dataset: 0.00, 358.88""",
         )
         self.assertEqual(MODULE.failure_category(item), "spatial")
 
@@ -402,7 +414,7 @@ class RequestInsightsTests(unittest.TestCase):
         text = output.getvalue()
         self.assertIn("PyWPS request insights — rook", text)
         self.assertIn("Metadata: available=0  missing=1", text)
-        self.assertIn("Datasets (0)", text)
+        self.assertIn("Projects (0)", text)
         self.assertNotIn("Processes", text)
         self.assertNotIn("Requested-data coverage", text)
         self.assertNotIn("All-process failure causes", text)
@@ -417,6 +429,9 @@ class RequestInsightsTests(unittest.TestCase):
         all_time = MODULE.parse_args(
             ["requests.jsonl", "--all-time"], now=now
         )
+        datasets = MODULE.parse_args(
+            ["requests.jsonl", "--datasets"], now=now
+        )
 
         self.assertEqual(
             default.start,
@@ -427,6 +442,8 @@ class RequestInsightsTests(unittest.TestCase):
             MODULE.datetime(2026, 8, 21, tzinfo=MODULE.UTC),
         )
         self.assertIsNone(all_time.start)
+        self.assertFalse(default.datasets)
+        self.assertTrue(datasets.datasets)
 
         summer_time = MODULE.timezone(MODULE.timedelta(hours=2))
         local_now = MODULE.datetime(2026, 8, 21, 10, 30, tzinfo=summer_time)
@@ -478,7 +495,7 @@ class RequestInsightsTests(unittest.TestCase):
             MODULE.print_report(report)
         text = output.getvalue()
         self.assertIn("Orchestrate data\n  Metadata:", text)
-        self.assertIn("\n  Datasets (0)", text)
+        self.assertIn("\n  Projects (0)", text)
         self.assertIn("All-process failure causes", text)
         self.assertNotIn("\nFailure causes\n", text)
 
@@ -488,14 +505,21 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(len(shortened), MODULE.MAX_DETAIL_MESSAGE_LENGTH)
         self.assertTrue(shortened.endswith(" [..]"))
 
-    def test_orchestrate_text_uses_one_line_per_collection(self):
+    def test_orchestrate_text_aggregates_collections_by_project_by_default(self):
         workflow = {
-            "inputs": {"uas": ["c3s-cmip6.example.uas"]},
+            "inputs": {
+                "uas": ["c3s-cmip6.example.uas"],
+                "tas": ["c3s-cmip6.example.tas"],
+            },
             "steps": {
                 "subset": {
                     "run": "subset",
                     "in": {"collection": "inputs/uas", "time": "1980/2014"},
-                }
+                },
+                "subset_tas": {
+                    "run": "subset",
+                    "in": {"collection": "inputs/tas", "time": "1980/2014"},
+                },
             },
         }
         item = record("1")
@@ -509,13 +533,71 @@ class RequestInsightsTests(unittest.TestCase):
             MODULE.print_report(report)
         lines = output.getvalue().splitlines()
         self.assertEqual(
-            [line for line in lines if "c3s-cmip6.example.uas" in line],
+            [line for line in lines if "c3s-cmip6" in line],
             [
-                "  c3s-cmip6.example.uas: requests=1 "
-                "success=1 failures=0 years=1980-2014"
+                "  c3s-cmip6: datasets=2 requests=2 success=2 failures=0"
             ],
         )
-        self.assertNotIn("time=1980/2014", output.getvalue())
+        self.assertNotIn("c3s-cmip6.example.uas", output.getvalue())
+
+        expanded = io.StringIO()
+        with redirect_stdout(expanded):
+            MODULE.print_report(report, datasets=True)
+        self.assertIn("Projects (1)", expanded.getvalue())
+        self.assertIn(
+            "  c3s-cmip6: datasets=2 requests=2 success=2 failures=0",
+            expanded.getvalue(),
+        )
+        self.assertIn("Datasets (2)", expanded.getvalue())
+        self.assertIn(
+            "  c3s-cmip6.example.uas: requests=1 success=1 failures=0 "
+            "years=1980-2014",
+            expanded.getvalue(),
+        )
+
+    def test_project_aggregation_uses_first_collection_path_segment(self):
+        records = []
+        for number, collection, outcome in (
+            (1, "c3s-cmip6.model.tas", "successful"),
+            (2, "c3s-cmip6.model.pr", "failed"),
+            (3, "c3s-cordex.output.tas", "successful"),
+        ):
+            workflow = {
+                "inputs": {"data": [collection]},
+                "steps": {
+                    "subset": {
+                        "run": "subset",
+                        "in": {"collection": "inputs/data"},
+                    }
+                },
+            }
+            item = record(
+                str(number),
+                outcome,
+                "timeout" if outcome == "failed" else None,
+            )
+            item["process"] = "orchestrate"
+            item["inputs"] = {
+                "workflow": [{"type": "ComplexData", "value": json.dumps(workflow)}]
+            }
+            records.append(item)
+
+        projects = MODULE.aggregate(records, top=10)["orchestrate"]["projects"]
+        self.assertEqual(
+            projects,
+            {
+                "c3s-cmip6": {
+                    "datasets": 2,
+                    "requests": 2,
+                    "outcomes": {"failed": 1, "successful": 1},
+                },
+                "c3s-cordex": {
+                    "datasets": 1,
+                    "requests": 1,
+                    "outcomes": {"successful": 1},
+                },
+            },
+        )
 
     def test_orchestrate_failure_categories_are_not_limited_by_top(self):
         records = []
@@ -555,14 +637,16 @@ class RequestInsightsTests(unittest.TestCase):
         }
         output = io.StringIO()
         with redirect_stdout(output):
-            MODULE.print_report(MODULE.aggregate([item], top=10))
+            MODULE.print_report(MODULE.aggregate([item], top=10), datasets=True)
         text = output.getvalue()
         self.assertLess(text.index("Failure causes"), text.index("c3s-cmip6.example.tas"))
         self.assertNotIn("Failure details", text)
         detailed = io.StringIO()
         with redirect_stdout(detailed):
             MODULE.print_report(
-                MODULE.aggregate([item], top=10), failure_details=True
+                MODULE.aggregate([item], top=10),
+                failure_details=True,
+                datasets=True,
             )
         detailed_text = detailed.getvalue()
         self.assertLess(

@@ -564,6 +564,37 @@ def aggregate_orchestrate(
                 for value, count in collection_ranges[collection].most_common(top)
             ],
         }
+    project_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    project_datasets: dict[str, set[str]] = defaultdict(set)
+    for collection, values in collections.items():
+        project = collection.split(".", 1)[0]
+        project_datasets[project].add(collection)
+        project_counts[project].update(values["outcomes"])
+    project_items = list(project_counts.items())
+    if sort_by == "name":
+        project_items.sort(key=lambda item: item[0])
+    else:
+        metric = (
+            "successful"
+            if sort_by == "successful"
+            else "failed"
+            if sort_by == "failed"
+            else None
+        )
+        project_items.sort(
+            key=lambda item: (
+                -(item[1].get(metric, 0) if metric else sum(item[1].values())),
+                item[0],
+            )
+        )
+    projects = {
+        project: {
+            "datasets": len(project_datasets[project]),
+            "requests": sum(counts.values()),
+            "outcomes": dict(sorted(counts.items())),
+        }
+        for project, counts in project_items
+    }
     failures_by_category = defaultdict(list)
     for item in failures.items():
         failures_by_category[item[0][3]].append(item)
@@ -604,6 +635,7 @@ def aggregate_orchestrate(
         "outcomes": dict(sorted(outcomes.items())),
         "jobs_with_workflow_lineage": lineage_jobs,
         "jobs_without_workflow_lineage": len(orchestrate) - lineage_jobs,
+        "projects": projects,
         "collections": collections,
         "failure_categories": dict(failure_categories.most_common()),
         "failure_group_count": len(failures),
@@ -811,7 +843,11 @@ def print_status_xml(
 
 
 def print_report(
-    report: dict[str, object], *, failure_details: bool = False, coverage: bool = False
+    report: dict[str, object],
+    *,
+    failure_details: bool = False,
+    coverage: bool = False,
+    datasets: bool = False,
 ) -> None:
     period = report["period"]
     outcomes = report["outcomes"]
@@ -874,22 +910,39 @@ def print_report(
                 print("  No failures.")
             for category, count in orchestrate["failure_categories"].items():
                 print(f"  {category}: {count}")
-        dataset_indent = "" if orchestrate_only else "  "
+        section_indent = "" if orchestrate_only else "  "
         item_indent = "  " if orchestrate_only else "    "
-        print(f"\n{dataset_indent}Datasets ({len(orchestrate['collections'])})")
-        if not orchestrate["collections"]:
+        projects = orchestrate["projects"]
+        print(f"\n{section_indent}Projects ({len(projects)})")
+        if not projects:
             print(
                 f"{item_indent}No datasets were identified in the retained "
                 "request metadata."
             )
-        for collection, values in orchestrate["collections"].items():
+        for name, values in projects.items():
             outcomes = values["outcomes"]
             print(
-                f"{item_indent}{collection}: requests={values['requests']} "
+                f"{item_indent}{name}: datasets={values['datasets']} "
+                f"requests={values['requests']} "
                 f"success={outcomes.get('successful', 0)} "
-                f"failures={outcomes.get('failed', 0)} "
-                f"years={values['year_coverage']}"
+                f"failures={outcomes.get('failed', 0)}"
             )
+        if datasets:
+            collections = orchestrate["collections"]
+            print(f"\n{section_indent}Datasets ({len(collections)})")
+            if not collections:
+                print(
+                    f"{item_indent}No datasets were identified in the retained "
+                    "request metadata."
+                )
+            for collection, values in collections.items():
+                outcomes = values["outcomes"]
+                print(
+                    f"{item_indent}{collection}: requests={values['requests']} "
+                    f"success={outcomes.get('successful', 0)} "
+                    f"failures={outcomes.get('failed', 0)} "
+                    f"years={values['year_coverage']}"
+                )
         if failure_details and orchestrate_only:
             shown = len(orchestrate["failures"])
             groups = orchestrate["failure_group_count"]
@@ -1032,6 +1085,11 @@ def parse_args(
         help="include detailed requested-data coverage in the text report",
     )
     parser.add_argument(
+        "--datasets",
+        action="store_true",
+        help="append individual datasets after the project aggregation",
+    )
+    parser.add_argument(
         "--incident-dir",
         type=Path,
         help="directory containing archived recovered XML status documents",
@@ -1089,7 +1147,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
         print_report(
-            report, failure_details=args.failures, coverage=args.coverage
+            report,
+            failure_details=args.failures,
+            coverage=args.coverage,
+            datasets=args.datasets,
         )
     for error in errors:
         print(error, file=sys.stderr)

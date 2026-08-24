@@ -86,6 +86,7 @@
           - wps_tools_bin_dir == '/opt/wps-tools/bin'
           - wps_tools_sbin_dir == '/opt/wps-tools/sbin'
           - wps_tools_script_dir == '/opt/wps-tools/scripts'
+          - wps_tools_path_dir == '/usr/local/sbin'
           - >-
             wps_tools_pywps_status_script
             == '/opt/wps-tools/scripts/pywps-job-status.py'
@@ -434,6 +435,10 @@
           - >-
             'Remove legacy statistics command before directory migration'
             in test_wps_tools_tasks
+          - >-
+            'Link routine WPS tools into the standard command path'
+            in test_wps_tools_tasks
+          - test_wps_tools_tasks.count('wps_tools_path_dir') >= 4
           - "'    - statistics\n' not in test_wps_tools_tasks"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"
@@ -462,6 +467,7 @@
           - "'insights SERVICE_NAME' in test_request_insights_helper"
           - "'--failures' in test_request_insights_helper"
           - "'--coverage' in test_request_insights_helper"
+          - "'--datasets' in test_request_insights_helper"
           - >-
             '/opt/wps-tools/scripts/pywps-request-insights.py'
             in test_request_insights_helper

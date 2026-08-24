@@ -10,11 +10,9 @@ help:
 	@echo "  roles       to install pinned Galaxy dependencies."
 	@echo "  roles-update"
 	@echo "              to reinstall edited dependency pins and test."
-	@echo "  play        to run ansible playbook."
-	@echo "  quick       to run all tasks except Conda tasks."
-	@echo "  update      to update WPS sources, configuration, and cron jobs."
-	@echo "  live-update"
-	@echo "              to safely update tools, cron, and runtime configuration without restarts."
+	@echo "  play        to run the full Ansible installation."
+	@echo "  quick       to quickly update WPS sources, configuration, and cron jobs."
+	@echo "  live        to safely update tools, cron, and runtime configuration without restarts."
 	@echo "  lint        to lint YAML, Ansible, and test shell scripts."
 	@echo "  check       to run an Ansible syntax check."
 	@echo "  config-check"
@@ -34,16 +32,11 @@ roles-update: test
 
 .PHONY: quick
 quick: roles
-	echo "Installing PyWPS application with Ansible [skip conda tasks] ..."
-	ansible-playbook -c local --skip-tags conda -i hosts playbook.yml
-
-.PHONY: update
-update: roles
 	echo "Updating PyWPS sources, configuration, and cron jobs with Ansible ..."
 	ansible-playbook -c local --tags update --skip-tags conda -i hosts playbook.yml
 
-.PHONY: live-update
-live-update: roles
+.PHONY: live
+live: roles
 	@echo "Safely updating WPS tools, cron jobs, and runtime configuration ..."
 	ansible-playbook -c local --tags live_update --skip-tags conda,slurm -i hosts playbook.yml
 

@@ -18,14 +18,25 @@ def task(text: str, name: str) -> str:
 
 
 class LiveUpdateTests(unittest.TestCase):
+    def test_quick_make_target_uses_focused_update_tag(self):
+        makefile = read("Makefile")
+        target = makefile.split(".PHONY: quick", 1)[1].split(".PHONY:", 1)[0]
+
+        self.assertIn("--tags update", target)
+        self.assertIn("--skip-tags conda", target)
+
     def test_make_target_uses_narrow_tag_and_skips_slurm(self):
         makefile = read("Makefile")
-        target = makefile.split(".PHONY: live-update", 1)[1].split(
-            ".PHONY:", 1
-        )[0]
+        target = makefile.split(".PHONY: live", 1)[1].split(".PHONY:", 1)[0]
 
         self.assertIn("--tags live_update", target)
         self.assertIn("--skip-tags conda,slurm", target)
+
+    def test_deprecated_make_target_names_are_removed(self):
+        makefile = read("Makefile")
+
+        self.assertNotIn(".PHONY: update", makefile)
+        self.assertNotIn(".PHONY: live-update", makefile)
 
     def test_pywps_live_update_only_reaches_runtime_configuration(self):
         main = read("roles/pywps/tasks/main.yml")

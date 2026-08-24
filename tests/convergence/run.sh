@@ -107,7 +107,13 @@ docker exec "$container_name" bash -c '
   done
   for command in insights smoke; do
     test -x "/opt/wps-tools/bin/$command"
+    test -L "/usr/local/sbin/$command"
+    test "$(readlink "/usr/local/sbin/$command")" = "/opt/wps-tools/bin/$command"
   done
+  test -L /usr/local/sbin/ptop
+  test "$(readlink /usr/local/sbin/ptop)" = /opt/wps-tools/bin/ptop
+  test ! -e /usr/local/sbin/itop
+  test ! -e /usr/local/sbin/qtop
   for command in monitor recover stats db-report restart-pywps; do
     test -x "/opt/wps-tools/sbin/$command"
   done
