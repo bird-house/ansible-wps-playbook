@@ -16,7 +16,7 @@ cron_enabled: yes
 conda_env_use_spec: true
 # slurm
 slurm_enabled: true
-slurm_cpus: 8  
+slurm_cpus: 8
 # Rook workers commonly need 15-18 GiB. With roughly 64 GiB installed and the
 # default 20% system reserve, this admits two ordinary workers at a time while
 # retaining two CPUs for Gunicorn and other host services.
