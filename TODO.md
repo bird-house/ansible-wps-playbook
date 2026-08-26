@@ -51,6 +51,14 @@ by the PyWPS deployment.
 
 ### Unified job and resource view
 
+- Add a compact ASCII activity chart to `ptop`, grouping PyWPS database jobs
+  into time buckets. Choose a reasonable bucket size automatically from the
+  selected monitoring window—for example, five-minute buckets for short
+  windows and hourly buckets for longer ones—while allowing an explicit
+  override. Where it remains readable, distinguish job statuses without making
+  the default snapshot too long. Render a dependency-free Unicode block
+  sparkline with an ASCII fallback, and label the bucket size, time range, and
+  maximum value so the chart remains interpretable.
 - Add a combined `qtop` and `ptop` maintainer view covering PyWPS database
   jobs, Slurm state, and memory usage. Correlate jobs with a durable
   `PyWPS UUID -> Slurm job ID` mapping captured at submission time rather than
