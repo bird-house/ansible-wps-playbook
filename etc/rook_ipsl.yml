@@ -3,7 +3,7 @@
 # IMPORTANT: replace every value marked REPLACE before running make play.
 
 # IMPORTANT: public/internal names used by Nginx, PyWPS, and output URLs.
-wps_internal_hostname: rook.ipsl.example.invalid  # REPLACE
+wps_internal_hostname: rook-internal.ipsl.example.invalid  # REPLACE
 wps_external_hostname: rook.ipsl.example.invalid  # REPLACE
 
 # IMPORTANT: match the existing service account and numeric IDs on the node.
@@ -14,6 +14,7 @@ service_gid: 399  # REPLACE
 
 cron_enabled: true
 cron_mailto: wps-admins@example.invalid  # REPLACE
+
 # Changed since v0.7.0: retention is configured in hours, not days.
 wps_outputs_keep_hours: 6  # REPLACE if needed
 wps_temp_keep_hours: 6  # REPLACE if needed
@@ -21,9 +22,16 @@ wps_temp_keep_hours: 6  # REPLACE if needed
 # Changed since v0.7.0: the default explicit spec is linux-64.spec.
 conda_env_use_spec: true
 
-# IMPORTANT: size these for the node. Slurm now schedules by CPU and memory.
+# IMPORTANT: size these for the node. Slurm schedules by CPU and memory.
 slurm_enabled: true
 slurm_cpus: 8  # REPLACE
+
+# Reserve this percentage for the OS, ROOK web services, monitoring, and other
+# processes outside Slurm.
+slurm_system_memory_reserve_percent: 20  # REPLACE
+
+# Normally leave unset. Set only if IPSL needs a site-specific default
+# memory limit for individual jobs.
 # slurm_default_job_memory_mb: 20000
 
 # IMPORTANT: replace with the networks allowed to reach the WPS.
@@ -52,6 +60,9 @@ collectd_disk_enabled: false
 
 # Recovery, incident archives, request insights, and wps-tools are new since
 # v0.7.0 and enabled by default; add wps_tools_* overrides only if required.
+
+# Nginx exposes /health2 as the external health endpoint. It calls the ROOK
+# "health" process and can be used by monitoring or load balancers.
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
@@ -65,12 +76,17 @@ wps_services:
     storage_copy_function: link
     log_level: INFO
     identification_accessconstraints: "open access"
-    provider_name: "IPSL"  # REPLACE if needed
+
+    provider_name: "IPSL"
     provider_url: https://www.ipsl.fr/
-    contact_name: IPSL  # REPLACE
+
+    # Verify the contact details before deployment.
+    contact_name: IPSL  # REPLACE if a specific contact is required
     contact_city: Paris
     contact_country: France
-    contact_url: https://www.ipsl.fr/  # REPLACE
+    contact_url: https://www.ipsl.fr/  # REPLACE if a specific contact URL exists
+
     cleantempdir: false
+
     environment:
       INTAKE_CONF_DIR: /var/lib/pywps/intake
