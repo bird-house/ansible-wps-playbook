@@ -1,8 +1,10 @@
 ---
-# Configuration for Emu WPS
+# Uncomment these options to run Emu through the local Slurm scheduler.
+# slurm_enabled: true
+# slurm_cpus: 4
+
 wps_services:
   - name: emu
-    # repo: https://github.com/bird-house/emu.git
-    # version: master
     hostname: localhost
     port: 5000
+    # mode: scheduler

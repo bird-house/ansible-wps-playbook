@@ -118,14 +118,14 @@ prepare an ignored configuration and apply the playbook:
 ```sh
 sudo -i
 cd /vagrant
-cp etc/sample-vagrant.yml custom.yml
+cp etc/sample-emu.yml custom.yml
 vim custom.yml
 make play
 supervisorctl status
 ```
 
-The service is reachable through the VM address `192.168.128.100`. Destroy the
-VM when it is no longer needed:
+The VM address is `192.168.128.100`; use the port selected in `custom.yml`.
+Destroy the VM when it is no longer needed:
 
 ```sh
 vagrant destroy
@@ -163,9 +163,7 @@ Updating dependencies is an explicit, tested change:
 
 Development configurations may follow an application branch when desired. A
 deployment release should pin every `wps_services[].version` to a release tag
-or commit and use an explicit Conda specification. The
-[`etc/sample-production.yml`](etc/sample-production.yml) example follows this
-policy.
+or commit and use an explicit Conda specification.
 
 ## Release workflow
 
@@ -200,8 +198,8 @@ rook8 configuration and including a prepared IPSL template.
 
 Create a `custom.yml` file to override variables from
 [`group_vars/all.yml`](group_vars/all.yml). The playbook loads this file
-automatically, and Git ignores it. Prepared configurations under
-`etc/sample-*.yml` provide useful starting points.
+automatically, and Git ignores it. The minimal
+[`etc/sample-emu.yml`](etc/sample-emu.yml) is a useful starting point.
 
 To keep multiple local configurations, store them under `etc/custom-*.yml`
 and link the active one:
@@ -211,6 +209,10 @@ cp etc/sample-emu.yml etc/custom-emu.yml
 vim etc/custom-emu.yml
 ln -s etc/custom-emu.yml custom.yml
 ```
+
+> [!IMPORTANT]
+> Do not commit database passwords, private keys, or other deployment secrets.
+> Store secrets in Ansible Vault or another untracked variables file.
 
 With the desired configuration selected, run the deployment from the target
 host:
@@ -398,30 +400,6 @@ wps_health_cache_valid: "30s"
 Set these variables in `custom.yml` using an Nginx time value such as `10s`,
 `1m`, or `10m`. Concurrent cache misses for the health endpoints are locked so
 only one request refreshes an expired entry.
-
-### Start from a production-style example
-
-[`etc/sample-production.yml`](etc/sample-production.yml) demonstrates a
-single-host HTTPS deployment with:
-
-- explicit cleanup retention;
-- an external PostgreSQL database;
-- a pinned application revision and explicit Conda specification;
-- certificate paths for an existing TLS certificate;
-- conservative process limits and operator metadata.
-
-Copy it to an ignored local file and replace every `REPLACE_WITH_*`
-placeholder:
-
-```sh
-cp etc/sample-production.yml etc/custom-production.yml
-vim etc/custom-production.yml
-ln -s etc/custom-production.yml custom.yml
-```
-
-> [!IMPORTANT]
-> Do not commit database passwords, private keys, or other deployment secrets.
-> Store secrets in Ansible Vault or another untracked variables file.
 
 ### Configure processing CPUs
 
@@ -1035,10 +1013,6 @@ repository and set:
 conda_env_use_spec: true
 ```
 
-See
-[`etc/sample-emu-with-conda-spec.yml`](etc/sample-emu-with-conda-spec.yml)
-for an example.
-
 > [!NOTE]
 > `conda_env_use_spec` and `conda_env_spec_file` apply to all configured WPS
 > services.
@@ -1212,8 +1186,6 @@ db_install_postgresql: false
 db_install_sqlite: true
 ```
 
-See [`etc/sample-sqlite.yml`](etc/sample-sqlite.yml) for an example.
-
 #### PostgreSQL installed by the playbook
 
 By default the playbook will install a PostgreSQL database. You can
@@ -1225,8 +1197,6 @@ db_user: dbuser
 db_password: dbuser
 ```
 
-See [`etc/sample-postgres.yml`](etc/sample-postgres.yml) for an example.
-
 #### External PostgreSQL
 
 To use an existing database, disable the local PostgreSQL installation and
@@ -1237,15 +1207,11 @@ db_install_postgresql: false
 wps_database: "postgresql+psycopg2://user:password@host:5432/pywps"
 ```
 
-See [`etc/sample-postgres.yml`](etc/sample-postgres.yml) for an example.
-
 ### Install multiple PyWPS applications
 
-You can install several PyWPS applications with a single Ansible run.
-See [`etc/sample-multiple.yml`](etc/sample-multiple.yml) for an example.
-
-You can also configure a shared file server for outputs. See
-[`etc/sample-multiple-with-shared-fileserver.yml`](etc/sample-multiple-with-shared-fileserver.yml).
+You can install several PyWPS applications with a single Ansible run by adding
+another entry to `wps_services`. Set `fs_enabled: true` to provide a shared
+file server for outputs.
 
 ### Use HTTPS with Nginx
 
@@ -1258,9 +1224,6 @@ wps_enable_https: true
 ssl_certs_cert_path: /etc/ssl/example.com/example.com.pem
 ssl_certs_privkey_path: /etc/ssl/example.com/example.com.key
 ```
-
-See [`etc/sample-certs.yml`](etc/sample-certs.yml) for the service
-configuration.
 
 ### Extend PyWPS configuration
 
