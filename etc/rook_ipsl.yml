@@ -32,7 +32,7 @@ slurm_system_memory_reserve_percent: 20  # REPLACE
 
 # Normally leave unset. Set only if IPSL needs a site-specific default
 # memory limit for individual jobs.
-# slurm_default_job_memory_mb: 20000
+# slurm_default_job_memory_mb: 4096
 
 # IMPORTANT: replace with the networks allowed to reach the WPS.
 wps_enable_acl: true
