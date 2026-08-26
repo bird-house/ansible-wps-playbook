@@ -2,6 +2,16 @@
 
 Run the Ansible playbook **as root on the WPS node**.
 
+## Preparation
+
+Before updating an existing installation, copy the current node configuration
+and the deployed ROOCS configuration to a safe place:
+
+```sh
+install -d -m 700 /root/rook-upgrade-backup
+cp -p custom.yml /etc/roocs.ini /root/rook-upgrade-backup/
+```
+
 A prepared IPSL configuration is included. It is based on the `rook8` setup. Review `custom.yml` and replace every value marked `REPLACE`.
 
 ```sh
@@ -28,15 +38,10 @@ IPSL does not have a ROOCS site profile yet. Therefore, the template explicitly 
 
 ## Check the installation
 
-First test ROOK. Then use the read-only operator commands to check the node:
+First test ROOK:
 
 ```sh
 smoke rook
-
-qtop
-itop
-ptop rook
-insights rook
 ```
 
 ### Health check
@@ -47,7 +52,22 @@ v0.10.0 provides a new health check through nginx:
 /health2
 ```
 
-The nginx endpoint calls the ROOK `health` process, providing an external check that ROOK itself is working.
+The nginx endpoint calls the ROOK `health` process, providing an external check
+that ROOK itself is working. The health endpoint can include multiple checks,
+such as:
+
+* availability of the mounted filesystems used for data
+
+## Operations and maintenance
+
+The installed read-only operator commands help inspect and maintain the node:
+
+* `qtop` shows active and pending Slurm jobs and their peak memory use.
+* `itop` shows a compact snapshot of host infrastructure health.
+* `ptop rook` shows recent and active ROOK jobs from the PyWPS database.
+* `insights rook` summarizes request coverage, performance, and failures from
+  the ROOK logs. Use `insights rook --failures` to include grouped failure
+  messages and example job IDs.
 
 ## Migrating `custom.yml` from v0.7.0
 
@@ -74,7 +94,8 @@ Before deployment, check:
 
 ## Later updates
 
-For normal source or configuration updates:
+For normal source or configuration updates without updating the Conda
+environment:
 
 ```sh
 make quick
