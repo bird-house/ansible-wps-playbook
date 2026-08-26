@@ -88,7 +88,7 @@ After the first update, the PyWPS database may still contain about 10,000 old
 accepted or pending jobs. Run the recovery manually:
 
 ```sh
-recover rook --limit 10000
+/opt/wps-tools/sbin/recover rook --limit 10000
 ```
 
 This command processes all recovery layers. The limit caps the number of jobs
