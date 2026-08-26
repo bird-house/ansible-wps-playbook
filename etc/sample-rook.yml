@@ -1,0 +1,38 @@
+---
+wps_internal_hostname: rook.example.org
+wps_external_hostname: rook.example.org
+
+service_user: tomcat
+service_uid: 401
+service_group: tomcat
+service_gid: 399
+
+slurm_enabled: true
+
+# Common site-specific tuning (defaults shown; uncomment to override).
+# job_timeout_minutes: 90
+# wps_cpus: auto
+# wps_service_cpus: auto
+# slurm_system_memory_reserve_percent: 20
+# slurm_min_job_memory_mb: 4096
+
+# Host monitoring, including the filesystem holding WPS outputs.
+# collectd_enabled: true
+# collectd_disk_enabled: false
+# collectd_disk_mount: /mnt/ext_pywps_outputs
+# collectd_keep_days: 30
+
+# Scheduled cleanup of WPS outputs and temporary files.
+# cron_enabled: false
+# cron_mailto: root
+# wps_outputs_keep_hours: 6
+# wps_temp_keep_hours: 6
+
+wps_services:
+  - name: rook
+    repo: https://github.com/roocs/rook.git
+    hostname: "{{ wps_external_hostname }}"
+    fs_hostname: "{{ wps_internal_hostname }}"
+    port: 80
+    mode: scheduler
+    provider_name: "ROOK at Example Site"

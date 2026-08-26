@@ -3,6 +3,10 @@
 prefix: /usr/local
 src_dir: "{{ prefix }}/src"
 server_name: localhost
+# Public hostname advertised by PyWPS and served by Nginx. The internal hostname
+# is used for output URLs when clients reach the output filesystem separately.
+wps_external_hostname: "{{ server_name }}"
+wps_internal_hostname: "{{ wps_external_hostname }}"
 service_add_user: true
 service_user: wps
 # service_uid: 500
@@ -383,8 +387,11 @@ wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git
   #   version: master
-  #   hostname: "{{ server_name }}"
+  #   hostname: "{{ wps_external_hostname }}"
+  #   fs_hostname: "{{ wps_internal_hostname }}"
   #   port: 5000
+  #   provider_name: Example Site
+  #   provider_url: https://example.org/
   #   maxsingleinputsize: 200mb
   #   maxrequestsize: 200mb
   #   maxprocesses: 30
