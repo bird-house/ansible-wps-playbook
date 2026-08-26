@@ -1,4 +1,4 @@
-# ROOK v0.10.0 installation for IPSL
+# Playbook v0.10.0 installation for ROOK at IPSL
 
 Run the Ansible playbook **as root on the WPS node**.
 
