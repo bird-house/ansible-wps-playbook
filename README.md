@@ -1,17 +1,21 @@
 # PyWPS / ROOK Ansible Playbook
 
-An Ansible playbook for deploying and maintaining a production [PyWPS](https://pywps.org/) service, in particular [ROOK](https://github.com/roocs/rook).
+An Ansible playbook for deploying and maintaining a production [PyWPS](https://github.com/geopython/pywps) service, in particular [ROOK](https://github.com/roocs/rook).
 
 The playbook installs and configures the complete service stack on a single host.
 
 ```mermaid
 flowchart LR
-    Client --> Nginx
-    Nginx --> PyWPS
-    PyWPS --> ROOK
-    ROOK --> Slurm
-    Slurm --> Worker[ROOK job]
-    Worker --> Outputs[WPS outputs]
+    Client["WPS client"] --> Nginx["Nginx<br/>reverse proxy and optional TLS"]
+    Nginx --> WPS["Gunicorn + PyWPS<br/>one Conda environment per service"]
+    Supervisor["Supervisor"] --> WPS
+    WPS --> Database["PostgreSQL or SQLite"]
+    WPS --> Files["Outputs and temporary files"]
+    Cron["Optional hourly cleanup cron"] --> Files
+    Ansible["Ansible playbook<br/>local connection"] -. provisions .-> Nginx
+    Ansible -. configures .-> Supervisor
+    Ansible -. deploys .-> WPS
+    Ansible -. installs .-> Cron
 ```
 
 ## What gets installed?
@@ -39,25 +43,19 @@ cd ansible-wps-playbook
 
 Have a look at the example configurations in [`etc/`](https://github.com/bird-house/ansible-wps-playbook/tree/master/etc). They provide ready-to-use starting points for different PyWPS deployments.
 
-For a ROOK installation, start with the ROOK example:
+For a minimal PyWPS installation, start with the Emu example:
+
+```bash
+cp etc/sample-emu.yml custom.yml
+```
+
+For a ROOK installation with Slurm, use the ROOK example instead:
 
 ```bash
 cp etc/sample-rook.yml custom.yml
 ```
 
-Edit `custom.yml` and replace the site-specific values.
-
-At minimum, check the public and internal host names and the service account:
-
-```yaml
-wps_internal_hostname: rook.example.org
-wps_external_hostname: rook.example.org
-
-service_user: tomcat
-service_uid: 401
-service_group: tomcat
-service_gid: 399
-```
+Edit `custom.yml` and replace the site-specific values shown in the sample.
 
 Then deploy:
 
