@@ -1,0 +1,76 @@
+---
+# IPSL ROOK node configuration template for playbook v0.10.0+.
+# IMPORTANT: replace every value marked REPLACE before running make play.
+
+# IMPORTANT: public/internal names used by Nginx, PyWPS, and output URLs.
+wps_internal_hostname: rook.ipsl.example.invalid  # REPLACE
+wps_external_hostname: rook.ipsl.example.invalid  # REPLACE
+
+# IMPORTANT: match the existing service account and numeric IDs on the node.
+service_user: tomcat
+service_uid: 401  # REPLACE
+service_group: tomcat
+service_gid: 399  # REPLACE
+
+cron_enabled: true
+cron_mailto: wps-admins@example.invalid  # REPLACE
+# Changed since v0.7.0: retention is configured in hours, not days.
+wps_outputs_keep_hours: 6  # REPLACE if needed
+wps_temp_keep_hours: 6  # REPLACE if needed
+
+# Changed since v0.7.0: the default explicit spec is linux-64.spec.
+conda_env_use_spec: true
+
+# IMPORTANT: size these for the node. Slurm now schedules by CPU and memory.
+slurm_enabled: true
+slurm_cpus: 8  # REPLACE
+# slurm_default_job_memory_mb: 20000
+
+# IMPORTANT: replace with the networks allowed to reach the WPS.
+wps_enable_acl: true
+wps_acl_allow:
+  - 192.0.2.0/24  # REPLACE: documentation-only example network
+
+# Changed since v0.7.0: /etc/roocs.ini uses one managed template. IPSL has no
+# profile yet, so override every final project path directly.
+roocs_enabled: true
+roocs_cmip5_path: /REPLACE_WITH_IPSL_DATA_PATH/cmip5
+roocs_cmip6_path: /REPLACE_WITH_IPSL_DATA_PATH/cmip6
+roocs_cordex_path: /REPLACE_WITH_IPSL_DATA_PATH/cordex
+roocs_c3s_cmip5_path: /REPLACE_WITH_IPSL_DATA_PATH/c3s-cmip5
+roocs_c3s_cmip6_path: /REPLACE_WITH_IPSL_DATA_PATH/c3s-cmip6
+roocs_c3s_cmip6_decadal_path: /REPLACE_WITH_IPSL_DATA_PATH/c3s-cmip6-decadal
+roocs_c3s_cordex_path: /REPLACE_WITH_IPSL_DATA_PATH/c3s-cordex
+roocs_c3s_ipcc_atlas_path: /REPLACE_WITH_IPSL_DATA_PATH/c3s-ipcc-ar6-atlas
+roocs_c3s_cica_atlas_path: /REPLACE_WITH_IPSL_DATA_PATH/c3s-cica-atlas
+roocs_copernicus_interactive_climate_atlas_path: >-
+  /REPLACE_WITH_IPSL_DATA_PATH/copernicus-interactive-climate-atlas
+
+# IMPORTANT: enable disk metrics only after setting the real data mount.
+collectd_disk_enabled: false
+# collectd_disk_mount: /REPLACE_WITH_IPSL_DATA_MOUNT
+
+# Recovery, incident archives, request insights, and wps-tools are new since
+# v0.7.0 and enabled by default; add wps_tools_* overrides only if required.
+wps_services:
+  - name: rook
+    repo: https://github.com/roocs/rook.git
+    version: v1.4.0
+    hostname: "{{ wps_external_hostname }}"
+    fs_hostname: "{{ wps_internal_hostname }}"
+    port: 80
+    mode: scheduler
+    maxprocesses: -1
+    parallelprocesses: -1
+    storage_copy_function: link
+    log_level: INFO
+    identification_accessconstraints: "open access"
+    provider_name: "IPSL"  # REPLACE if needed
+    provider_url: https://www.ipsl.fr/
+    contact_name: IPSL  # REPLACE
+    contact_city: Paris
+    contact_country: France
+    contact_url: https://www.ipsl.fr/  # REPLACE
+    cleantempdir: false
+    environment:
+      INTAKE_CONF_DIR: /var/lib/pywps/intake

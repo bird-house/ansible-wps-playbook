@@ -192,6 +192,10 @@ policy.
 
 ## Configuration
 
+IPSL node administrators can use the short
+[v0.10.0 installation and migration guide](docs/IPSL_INSTALL.md), based on the
+rook8 configuration and including a prepared IPSL template.
+
 ### Create `custom.yml`
 
 Create a `custom.yml` file to override variables from
