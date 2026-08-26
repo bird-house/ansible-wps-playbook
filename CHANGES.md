@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.10.0 (2026-08-26)
+
 Changes:
 
 - link routine read-only WPS maintenance commands into `/usr/local/sbin`, while
