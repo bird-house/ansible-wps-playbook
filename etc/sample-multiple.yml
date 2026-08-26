@@ -1,9 +1,0 @@
----
-# Configuration for Emu and Hummingbird WPS
-wps_services:
-  - name: emu
-    hostname: localhost
-    port: 5000
-  - name: hummingbird
-    hostname: localhost
-    port: 5001

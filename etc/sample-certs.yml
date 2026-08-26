@@ -1,8 +1,0 @@
----
-wps_enable_https: true
-# Configuration for Emu WPS
-wps_services:
-  - name: emu
-    hostname: localhost
-    port: 5000
-    sethomedir: true
