@@ -82,6 +82,19 @@ Do **not** copy old defaults for database, Gunicorn, cron, cleanup, or Conda. In
 
 Recovery tools, incident archives, request statistics, `wps-tools`, and collectd monitoring are installed and scheduled by default. Override `wps_tools_*`, timeout, or monitoring settings only when IPSL deliberately needs different behaviour.
 
+### One-time recovery
+
+After the first update, the PyWPS database may still contain about 10,000 old
+accepted or pending jobs. Run the recovery manually:
+
+```sh
+recover rook --limit 10000
+```
+
+This command processes all recovery layers. The limit caps the number of jobs
+handled per layer in one run. Use a lower value and repeat the command if the
+backlog should be processed in smaller batches.
+
 ### Slurm
 
 Slurm now schedules jobs by both **CPU and memory**.
