@@ -455,7 +455,7 @@
           - >-
             'pywps-temp-cleanup.py' in test_wps_tools_tasks
           - >-
-            'when: item.mode | default(''default'') == ''scheduler'''
+            "when: item.mode | default('default') == 'scheduler'"
             in test_wps_tools_tasks
           - >-
             'Remove unsafe shared PyWPS temporary-directory cleanup'
