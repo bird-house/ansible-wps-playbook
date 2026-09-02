@@ -462,12 +462,14 @@
             in test_wps_tools_tasks
           - test_wps_tools_tasks.count('wps_tools_path_dir') >= 4
           - >-
+            test_wps_tools_tasks.count('find -H ') == 3
+          - >-
             test_wps_tools_tasks.count(
-              'find -H {{ wps_basedir }}/outputs'
+              '/outputs -mindepth 2 -maxdepth 2'
             ) == 2
           - >-
             test_wps_tools_tasks.count(
-              'find -H {{ wps_basedir }}/tmp'
+              ' -mindepth 1 -maxdepth 1'
             ) == 1
           - "'    - statistics\n' not in test_wps_tools_tasks"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
@@ -484,11 +486,12 @@
           - "'recover)' in test_job_control_helper"
           - "'mode=recover' in test_job_control_helper"
           - >-
-            'repair recovered PyWPS timestamps for {{ item.name }}'
+            'repair recovered PyWPS timestamps for '
             in test_wps_tools_tasks
           - "'--repair-timestamps' in test_wps_tools_tasks"
+          - "'--limit ' in test_wps_tools_tasks"
           - >-
-            '--limit {{ wps_tools_job_control_timestamp_repair_limit }}'
+            'wps_tools_job_control_timestamp_repair_limit'
             in test_wps_tools_tasks
           - "'statistics)' not in test_job_control_helper"
           - "'mode=statistics' not in test_job_control_helper"
