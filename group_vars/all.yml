@@ -325,6 +325,16 @@ wps_tools_job_control_recovery_schedule:
   day: "*"
   month: "*"
   weekday: "*"
+# Recheck recovery-generated database end times every week. This is idempotent
+# and catches timestamp repairs missed because of transient database failures.
+wps_tools_job_control_timestamp_repair_enabled: true
+wps_tools_job_control_timestamp_repair_schedule:
+  minute: "17"
+  hour: "3"
+  day: "*"
+  month: "*"
+  weekday: "0"
+wps_tools_job_control_timestamp_repair_limit: 10000
 # Warn about started database requests running this long; queue wait is excluded.
 wps_tools_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
 wps_tools_job_control_stale_after_minutes: >-

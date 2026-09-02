@@ -1132,6 +1132,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         settings.pywps_config = self.root / "pywps.cfg"
         settings.repair_recovery_timestamps = True
 
+        database_runner = mock.Mock(return_value=MODULE.LayerSummary("database"))
         with mock.patch.object(
             MODULE,
             "repair_database_recovery_timestamps",
@@ -1141,10 +1142,11 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 settings,
                 self.now,
                 mock.Mock(),
-                runners={"database": lambda *_args: MODULE.LayerSummary("database")},
+                runners={"database": database_runner},
             )
 
-        self.assertIsNone(repair.call_args.args[3])
+        self.assertEqual(len(repair.call_args.args), 3)
+        database_runner.assert_not_called()
 
     def test_failed_xml_recovery_excludes_same_job_from_database_recovery(self):
         settings = self.settings("recover", ["xml", "database"])

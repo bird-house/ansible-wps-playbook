@@ -6,7 +6,8 @@
   cleanup so mounted external storage uses the configured retention periods
 - cap database end times created by stalled-job recovery at the configured
   Slurm runtime for started jobs and status-document lifetime for pending jobs,
-  and allow earlier recovery timestamps to be repaired safely
+  allow earlier recovery timestamps to be repaired safely, and audit those
+  timestamps automatically every week
 
 ## 0.10.0 (2026-08-26)
 

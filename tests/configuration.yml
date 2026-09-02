@@ -48,6 +48,7 @@
           - wps_logrotate_rotations == 7
           - wps_tools_job_control_schedule | type_debug == 'dict'
           - wps_tools_job_control_recovery_schedule | type_debug == 'dict'
+          - wps_tools_job_control_timestamp_repair_schedule | type_debug == 'dict'
           - wps_tools_statistics_schedule | type_debug == 'dict'
           - wps_tools_statistics_schedule.minute == '4'
           - wps_tools_statistics_schedule.hour == '*'
@@ -58,6 +59,11 @@
           - wps_tools_inspect_enabled
           - wps_tools_job_control_schedule.minute == '*/5'
           - wps_tools_job_control_recovery_schedule.minute == '1-56/5'
+          - wps_tools_job_control_timestamp_repair_schedule.minute == '17'
+          - wps_tools_job_control_timestamp_repair_schedule.hour == '3'
+          - wps_tools_job_control_timestamp_repair_schedule.weekday == '0'
+          - wps_tools_job_control_timestamp_repair_enabled
+          - wps_tools_job_control_timestamp_repair_limit == 10000
           - wps_tools_job_control_schedule.hour == '*'
           - job_long_running_minutes | float == 10
           - job_timeout_minutes | float == 90
@@ -461,6 +467,13 @@
           - "'monitor)' in test_job_control_helper"
           - "'recover)' in test_job_control_helper"
           - "'mode=recover' in test_job_control_helper"
+          - >-
+            'repair recovered PyWPS timestamps for {{ item.name }}'
+            in test_wps_tools_tasks
+          - "'--repair-timestamps' in test_wps_tools_tasks"
+          - >-
+            '--limit {{ wps_tools_job_control_timestamp_repair_limit }}'
+            in test_wps_tools_tasks
           - "'statistics)' not in test_job_control_helper"
           - "'mode=statistics' not in test_job_control_helper"
           - "'script_options=(--layer' not in test_job_control_helper"

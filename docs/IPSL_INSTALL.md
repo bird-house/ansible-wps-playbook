@@ -110,6 +110,11 @@ end times. Jobs that reached Slurm use the configured `job_timeout_minutes`
 configured `wps_outputs_keep_minutes`, matching the six-hour status-document
 retention period by default.
 
+The playbook also schedules this idempotent timestamp audit every Sunday at
+03:17. It uses the same job-control lock as normal recovery, repairs at most
+10,000 rows per run, and can be adjusted or disabled with the
+`wps_tools_job_control_timestamp_repair_*` variables.
+
 ### Slurm
 
 Slurm now schedules jobs by both **CPU and memory**.

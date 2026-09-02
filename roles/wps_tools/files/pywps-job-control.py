@@ -1595,7 +1595,10 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     parser.add_argument(
         "--repair-timestamps",
         action="store_true",
-        help="also repair oversized end times from earlier recoveries",
+        help=(
+            "repair oversized end times from earlier recoveries without "
+            "running recovery layers"
+        ),
     )
     parser.add_argument(
         "--recovery-pending-timeout-minutes",
@@ -1866,6 +1869,38 @@ def execute_layers(
     }
     summaries: list[LayerSummary] = []
     database_recovery_excluded_jobs: set[str] = set()
+    if settings.mode == "recover" and settings.repair_recovery_timestamps:
+        repair_limit = (
+            settings.limit if settings.limit is not None else settings.recovery_limit
+        )
+        repair_settings = replace(settings, limit=repair_limit)
+        try:
+            repair_summary = repair_database_recovery_timestamps(
+                repair_settings,
+                now,
+                logger,
+            )
+        except Exception as error:
+            logger.critical(
+                "layer=timestamps decision=error reason=%s", error, exc_info=True
+            )
+            repair_summary = LayerSummary("timestamps", errors=1)
+        summaries.append(repair_summary)
+        log_method = (
+            logger.error
+            if repair_summary.errors
+            else logger.warning
+            if repair_summary.repaired
+            else logger.info
+        )
+        log_method(
+            "summary layer=timestamps checked=%d repaired=%d errors=%d limit=%s",
+            repair_summary.checked,
+            repair_summary.repaired,
+            repair_summary.errors,
+            repair_limit,
+        )
+        return summaries
     layers = settings.layers
     if settings.mode == "recover":
         order = {"xml": 0, "database": 1, "polling": 2}
@@ -1939,8 +1974,8 @@ def execute_layers(
         recovered_jobs = {
             job_uuid for summary in summaries for job_uuid in summary.recovered_jobs
         }
-        repair_jobs = None if settings.repair_recovery_timestamps else recovered_jobs
-        if settings.repair_recovery_timestamps or repair_jobs:
+        repair_jobs = recovered_jobs
+        if repair_jobs:
             repair_limit = (
                 settings.limit
                 if settings.limit is not None
@@ -1978,6 +2013,8 @@ def execute_layers(
 
 
 def operator_title(settings: Settings) -> str:
+    if settings.mode == "recover" and settings.repair_recovery_timestamps:
+        return f"PyWPS timestamp repair — {settings.service_name}"
     titles = {
         "monitor": "PyWPS monitor",
         "recover": "PyWPS recovery",
