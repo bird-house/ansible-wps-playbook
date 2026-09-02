@@ -109,11 +109,12 @@ timestamps with:
 /opt/wps-tools/sbin/recover rook --repair-timestamps --limit 10000
 ```
 
-The command recognizes rows by the recovery message and only shortens excessive
-end times. Jobs that reached Slurm use the configured `job_timeout_minutes`
-(90 minutes by default). Requests that remained accepted/pending use the
-configured `wps_outputs_keep_minutes`, matching the six-hour status-document
-retention period by default.
+The command recognizes rows by the recovery message as well as the exact
+`Process crashed` message produced by PyWPS startup cleanup, and only shortens
+excessive end times. Jobs that reached Slurm use the configured
+`job_timeout_minutes` (90 minutes by default). Requests that remained
+accepted/pending use the configured `wps_outputs_keep_minutes`, matching the
+six-hour status-document retention period by default.
 
 The playbook also schedules this idempotent timestamp audit every Sunday at
 03:17. It uses the same job-control lock as normal recovery, repairs at most
