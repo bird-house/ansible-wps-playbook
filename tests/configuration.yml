@@ -439,6 +439,14 @@
             'Link routine WPS tools into the standard command path'
             in test_wps_tools_tasks
           - test_wps_tools_tasks.count('wps_tools_path_dir') >= 4
+          - >-
+            test_wps_tools_tasks.count(
+              'find -H {{ wps_basedir }}/outputs'
+            ) == 2
+          - >-
+            test_wps_tools_tasks.count(
+              'find -H {{ wps_basedir }}/tmp'
+            ) == 1
           - "'    - statistics\n' not in test_wps_tools_tasks"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"

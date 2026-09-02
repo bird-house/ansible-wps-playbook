@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- follow output and temporary-directory command-line symlinks during scheduled
+  cleanup so mounted external storage uses the configured retention periods
+
 ## 0.10.0 (2026-08-26)
 
 Changes:

@@ -12,7 +12,7 @@
     hour: "*"
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      find -H {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
       -ignore_readdir_race -type d
       -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
       -regex ".*/[a-f0-9\-]\{36\}$"
@@ -28,7 +28,7 @@
     hour: "*"
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      find -H {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
       -ignore_readdir_race -type f
       -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
       -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete
@@ -43,7 +43,7 @@
     hour: "*"
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_basedir }}/tmp -mindepth 2 -maxdepth 2
+      find -H {{ wps_basedir }}/tmp -mindepth 2 -maxdepth 2
       -ignore_readdir_race -type d
       -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*"
       -prune -exec rm -rf -- {} \;
