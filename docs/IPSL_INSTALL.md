@@ -58,6 +58,11 @@ such as:
 
 * availability of the mounted filesystems used for data
 
+The health process runs synchronously rather than waiting in Slurm. If a web
+worker disappears after accepting it, database recovery therefore applies the
+normal job timeout plus grace (95 minutes by default), rather than the 24-hour
+allowance used for accepted scheduler requests.
+
 ## Operations and maintenance
 
 The installed read-only operator commands help inspect and maintain the node:

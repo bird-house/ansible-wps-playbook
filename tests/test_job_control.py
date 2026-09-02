@@ -40,6 +40,8 @@ FOURTH_JOB_UUID = "423e4567-e89b-42d3-a456-426614174000"
 FIFTH_JOB_UUID = "523e4567-e89b-42d3-a456-426614174000"
 SIXTH_JOB_UUID = "623e4567-e89b-42d3-a456-426614174000"
 SEVENTH_JOB_UUID = "723e4567-e89b-42d3-a456-426614174000"
+EIGHTH_JOB_UUID = "823e4567-e89b-42d3-a456-426614174000"
+NINTH_JOB_UUID = "923e4567-e89b-42d3-a456-426614174000"
 OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
@@ -1741,6 +1743,37 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 message="A recent ordinary processing failure",
             )
         )
+        session.add(
+            dblog.ProcessInstance(
+                uuid=EIGHTH_JOB_UUID,
+                pid=89012,
+                operation="execute",
+                version="1.0.0",
+                identifier=MODULE.HEALTH_PROCESS_IDENTIFIER,
+                time_start=old,
+                time_end=old,
+                status=WPS_STATUS.ACCEPTED,
+                percent_done=0,
+            )
+        )
+        session.add(dblog.RequestInstance(uuid=EIGHTH_JOB_UUID, request=b"{}"))
+        recent_health = MODULE.database_naive_now(
+            self.now - timedelta(hours=1)
+        )
+        session.add(
+            dblog.ProcessInstance(
+                uuid=NINTH_JOB_UUID,
+                pid=90123,
+                operation="execute",
+                version="1.0.0",
+                identifier=MODULE.HEALTH_PROCESS_IDENTIFIER,
+                time_start=recent_health,
+                time_end=recent_health,
+                status=WPS_STATUS.ACCEPTED,
+                percent_done=0,
+            )
+        )
+        session.add(dblog.RequestInstance(uuid=NINTH_JOB_UUID, request=b"{}"))
         session.commit()
         session.close()
 
@@ -1750,7 +1783,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (3, 2, 2, 0),
+            (5, 3, 3, 0),
         )
         self.assertEqual(
             logger.warning.call_args_list,
@@ -1762,6 +1795,10 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 mock.call(
                     "layer=database job=%s status=failed action=recovered",
                     JOB_UUID,
+                ),
+                mock.call(
+                    "layer=database job=%s status=failed action=recovered",
+                    EIGHTH_JOB_UUID,
                 ),
             ],
         )
@@ -1807,6 +1844,30 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         recent = session.query(dblog.ProcessInstance).filter_by(uuid=OTHER_JOB_UUID).one()
         self.assertEqual(recent.status, WPS_STATUS.STARTED)
+        recovered_health = (
+            session.query(dblog.ProcessInstance)
+            .filter_by(uuid=EIGHTH_JOB_UUID)
+            .one()
+        )
+        self.assertEqual(recovered_health.status, WPS_STATUS.FAILED)
+        self.assertEqual(recovered_health.time_end, old + timedelta(minutes=90))
+        self.assertIn("health database request", recovered_health.message)
+        self.assertIsNone(
+            session.query(dblog.RequestInstance)
+            .filter_by(uuid=EIGHTH_JOB_UUID)
+            .first()
+        )
+        active_health = (
+            session.query(dblog.ProcessInstance)
+            .filter_by(uuid=NINTH_JOB_UUID)
+            .one()
+        )
+        self.assertEqual(active_health.status, WPS_STATUS.ACCEPTED)
+        self.assertIsNotNone(
+            session.query(dblog.RequestInstance)
+            .filter_by(uuid=NINTH_JOB_UUID)
+            .first()
+        )
         record.time_end = MODULE.database_naive_now(self.now)
         accepted.time_end = MODULE.database_naive_now(self.now)
         session.commit()
@@ -1819,7 +1880,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(
             (repair_summary.checked, repair_summary.repaired, repair_summary.errors),
-            (4, 3, 0),
+            (5, 3, 0),
         )
         session = dblog.get_session()
         repaired = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()

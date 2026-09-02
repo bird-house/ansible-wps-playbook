@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- recover accepted synchronous health checks after the normal job timeout plus
+  grace, while preserving the longer queue allowance for scheduler requests
 - extend the default failed-job and recovery-incident archive retention from
   30 to 90 days
 - follow output and temporary-directory command-line symlinks during scheduled
