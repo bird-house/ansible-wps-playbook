@@ -36,20 +36,12 @@
     disabled: "{{ cron_disabled }}"
     state: present
 
-- name: Clear PyWPS temporary process directories
+- name: Remove unsafe shared PyWPS temporary-directory cleanup
   ansible.builtin.cron:
     name: "clear wps tempfiles"
-    minute: "3"
-    hour: "*"
     user: "{{ cron_user }}"
-    job: >-
-      find -H {{ wps_basedir }}/tmp -mindepth 2 -maxdepth 2
-      -ignore_readdir_race -type d
-      -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*"
-      -prune -exec rm -rf -- {} \;
     cron_file: ansible_pywps
-    disabled: "{{ cron_disabled }}"
-    state: present
+    state: absent
 
 - name: Create PyWPS tool directories
   ansible.builtin.file:
@@ -189,6 +181,48 @@
     owner: root
     group: root
     mode: "0755"
+
+- name: Install job-aware PyWPS temporary-directory cleanup
+  ansible.builtin.copy:
+    src: pywps-temp-cleanup.py
+    dest: "{{ wps_tools_script_dir }}/pywps-temp-cleanup.py"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Schedule job-aware cleanup for scheduler work directories
+  ansible.builtin.cron:
+    name: "clear WPS tempfiles for {{ item.name }}"
+    minute: "3"
+    hour: "*"
+    user: "{{ cron_user }}"
+    job: >-
+      {{ conda_envs_dir }}/{{ item.name }}/bin/python
+      {{ wps_tools_script_dir }}/pywps-temp-cleanup.py
+      --config /etc/pywps/{{ item.name }}.cfg
+      --keep-minutes {{ wps_temp_keep_minutes }}
+    cron_file: ansible_pywps
+    disabled: "{{ cron_disabled }}"
+    state: present
+  loop: "{{ wps_services }}"
+  when: item.mode | default('default') == 'scheduler'
+
+- name: Schedule age-based cleanup for local work directories
+  ansible.builtin.cron:
+    name: "clear WPS tempfiles for {{ item.name }}"
+    minute: "3"
+    hour: "*"
+    user: "{{ cron_user }}"
+    job: >-
+      find -H {{ wps_basedir }}/tmp/{{ item.name }} -mindepth 1 -maxdepth 1
+      -ignore_readdir_race -type d
+      -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*"
+      -prune -exec rm -rf -- {} \;
+    cron_file: ansible_pywps
+    disabled: "{{ cron_disabled }}"
+    state: present
+  loop: "{{ wps_services }}"
+  when: item.mode | default('default') != 'scheduler'
 
 - name: Install WPS event utilities
   ansible.builtin.copy:

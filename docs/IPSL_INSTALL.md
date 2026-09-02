@@ -115,6 +115,14 @@ The playbook also schedules this idempotent timestamp audit every Sunday at
 10,000 rows per run, and can be adjusted or disabled with the
 `wps_tools_job_control_timestamp_repair_*` variables.
 
+### Temporary work disk
+
+IPSL's 500 GB temporary disk uses a three-hour retention period. Cleanup reads
+the scheduler dump in each aged work directory and checks its PyWPS database
+row first. Requests in any non-final state are retained; only final jobs and
+orphaned dumps are removed. A directory without a trustworthy scheduler dump is
+left untouched and reported instead of risking an active job.
+
 ### Slurm
 
 Slurm now schedules jobs by both **CPU and memory**.

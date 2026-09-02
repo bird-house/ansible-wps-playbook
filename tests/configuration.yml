@@ -444,6 +444,20 @@
           - >-
             'Link routine WPS tools into the standard command path'
             in test_wps_tools_tasks
+          - >-
+            'Install job-aware PyWPS temporary-directory cleanup'
+            in test_wps_tools_tasks
+          - >-
+            'Schedule job-aware cleanup for scheduler work directories'
+            in test_wps_tools_tasks
+          - >-
+            'pywps-temp-cleanup.py' in test_wps_tools_tasks
+          - >-
+            'when: item.mode | default(''default'') == ''scheduler'''
+            in test_wps_tools_tasks
+          - >-
+            'Remove unsafe shared PyWPS temporary-directory cleanup'
+            in test_wps_tools_tasks
           - test_wps_tools_tasks.count('wps_tools_path_dir') >= 4
           - >-
             test_wps_tools_tasks.count(
