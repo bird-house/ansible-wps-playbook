@@ -28,6 +28,8 @@ slurm_enabled: true
 # wps_outputs_keep_hours: 6
 # Temporary retention is job_timeout_minutes plus this margin.
 # wps_temp_keep_margin_minutes: 90
+# Failed status documents and recovery evidence.
+# wps_tools_incident_keep_days: 90
 
 wps_services:
   - name: rook

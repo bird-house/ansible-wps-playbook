@@ -106,8 +106,8 @@
           - wps_tools_statistics_dir == '/var/lib/pywps/statistics'
           - wps_tools_event_keep_days | int == 42
           - wps_tools_statistics_keep_days | int == 0
-          - wps_tools_incident_keep_days == 30
-          - wps_tools_incident_keep_minutes | int == 43200
+          - wps_tools_incident_keep_days == 90
+          - wps_tools_incident_keep_minutes | int == 129600
           - >-
             wps_tools_job_control_stale_after_minutes | float
             < wps_outputs_keep_minutes | float

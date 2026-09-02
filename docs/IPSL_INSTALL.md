@@ -80,7 +80,12 @@ Do **not** copy old defaults for database, Gunicorn, cron, cleanup, or Conda. In
 * `roocs_site` is no longer used
 * `/etc/roocs.ini` is generated from one managed, version-coupled template
 
-Recovery tools, incident archives, request statistics, `wps-tools`, and collectd monitoring are installed and scheduled by default. Override `wps_tools_*`, timeout, or monitoring settings only when IPSL deliberately needs different behaviour.
+Recovery tools, incident archives, request statistics, `wps-tools`, and collectd
+monitoring are installed and scheduled by default. Incident evidence is kept
+for 90 days; in addition to status XML, a recovered incident may include its
+scheduler dump and available job output/error logs. Override `wps_tools_*`,
+timeout, or monitoring settings only when IPSL deliberately needs different
+behaviour.
 
 ### One-time recovery
 

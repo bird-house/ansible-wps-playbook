@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- extend the default failed-job and recovery-incident archive retention from
+  30 to 90 days
 - follow output and temporary-directory command-line symlinks during scheduled
   cleanup so mounted external storage uses the configured retention periods
 - cap database end times created by stalled-job recovery at the configured
@@ -95,7 +97,7 @@ Changes:
 - express PyWPS stale-request thresholds in minutes, run monitoring and ordered
   recovery on a five-minute cadence, and retain hourly job statistics
 - preserve failed and recovery-generated PyWPS status documents in a
-  searchable, per-service 30-day incident archive with UTC filenames
+  searchable, per-service incident archive with UTC filenames
 - enable the read-only Slurm monitor by default and simplify PyWPS job control
   to the `monitor`, ordered `recover`, and `statistics` operator commands
 - standardize public PyWPS role variables on the established `wps_` prefix
