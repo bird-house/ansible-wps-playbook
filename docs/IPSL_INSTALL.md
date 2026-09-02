@@ -114,7 +114,9 @@ shortens end times beyond the applicable cap. Rows whose recovery message says
 they remained accepted/pending use the configured `wps_outputs_keep_minutes`,
 matching the six-hour status-document retention period by default. All other
 failed rows use `job_timeout_minutes` (90 minutes by default). Successful and
-non-final rows are never changed.
+non-final rows are never changed. Repairs are written in one bulk transaction
+instead of committing each row separately, so large historical backlogs can be
+processed efficiently.
 
 The playbook also schedules this idempotent timestamp audit every Sunday at
 03:17. It uses the same job-control lock as normal recovery, repairs at most

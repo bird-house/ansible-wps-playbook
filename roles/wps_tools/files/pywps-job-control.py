@@ -1133,7 +1133,12 @@ def repair_database_recovery_timestamps(
         )
     session = sessionmaker(bind=engine)()
     try:
-        query = session.query(dblog.ProcessInstance).filter(
+        query = session.query(
+            dblog.ProcessInstance.uuid,
+            dblog.ProcessInstance.time_start,
+            dblog.ProcessInstance.time_end,
+            dblog.ProcessInstance.message,
+        ).filter(
             dblog.ProcessInstance.status == WPS_STATUS.FAILED,
             dblog.ProcessInstance.time_start.isnot(None),
             dblog.ProcessInstance.time_end.isnot(None),
@@ -1144,8 +1149,9 @@ def repair_database_recovery_timestamps(
             dblog.ProcessInstance.time_start,
             dblog.ProcessInstance.uuid,
         ).all()
+        repairs: list[tuple[str, datetime, datetime, datetime]] = []
         for record in records:
-            if settings.limit is not None and summary.repaired >= settings.limit:
+            if settings.limit is not None and len(repairs) >= settings.limit:
                 break
             summary.checked += 1
             try:
@@ -1158,17 +1164,10 @@ def repair_database_recovery_timestamps(
                 proposed_end = database_timestamp(record, repaired_end)
                 if current_end <= proposed_end:
                     continue
-                record.time_end = repaired_end
-                session.commit()
-                summary.repaired += 1
-                logger.warning(
-                    "layer=timestamps job=%s action=repaired old_end=%s new_end=%s",
-                    record.uuid,
-                    current_end.isoformat(),
-                    proposed_end.isoformat(),
+                repairs.append(
+                    (str(record.uuid), repaired_end, current_end, proposed_end)
                 )
             except Exception as error:
-                session.rollback()
                 summary.errors += 1
                 logger.critical(
                     "layer=timestamps job=%s decision=error reason=%s",
@@ -1176,6 +1175,36 @@ def repair_database_recovery_timestamps(
                     error,
                     exc_info=True,
                 )
+        if repairs:
+            try:
+                session.bulk_update_mappings(
+                    dblog.ProcessInstance,
+                    [
+                        {"uuid": job_uuid, "time_end": repaired_end}
+                        for job_uuid, repaired_end, _old_end, _new_end in repairs
+                    ],
+                )
+                session.commit()
+            except Exception as error:
+                session.rollback()
+                summary.errors += 1
+                logger.critical(
+                    "layer=timestamps decision=error action=bulk-update "
+                    "candidates=%d reason=%s",
+                    len(repairs),
+                    error,
+                    exc_info=True,
+                )
+            else:
+                summary.repaired = len(repairs)
+                for job_uuid, _repaired_end, current_end, proposed_end in repairs:
+                    logger.debug(
+                        "layer=timestamps job=%s action=repaired "
+                        "old_end=%s new_end=%s",
+                        job_uuid,
+                        current_end.isoformat(),
+                        proposed_end.isoformat(),
+                    )
     finally:
         session.close()
         engine.dispose()
