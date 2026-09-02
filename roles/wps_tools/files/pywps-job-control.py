@@ -56,6 +56,7 @@ ACCESS_LOG_RE = re.compile(
 ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
 JOB_ERROR_TAIL_BYTES = 256 * 1024
 ACCEPTED_RECOVERY_MESSAGE_MARKER = "accepted database request"
+HEALTH_PROCESS_IDENTIFIER = "health"
 SLURM_OOM_RE = re.compile(
     rb"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\) "
     rb"in StepId=\S+\."
@@ -1344,10 +1345,11 @@ def run_database_layer(
             )
             summary.status_counts = status_counts
             summary.checked = status_counts["total"]
-        # Queue wait is not execution time. STARTED rows use the normal runtime
-        # threshold. ACCEPTED rows use a much longer threshold so abandoned
-        # queue records are eventually reconciled. PAUSED and unknown rows are
-        # visible in status aggregates but are never recovered automatically.
+        # Queue wait is not execution time. STARTED rows and synchronous health
+        # checks use the normal runtime threshold. Other ACCEPTED rows use a
+        # much longer threshold so genuine scheduler queue waits are retained.
+        # PAUSED and unknown rows are visible in status aggregates but are never
+        # recovered automatically.
         query = session.query(dblog.ProcessInstance)
         if settings.mode == "recover" and settings.database_recovery_excluded_jobs:
             query = query.filter(
@@ -1384,7 +1386,14 @@ def run_database_layer(
             dblog.ProcessInstance.status == WPS_STATUS.ACCEPTED,
             accepted_stale_filter,
         )
-        query = query.filter(or_(started_candidate, accepted_candidate))
+        health_accepted_candidate = and_(
+            dblog.ProcessInstance.status == WPS_STATUS.ACCEPTED,
+            dblog.ProcessInstance.identifier == HEALTH_PROCESS_IDENTIFIER,
+            stale_filter,
+        )
+        query = query.filter(
+            or_(started_candidate, accepted_candidate, health_accepted_candidate)
+        )
         query = query.order_by(last_update, dblog.ProcessInstance.uuid)
         if settings.mode != "recover" and settings.limit is not None:
             query = query.limit(settings.limit)
@@ -1395,6 +1404,10 @@ def run_database_layer(
             try:
                 is_started = database_status_can_timeout(record.status, WPS_STATUS)
                 is_accepted = record.status == WPS_STATUS.ACCEPTED
+                is_health_accepted = (
+                    is_accepted
+                    and record.identifier == HEALTH_PROCESS_IDENTIFIER
+                )
                 if not (is_started or is_accepted):
                     logger.debug(
                         "layer=database job=%s status=%s decision=skip-timeout "
@@ -1406,9 +1419,12 @@ def run_database_layer(
                 last_update = database_last_update(record)
                 started = database_start_time(record)
                 if is_accepted:
+                    record_threshold = (
+                        threshold if is_health_accepted else accepted_threshold
+                    )
                     finding = (
                         "stalled"
-                        if is_stalled(last_update, now, accepted_threshold)
+                        if is_stalled(last_update, now, record_threshold)
                         else None
                     )
                 else:
@@ -1446,9 +1462,13 @@ def run_database_layer(
                     last_update.isoformat(),
                 )
                 if settings.mode == "recover":
-                    record.status = WPS_STATUS.FAILED
-                    record.percent_done = 100
-                    if is_accepted:
+                    if is_health_accepted:
+                        record.message = (
+                            "Process failed: stalled-job recovery found a health "
+                            "database request that did not advance for at least "
+                            f"{settings.database_stale_after_minutes:g} minutes."
+                        )
+                    elif is_accepted:
                         record.message = (
                             "Process failed: stalled-job recovery found an accepted "
                             "database request that did not advance for at least "
@@ -1460,13 +1480,15 @@ def run_database_layer(
                             "update for at least "
                             f"{settings.database_stale_after_minutes:g} minutes."
                         )
+                    record.status = WPS_STATUS.FAILED
+                    record.percent_done = 100
                     record.time_end = database_recovery_end_time(
                         record,
                         now,
                         timedelta(
                             minutes=(
                                 settings.recovery_pending_timeout_minutes
-                                if is_accepted
+                                if is_accepted and not is_health_accepted
                                 else settings.recovery_max_runtime_minutes
                             )
                         ),
