@@ -325,6 +325,16 @@ wps_tools_job_control_recovery_schedule:
   day: "*"
   month: "*"
   weekday: "*"
+# Recheck recovery-generated database end times every week. This is idempotent
+# and catches timestamp repairs missed because of transient database failures.
+wps_tools_job_control_timestamp_repair_enabled: true
+wps_tools_job_control_timestamp_repair_schedule:
+  minute: "17"
+  hour: "3"
+  day: "*"
+  month: "*"
+  weekday: "0"
+wps_tools_job_control_timestamp_repair_limit: 10000
 # Warn about started database requests running this long; queue wait is excluded.
 wps_tools_job_control_long_running_minutes: "{{ job_long_running_minutes }}"
 wps_tools_job_control_stale_after_minutes: >-
@@ -337,10 +347,11 @@ wps_tools_job_control_database_accepted_stale_after_hours: 24
 wps_tools_job_control_database_status_window_hours: 24
 # Maximum recovered jobs per layer.
 wps_tools_job_control_recovery_limit: 100
-# Preserve failed status documents separately from routine output cleanup.
+# Preserve failed status documents and recovery evidence separately from
+# routine output cleanup. Incidents are rare, so keep a longer diagnostic tail.
 wps_tools_incident_archive_enabled: true
 wps_tools_incident_archive_dir: "{{ service_user_home }}/job-incidents"
-wps_tools_incident_keep_days: 30
+wps_tools_incident_keep_days: 90
 wps_tools_incident_keep_minutes: "{{ (wps_tools_incident_keep_days | int) * 1440 }}"
 # Create failure XML for repeated Nginx 404 status polling.
 wps_tools_missing_status_recovery_enabled: true
@@ -381,8 +392,11 @@ wps_log_dir: /var/log/pywps
 wps_http_log_dir: /var/log/nginx
 wps_outputs_keep_hours: 6
 wps_outputs_keep_minutes: "{{ (wps_outputs_keep_hours | int) * 60 }}"
-wps_temp_keep_hours: 6
-wps_temp_keep_minutes: "{{ (wps_temp_keep_hours | int) * 60 }}"
+# Retain completed and orphaned temporary work beyond the maximum job runtime.
+# The default gives a three-hour cleanup window (90 + 90 minutes).
+wps_temp_keep_margin_minutes: 90
+wps_temp_keep_minutes: >-
+  {{ (job_timeout_minutes | int) + (wps_temp_keep_margin_minutes | int) }}
 wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git

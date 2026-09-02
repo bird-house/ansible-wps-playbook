@@ -35,19 +35,22 @@
         quiet: true
         that:
           - wps_outputs_keep_hours | int == 6
-          - wps_temp_keep_hours | int == 6
+          - wps_temp_keep_margin_minutes | int == 90
           - >-
             (wps_outputs_keep_minutes | int) ==
             ((wps_outputs_keep_hours | int) * 60)
           - >-
             (wps_temp_keep_minutes | int) ==
-            ((wps_temp_keep_hours | int) * 60)
+            ((job_timeout_minutes | int) +
+             (wps_temp_keep_margin_minutes | int))
+          - wps_temp_keep_minutes | int == 180
           - wps_tools_restart_schedule in ['hourly', 'daily']
           - not wps_tools_restart_enabled
           - wps_logrotate_min_size == '10M'
           - wps_logrotate_rotations == 7
           - wps_tools_job_control_schedule | type_debug == 'dict'
           - wps_tools_job_control_recovery_schedule | type_debug == 'dict'
+          - wps_tools_job_control_timestamp_repair_schedule | type_debug == 'dict'
           - wps_tools_statistics_schedule | type_debug == 'dict'
           - wps_tools_statistics_schedule.minute == '4'
           - wps_tools_statistics_schedule.hour == '*'
@@ -58,6 +61,11 @@
           - wps_tools_inspect_enabled
           - wps_tools_job_control_schedule.minute == '*/5'
           - wps_tools_job_control_recovery_schedule.minute == '1-56/5'
+          - wps_tools_job_control_timestamp_repair_schedule.minute == '17'
+          - wps_tools_job_control_timestamp_repair_schedule.hour == '3'
+          - wps_tools_job_control_timestamp_repair_schedule.weekday == '0'
+          - wps_tools_job_control_timestamp_repair_enabled
+          - wps_tools_job_control_timestamp_repair_limit == 10000
           - wps_tools_job_control_schedule.hour == '*'
           - job_long_running_minutes | float == 10
           - job_timeout_minutes | float == 90
@@ -98,8 +106,8 @@
           - wps_tools_statistics_dir == '/var/lib/pywps/statistics'
           - wps_tools_event_keep_days | int == 42
           - wps_tools_statistics_keep_days | int == 0
-          - wps_tools_incident_keep_days == 30
-          - wps_tools_incident_keep_minutes | int == 43200
+          - wps_tools_incident_keep_days == 90
+          - wps_tools_incident_keep_minutes | int == 129600
           - >-
             wps_tools_job_control_stale_after_minutes | float
             < wps_outputs_keep_minutes | float
@@ -438,7 +446,31 @@
           - >-
             'Link routine WPS tools into the standard command path'
             in test_wps_tools_tasks
+          - >-
+            'Install job-aware PyWPS temporary-directory cleanup'
+            in test_wps_tools_tasks
+          - >-
+            'Schedule job-aware cleanup for scheduler work directories'
+            in test_wps_tools_tasks
+          - >-
+            'pywps-temp-cleanup.py' in test_wps_tools_tasks
+          - >-
+            "when: item.mode | default('default') == 'scheduler'"
+            in test_wps_tools_tasks
+          - >-
+            'Remove unsafe shared PyWPS temporary-directory cleanup'
+            in test_wps_tools_tasks
           - test_wps_tools_tasks.count('wps_tools_path_dir') >= 4
+          - >-
+            test_wps_tools_tasks.count('find -H ') == 3
+          - >-
+            test_wps_tools_tasks.count(
+              '/outputs -mindepth 2 -maxdepth 2'
+            ) == 2
+          - >-
+            test_wps_tools_tasks.count(
+              ' -mindepth 1 -maxdepth 1'
+            ) == 1
           - "'    - statistics\n' not in test_wps_tools_tasks"
           - "'supervisorctl restart \"$app\"' in test_restart_script"
           - "'kill $gunicorn_pids' not in test_restart_script"
@@ -453,6 +485,14 @@
           - "'monitor)' in test_job_control_helper"
           - "'recover)' in test_job_control_helper"
           - "'mode=recover' in test_job_control_helper"
+          - >-
+            'repair recovered PyWPS timestamps for '
+            in test_wps_tools_tasks
+          - "'--repair-timestamps' in test_wps_tools_tasks"
+          - "'--limit ' in test_wps_tools_tasks"
+          - >-
+            'wps_tools_job_control_timestamp_repair_limit'
+            in test_wps_tools_tasks
           - "'statistics)' not in test_job_control_helper"
           - "'mode=statistics' not in test_job_control_helper"
           - "'script_options=(--layer' not in test_job_control_helper"
@@ -581,6 +621,8 @@
           - "'long_running_minutes = 10' in test_pywps_config"
           - "'stale_after_minutes = 95' in test_pywps_config"
           - "'database_stale_after_minutes = 95' in test_pywps_config"
+          - "'recovery_max_runtime_minutes = 90' in test_pywps_config"
+          - "'recovery_pending_timeout_minutes = 360' in test_pywps_config"
           - >-
             'database_accepted_stale_after_hours = 24'
             in test_pywps_config

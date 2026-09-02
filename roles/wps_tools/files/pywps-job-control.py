@@ -55,6 +55,8 @@ ACCESS_LOG_RE = re.compile(
 )
 ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
 JOB_ERROR_TAIL_BYTES = 256 * 1024
+RECOVERY_MESSAGE_MARKER = "stalled-job recovery"
+ACCEPTED_RECOVERY_MESSAGE_MARKER = "accepted database request"
 SLURM_OOM_RE = re.compile(
     rb"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\) "
     rb"in StepId=\S+\."
@@ -80,6 +82,7 @@ class Settings:
     min_poll_count: int = 3
     min_poll_duration_minutes: float = 100
     database_guard: bool = True
+    repair_recovery_timestamps: bool = False
     monitor_enabled: bool = True
     recovery_enabled: bool = False
     missing_status_recovery_enabled: bool = False
@@ -90,6 +93,8 @@ class Settings:
     missing_status_recovery_limit: int = 20
     long_running_minutes: float = 10
     database_stale_after_minutes: float = 95
+    recovery_max_runtime_minutes: float = 90
+    recovery_pending_timeout_minutes: float = 360
     database_accepted_stale_after_hours: float = 24
     database_status_window_hours: float = 24
     work_dir: Path | None = None
@@ -112,6 +117,8 @@ class LayerSummary:
     long_running: int = 0
     long_running_jobs: set[str] = field(default_factory=set)
     recovery_blocked_jobs: set[str] = field(default_factory=set)
+    recovered_jobs: set[str] = field(default_factory=set)
+    repaired: int = 0
 
 
 class SummaryConsoleFilter(logging.Filter):
@@ -675,6 +682,7 @@ def run_xml_layer(
                 recovered_document, recovered_tree = read_xml_status(path)
                 archive_failed_xml(recovered_document, recovered_tree, settings, logger)
                 summary.recovered += 1
+                summary.recovered_jobs.add(document.job_uuid)
                 logger.warning(
                     "layer=xml job=%s status=failed action=recovered",
                     document.job_uuid,
@@ -975,6 +983,7 @@ def run_polling_layer(
                     recovered_document, recovered_tree = read_xml_status(status_path)
                     archive_failed_xml(recovered_document, recovered_tree, settings, logger)
                     summary.recovered += 1
+                    summary.recovered_jobs.add(candidate.job_uuid)
                     logger.warning(
                         "layer=polling job=%s status=failed action=recovered polls=%d",
                         candidate.job_uuid,
@@ -1065,6 +1074,114 @@ def database_candidate_cutoff(now: datetime, threshold: timedelta) -> datetime:
 def database_naive_now(now: datetime) -> datetime:
     """Return an aware instant as the naive local wall clock stored by PyWPS."""
     return now.astimezone().replace(tzinfo=None)
+
+
+def database_recovery_end_time(
+    record: object,
+    now: datetime,
+    max_runtime: timedelta,
+) -> datetime:
+    """Return a bounded end time in the database writer's time convention."""
+    raw_start = getattr(record, "time_start", None)
+    started = database_start_time(record)
+    if raw_start is None or started is None:
+        raise ValueError("database record has no start time")
+    bounded_end = min(now, started + max_runtime)
+    return raw_start + (bounded_end - started)
+
+
+def database_recovery_timeout(record: object, settings: Settings) -> timedelta:
+    """Choose the runtime or pending lifetime recorded by the recovery message."""
+    message = str(getattr(record, "message", "") or "")
+    minutes = (
+        settings.recovery_pending_timeout_minutes
+        if ACCEPTED_RECOVERY_MESSAGE_MARKER in message
+        else settings.recovery_max_runtime_minutes
+    )
+    return timedelta(minutes=minutes)
+
+
+def repair_database_recovery_timestamps(
+    settings: Settings,
+    now: datetime,
+    logger: logging.Logger,
+    job_uuids: set[str] | None = None,
+) -> LayerSummary:
+    """Shorten synthetic recovery runtimes without touching ordinary failures."""
+    summary = LayerSummary("timestamps")
+    if settings.pywps_config is None:
+        raise ValueError("timestamp repair requires pywps_config")
+    if job_uuids is not None and not job_uuids:
+        return summary
+
+    os.environ["PYWPS_CFG"] = str(settings.pywps_config)
+    try:
+        from pywps import configuration, dblog
+        from pywps.response.status import WPS_STATUS
+        from sqlalchemy import create_engine, inspect
+        from sqlalchemy.orm import sessionmaker
+    except ImportError as error:
+        raise RuntimeError(
+            "timestamp repair must run with the service Conda environment"
+        ) from error
+
+    database_url = configuration.get_config_value("logging", "database")
+    engine = create_engine(database_url)
+    if not inspect(engine).has_table(dblog.ProcessInstance.__tablename__):
+        engine.dispose()
+        raise RuntimeError(
+            f"PyWPS request table does not exist: {dblog.ProcessInstance.__tablename__}"
+        )
+    session = sessionmaker(bind=engine)()
+    try:
+        query = session.query(dblog.ProcessInstance).filter(
+            dblog.ProcessInstance.status == WPS_STATUS.FAILED,
+            dblog.ProcessInstance.time_start.isnot(None),
+            dblog.ProcessInstance.time_end.isnot(None),
+            dblog.ProcessInstance.message.contains(RECOVERY_MESSAGE_MARKER),
+        )
+        if job_uuids is not None:
+            query = query.filter(dblog.ProcessInstance.uuid.in_(sorted(job_uuids)))
+        records = query.order_by(
+            dblog.ProcessInstance.time_start,
+            dblog.ProcessInstance.uuid,
+        ).all()
+        for record in records:
+            if settings.limit is not None and summary.repaired >= settings.limit:
+                break
+            summary.checked += 1
+            try:
+                repaired_end = database_recovery_end_time(
+                    record,
+                    now,
+                    database_recovery_timeout(record, settings),
+                )
+                current_end = database_timestamp(record, record.time_end)
+                proposed_end = database_timestamp(record, repaired_end)
+                if current_end <= proposed_end:
+                    continue
+                record.time_end = repaired_end
+                session.commit()
+                summary.repaired += 1
+                logger.warning(
+                    "layer=timestamps job=%s action=repaired old_end=%s new_end=%s",
+                    record.uuid,
+                    current_end.isoformat(),
+                    proposed_end.isoformat(),
+                )
+            except Exception as error:
+                session.rollback()
+                summary.errors += 1
+                logger.critical(
+                    "layer=timestamps job=%s decision=error reason=%s",
+                    getattr(record, "uuid", "unknown"),
+                    error,
+                    exc_info=True,
+                )
+    finally:
+        session.close()
+        engine.dispose()
+    return summary
 
 
 def is_database_job_long_running(
@@ -1316,12 +1433,23 @@ def run_database_layer(
                             "update for at least "
                             f"{settings.database_stale_after_minutes:g} minutes."
                         )
-                    record.time_end = database_naive_now(now)
+                    record.time_end = database_recovery_end_time(
+                        record,
+                        now,
+                        timedelta(
+                            minutes=(
+                                settings.recovery_pending_timeout_minutes
+                                if is_accepted
+                                else settings.recovery_max_runtime_minutes
+                            )
+                        ),
+                    )
                     session.query(dblog.RequestInstance).filter_by(
                         uuid=record.uuid
                     ).delete()
                     session.commit()
                     summary.recovered += 1
+                    summary.recovered_jobs.add(str(record.uuid))
                     logger.warning(
                         "layer=database job=%s status=failed action=recovered",
                         record.uuid,
@@ -1459,6 +1587,26 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="consider started database rows stale after this many minutes",
     )
     parser.add_argument(
+        "--recovery-max-runtime-minutes",
+        type=float,
+        default=float(control_config.get("recovery_max_runtime_minutes", "90")),
+        help="cap recovered database runtimes at this many minutes",
+    )
+    parser.add_argument(
+        "--repair-timestamps",
+        action="store_true",
+        help=(
+            "repair oversized end times from earlier recoveries without "
+            "running recovery layers"
+        ),
+    )
+    parser.add_argument(
+        "--recovery-pending-timeout-minutes",
+        type=float,
+        default=float(control_config.get("recovery_pending_timeout_minutes", "360")),
+        help="cap recovered pending database lifetimes at this many minutes",
+    )
+    parser.add_argument(
         "--database-status-window-hours",
         type=float,
         default=float(control_config.get("database_status_window_hours", "24")),
@@ -1559,6 +1707,25 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         parser.error("--stale-after-minutes must be greater than zero")
     if args.database_stale_after_minutes <= 0:
         parser.error("--database-stale-after-minutes must be greater than zero")
+    if args.recovery_max_runtime_minutes <= 0:
+        parser.error("--recovery-max-runtime-minutes must be greater than zero")
+    if args.recovery_max_runtime_minutes > args.database_stale_after_minutes:
+        parser.error(
+            "--recovery-max-runtime-minutes must not exceed "
+            "--database-stale-after-minutes"
+        )
+    if args.recovery_pending_timeout_minutes <= 0:
+        parser.error("--recovery-pending-timeout-minutes must be greater than zero")
+    if (
+        args.recovery_pending_timeout_minutes
+        > args.database_accepted_stale_after_hours * 60
+    ):
+        parser.error(
+            "--recovery-pending-timeout-minutes must not exceed "
+            "--database-accepted-stale-after-hours"
+        )
+    if args.repair_timestamps and args.mode != "recover":
+        parser.error("--repair-timestamps requires recover mode")
     if args.database_accepted_stale_after_hours <= 0:
         parser.error(
             "--database-accepted-stale-after-hours must be greater than zero"
@@ -1614,6 +1781,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         min_poll_count=args.min_poll_count,
         min_poll_duration_minutes=args.min_poll_duration_minutes,
         database_guard=args.database_guard,
+        repair_recovery_timestamps=args.repair_timestamps,
         monitor_enabled=control_config.getboolean("monitor_enabled", fallback=True),
         recovery_enabled=control_config.getboolean("recovery_enabled", fallback=False),
         missing_status_recovery_enabled=control_config.getboolean(
@@ -1626,6 +1794,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         missing_status_recovery_limit=missing_status_recovery_limit,
         long_running_minutes=args.long_running_minutes,
         database_stale_after_minutes=args.database_stale_after_minutes,
+        recovery_max_runtime_minutes=args.recovery_max_runtime_minutes,
+        recovery_pending_timeout_minutes=args.recovery_pending_timeout_minutes,
         database_accepted_stale_after_hours=(
             args.database_accepted_stale_after_hours
         ),
@@ -1699,6 +1869,38 @@ def execute_layers(
     }
     summaries: list[LayerSummary] = []
     database_recovery_excluded_jobs: set[str] = set()
+    if settings.mode == "recover" and settings.repair_recovery_timestamps:
+        repair_limit = (
+            settings.limit if settings.limit is not None else settings.recovery_limit
+        )
+        repair_settings = replace(settings, limit=repair_limit)
+        try:
+            repair_summary = repair_database_recovery_timestamps(
+                repair_settings,
+                now,
+                logger,
+            )
+        except Exception as error:
+            logger.critical(
+                "layer=timestamps decision=error reason=%s", error, exc_info=True
+            )
+            repair_summary = LayerSummary("timestamps", errors=1)
+        summaries.append(repair_summary)
+        log_method = (
+            logger.error
+            if repair_summary.errors
+            else logger.warning
+            if repair_summary.repaired
+            else logger.info
+        )
+        log_method(
+            "summary layer=timestamps checked=%d repaired=%d errors=%d limit=%s",
+            repair_summary.checked,
+            repair_summary.repaired,
+            repair_summary.errors,
+            repair_limit,
+        )
+        return summaries
     layers = settings.layers
     if settings.mode == "recover":
         order = {"xml": 0, "database": 1, "polling": 2}
@@ -1768,10 +1970,51 @@ def execute_layers(
                 settings.mode,
                 settings.limit if settings.limit is not None else "none",
             )
+    if settings.mode == "recover":
+        recovered_jobs = {
+            job_uuid for summary in summaries for job_uuid in summary.recovered_jobs
+        }
+        repair_jobs = recovered_jobs
+        if repair_jobs:
+            repair_limit = (
+                settings.limit
+                if settings.limit is not None
+                else settings.recovery_limit
+            )
+            repair_settings = replace(settings, limit=repair_limit)
+            try:
+                repair_summary = repair_database_recovery_timestamps(
+                    repair_settings,
+                    now,
+                    logger,
+                    repair_jobs,
+                )
+            except Exception as error:
+                logger.critical(
+                    "layer=timestamps decision=error reason=%s", error, exc_info=True
+                )
+                repair_summary = LayerSummary("timestamps", errors=1)
+            summaries.append(repair_summary)
+            log_method = (
+                logger.error
+                if repair_summary.errors
+                else logger.warning
+                if repair_summary.repaired
+                else logger.info
+            )
+            log_method(
+                "summary layer=timestamps checked=%d repaired=%d errors=%d limit=%s",
+                repair_summary.checked,
+                repair_summary.repaired,
+                repair_summary.errors,
+                repair_limit,
+            )
     return summaries
 
 
 def operator_title(settings: Settings) -> str:
+    if settings.mode == "recover" and settings.repair_recovery_timestamps:
+        return f"PyWPS timestamp repair — {settings.service_name}"
     titles = {
         "monitor": "PyWPS monitor",
         "recover": "PyWPS recovery",
@@ -1782,6 +2025,13 @@ def operator_title(settings: Settings) -> str:
 def print_operator_report(settings: Settings, summaries: list[LayerSummary]) -> None:
     print(operator_title(settings))
     for summary in summaries:
+        if summary.name == "timestamps":
+            print(
+                "Timestamps: "
+                f"checked={summary.checked}  repaired={summary.repaired}  "
+                f"errors={summary.errors}"
+            )
+            continue
         layer_label = "XML" if summary.name == "xml" else summary.name.capitalize()
         fields = [f"checked={summary.checked}", f"stalled={summary.stalled}"]
         if settings.mode != "recover":
@@ -1795,14 +2045,18 @@ def print_operator_report(settings: Settings, summaries: list[LayerSummary]) -> 
     stalled = sum(summary.stalled for summary in summaries)
     long_running = sum(summary.long_running for summary in summaries)
     recovered = sum(summary.recovered for summary in summaries)
+    repaired = sum(summary.repaired for summary in summaries)
     if errors:
         result = f"completed with {errors} error{'s' if errors != 1 else ''}"
     elif settings.mode == "recover":
-        result = (
-            f"recovered {recovered} job{'s' if recovered != 1 else ''}"
-            if recovered
-            else "no recovery needed"
-        )
+        actions = []
+        if recovered:
+            actions.append(f"recovered {recovered} job{'s' if recovered != 1 else ''}")
+        if repaired:
+            actions.append(
+                f"repaired {repaired} timestamp{'s' if repaired != 1 else ''}"
+            )
+        result = ", ".join(actions) if actions else "no recovery needed"
     elif settings.mode == "monitor" and (stalled or long_running):
         result = "attention required"
     else:

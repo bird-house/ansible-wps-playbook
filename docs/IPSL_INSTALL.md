@@ -80,7 +80,12 @@ Do **not** copy old defaults for database, Gunicorn, cron, cleanup, or Conda. In
 * `roocs_site` is no longer used
 * `/etc/roocs.ini` is generated from one managed, version-coupled template
 
-Recovery tools, incident archives, request statistics, `wps-tools`, and collectd monitoring are installed and scheduled by default. Override `wps_tools_*`, timeout, or monitoring settings only when IPSL deliberately needs different behaviour.
+Recovery tools, incident archives, request statistics, `wps-tools`, and collectd
+monitoring are installed and scheduled by default. Incident evidence is kept
+for 90 days; in addition to status XML, a recovered incident may include its
+scheduler dump and available job output/error logs. Override `wps_tools_*`,
+timeout, or monitoring settings only when IPSL deliberately needs different
+behaviour.
 
 ### One-time recovery
 
@@ -94,6 +99,38 @@ accepted or pending jobs. Run the recovery manually:
 This command processes all recovery layers. The limit caps the number of jobs
 handled per layer in one run. Use a lower value and repeat the command if the
 backlog should be processed in smaller batches.
+
+If the backlog was recovered with an earlier playbook version, its database
+end times may reflect the day recovery was run instead of the maximum possible
+job runtime. After deploying this version, repair only those recovery-generated
+timestamps with:
+
+```sh
+/opt/wps-tools/sbin/recover rook --repair-timestamps --limit 10000
+```
+
+The command recognizes rows by the recovery message and only shortens excessive
+end times. Jobs that reached Slurm use the configured `job_timeout_minutes`
+(90 minutes by default). Requests that remained accepted/pending use the
+configured `wps_outputs_keep_minutes`, matching the six-hour status-document
+retention period by default.
+
+The playbook also schedules this idempotent timestamp audit every Sunday at
+03:17. It uses the same job-control lock as normal recovery, repairs at most
+10,000 rows per run, and can be adjusted or disabled with the
+`wps_tools_job_control_timestamp_repair_*` variables.
+
+### Temporary work disk
+
+IPSL's 500 GB temporary disk uses a three-hour retention period, derived from
+the default 90-minute `job_timeout_minutes` plus the default 90-minute
+`wps_temp_keep_margin_minutes`. Changing the job timeout therefore moves the
+cleanup deadline automatically while preserving the safety margin. Sites that
+need a longer window can override the margin in their inventory. Cleanup reads
+the scheduler dump in each aged work directory and checks its PyWPS database
+row first. Requests in any non-final state are retained; only final jobs and
+orphaned dumps are removed. A directory without a trustworthy scheduler dump
+is left untouched and reported instead of risking an active job.
 
 ### Slurm
 

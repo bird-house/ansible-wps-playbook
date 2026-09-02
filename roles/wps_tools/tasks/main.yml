@@ -12,7 +12,7 @@
     hour: "*"
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      find -H {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
       -ignore_readdir_race -type d
       -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
       -regex ".*/[a-f0-9\-]\{36\}$"
@@ -28,7 +28,7 @@
     hour: "*"
     user: "{{ cron_user }}"
     job: >-
-      find {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
+      find -H {{ wps_basedir }}/outputs -mindepth 2 -maxdepth 2
       -ignore_readdir_race -type f
       -mmin +{{ wps_outputs_keep_minutes }} -regextype sed
       -regex ".*/[a-f0-9\-]\{36\}\.xml$" -delete
@@ -36,20 +36,12 @@
     disabled: "{{ cron_disabled }}"
     state: present
 
-- name: Clear PyWPS temporary process directories
+- name: Remove unsafe shared PyWPS temporary-directory cleanup
   ansible.builtin.cron:
     name: "clear wps tempfiles"
-    minute: "3"
-    hour: "*"
     user: "{{ cron_user }}"
-    job: >-
-      find {{ wps_basedir }}/tmp -mindepth 2 -maxdepth 2
-      -ignore_readdir_race -type d
-      -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*"
-      -prune -exec rm -rf -- {} \;
     cron_file: ansible_pywps
-    disabled: "{{ cron_disabled }}"
-    state: present
+    state: absent
 
 - name: Create PyWPS tool directories
   ansible.builtin.file:
@@ -118,6 +110,7 @@
       - wps_tools_statistics_keep_days | int >= 0
       - wps_tools_job_control_schedule | type_debug == 'dict'
       - wps_tools_job_control_recovery_schedule | type_debug == 'dict'
+      - wps_tools_job_control_timestamp_repair_schedule | type_debug == 'dict'
       - wps_tools_statistics_schedule | type_debug == 'dict'
       - wps_tools_inspect_schedule | type_debug == 'dict'
       - job_timeout_minutes | float > 0
@@ -125,6 +118,16 @@
       - wps_tools_job_control_long_running_minutes | float > 0
       - wps_tools_job_control_stale_after_minutes | float > 0
       - wps_tools_job_control_database_stale_after_minutes | float > 0
+      - wps_outputs_keep_minutes | float > 0
+      - wps_temp_keep_margin_minutes | float > 0
+      - >-
+        (wps_temp_keep_minutes | float) > (job_timeout_minutes | float)
+      - >-
+        (job_timeout_minutes | float)
+        <= (wps_tools_job_control_database_stale_after_minutes | float)
+      - >-
+        (wps_outputs_keep_minutes | float)
+        <= (wps_tools_job_control_database_accepted_stale_after_hours | float * 60)
       - wps_tools_job_control_database_accepted_stale_after_hours | float > 0
       - >-
         (wps_tools_job_control_database_accepted_stale_after_hours | float * 60)
@@ -138,6 +141,7 @@
         (wps_tools_job_control_long_running_minutes | float)
         < (wps_tools_job_control_database_stale_after_minutes | float)
       - wps_tools_job_control_recovery_limit | int > 0
+      - wps_tools_job_control_timestamp_repair_limit | int > 0
       - wps_tools_incident_keep_days | int > 0
       - wps_tools_incident_keep_minutes | int > 0
       - wps_tools_incident_archive_dir | length > 0
@@ -159,17 +163,20 @@
       PyWPS tool and state paths must be absolute, distinct, and nested below
       their configured base directories. The job-control schedule must be a
       cron-field mapping. The shared job timeout and recovery grace must be
-      positive, and recovery age must be positive and shorter than output
-      retention for scheduled XML checks.
+      positive. The temporary cleanup margin must be positive and make its
+      retention longer than the shared job timeout. Recovery age must be
+      positive and shorter than output retention for scheduled XML checks.
       The long-running warning must be positive and shorter than the stale
       threshold, the accepted-row threshold must be longer than the started-row
       database threshold, the database status window must be between 3 and 24 hours,
-      and recovery and incident-retention limits must be positive.
+      recovery timestamp caps must be positive and no longer than their matching
+      stale thresholds, and recovery and incident-retention limits must be positive.
       Recovery requires incident archiving so the source XML and scheduler
       dump can be preserved before PyWPS updates them.
       Missing-status recovery also requires a positive polling window, poll
       count and recovery limit, and a minimum poll duration shorter than its
-      polling window.
+      polling window. Timestamp repair requires a cron-field mapping and a
+      positive per-run limit.
 
 - name: Install PyWPS job-control script
   ansible.builtin.copy:
@@ -178,6 +185,48 @@
     owner: root
     group: root
     mode: "0755"
+
+- name: Install job-aware PyWPS temporary-directory cleanup
+  ansible.builtin.copy:
+    src: pywps-temp-cleanup.py
+    dest: "{{ wps_tools_script_dir }}/pywps-temp-cleanup.py"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Schedule job-aware cleanup for scheduler work directories
+  ansible.builtin.cron:
+    name: "clear WPS tempfiles for {{ item.name }}"
+    minute: "3"
+    hour: "*"
+    user: "{{ cron_user }}"
+    job: >-
+      {{ conda_envs_dir }}/{{ item.name }}/bin/python
+      {{ wps_tools_script_dir }}/pywps-temp-cleanup.py
+      --config /etc/pywps/{{ item.name }}.cfg
+      --keep-minutes {{ wps_temp_keep_minutes }}
+    cron_file: ansible_pywps
+    disabled: "{{ cron_disabled }}"
+    state: present
+  loop: "{{ wps_services }}"
+  when: item.mode | default('default') == 'scheduler'
+
+- name: Schedule age-based cleanup for local work directories
+  ansible.builtin.cron:
+    name: "clear WPS tempfiles for {{ item.name }}"
+    minute: "3"
+    hour: "*"
+    user: "{{ cron_user }}"
+    job: >-
+      find -H {{ wps_basedir }}/tmp/{{ item.name }} -mindepth 1 -maxdepth 1
+      -ignore_readdir_race -type d
+      -mmin +{{ wps_temp_keep_minutes }} -name "pywps_process_*"
+      -prune -exec rm -rf -- {} \;
+    cron_file: ansible_pywps
+    disabled: "{{ cron_disabled }}"
+    state: present
+  loop: "{{ wps_services }}"
+  when: item.mode | default('default') != 'scheduler'
 
 - name: Install WPS event utilities
   ansible.builtin.copy:
@@ -574,6 +623,34 @@
     disabled: >-
       {{ (cron_disabled | bool)
          or not (wps_tools_job_control_recovery_enabled | bool) }}
+    state: present
+  loop: "{{ wps_services }}"
+
+- name: Schedule weekly repair of recovery-generated database timestamps
+  ansible.builtin.cron:
+    name: "repair recovered PyWPS timestamps for {{ item.name }}"
+    minute: >-
+      {{ wps_tools_job_control_timestamp_repair_schedule.minute | default('17') }}
+    hour: >-
+      {{ wps_tools_job_control_timestamp_repair_schedule.hour | default('3') }}
+    day: >-
+      {{ wps_tools_job_control_timestamp_repair_schedule.day | default('*') }}
+    month: >-
+      {{ wps_tools_job_control_timestamp_repair_schedule.month | default('*') }}
+    weekday: >-
+      {{ wps_tools_job_control_timestamp_repair_schedule.weekday | default('0') }}
+    user: root
+    job: >-
+      {{ conda_envs_dir }}/{{ item.name }}/bin/python
+      {{ wps_tools_script_dir }}/pywps-job-control.py
+      --config /etc/pywps/{{ item.name }}.cfg recover
+      --repair-timestamps
+      --limit {{ wps_tools_job_control_timestamp_repair_limit }}
+    cron_file: ansible_pywps
+    disabled: >-
+      {{ (cron_disabled | bool)
+         or not (wps_tools_job_control_recovery_enabled | bool)
+         or not (wps_tools_job_control_timestamp_repair_enabled | bool) }}
     state: present
   loop: "{{ wps_services }}"
 
