@@ -589,6 +589,8 @@
           - "'long_running_minutes = 10' in test_pywps_config"
           - "'stale_after_minutes = 95' in test_pywps_config"
           - "'database_stale_after_minutes = 95' in test_pywps_config"
+          - "'recovery_max_runtime_minutes = 90' in test_pywps_config"
+          - "'recovery_pending_timeout_minutes = 360' in test_pywps_config"
           - >-
             'database_accepted_stale_after_hours = 24'
             in test_pywps_config

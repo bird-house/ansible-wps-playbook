@@ -125,6 +125,13 @@
       - wps_tools_job_control_long_running_minutes | float > 0
       - wps_tools_job_control_stale_after_minutes | float > 0
       - wps_tools_job_control_database_stale_after_minutes | float > 0
+      - wps_outputs_keep_minutes | float > 0
+      - >-
+        (job_timeout_minutes | float)
+        <= (wps_tools_job_control_database_stale_after_minutes | float)
+      - >-
+        (wps_outputs_keep_minutes | float)
+        <= (wps_tools_job_control_database_accepted_stale_after_hours | float * 60)
       - wps_tools_job_control_database_accepted_stale_after_hours | float > 0
       - >-
         (wps_tools_job_control_database_accepted_stale_after_hours | float * 60)
@@ -164,7 +171,8 @@
       The long-running warning must be positive and shorter than the stale
       threshold, the accepted-row threshold must be longer than the started-row
       database threshold, the database status window must be between 3 and 24 hours,
-      and recovery and incident-retention limits must be positive.
+      recovery timestamp caps must be positive and no longer than their matching
+      stale thresholds, and recovery and incident-retention limits must be positive.
       Recovery requires incident archiving so the source XML and scheduler
       dump can be preserved before PyWPS updates them.
       Missing-status recovery also requires a positive polling window, poll

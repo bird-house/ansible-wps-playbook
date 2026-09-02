@@ -95,6 +95,21 @@ This command processes all recovery layers. The limit caps the number of jobs
 handled per layer in one run. Use a lower value and repeat the command if the
 backlog should be processed in smaller batches.
 
+If the backlog was recovered with an earlier playbook version, its database
+end times may reflect the day recovery was run instead of the maximum possible
+job runtime. After deploying this version, repair only those recovery-generated
+timestamps with:
+
+```sh
+/opt/wps-tools/sbin/recover rook --repair-timestamps --limit 10000
+```
+
+The command recognizes rows by the recovery message and only shortens excessive
+end times. Jobs that reached Slurm use the configured `job_timeout_minutes`
+(90 minutes by default). Requests that remained accepted/pending use the
+configured `wps_outputs_keep_minutes`, matching the six-hour status-document
+retention period by default.
+
 ### Slurm
 
 Slurm now schedules jobs by both **CPU and memory**.

@@ -862,6 +862,8 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "long_running_minutes = 10\n"
             "stale_after_minutes = 360\n"
             "database_stale_after_minutes = 420\n"
+            "recovery_max_runtime_minutes = 300\n"
+            "recovery_pending_timeout_minutes = 360\n"
             "database_accepted_stale_after_hours = 36\n"
             "database_status_window_hours = 12\n"
             "recovery_user = alpha-user\n"
@@ -885,6 +887,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(settings.long_running_minutes, 10)
         self.assertEqual(settings.stale_after_minutes, 360)
         self.assertEqual(settings.database_stale_after_minutes, 420)
+        self.assertEqual(settings.recovery_max_runtime_minutes, 300)
+        self.assertEqual(settings.recovery_pending_timeout_minutes, 360)
+        self.assertFalse(settings.repair_recovery_timestamps)
         self.assertEqual(settings.database_accepted_stale_after_hours, 36)
         self.assertEqual(settings.database_status_window_hours, 12)
         self.assertEqual(settings.work_dir, self.root / "tmp")
@@ -929,17 +934,28 @@ class RecoverStalledJobsTests(unittest.TestCase):
             "720",
             "--database-stale-after-minutes",
             "840",
+            "--recovery-max-runtime-minutes",
+            "600",
+            "--recovery-pending-timeout-minutes",
+            "720",
             "--database-accepted-stale-after-hours",
             "48",
         ])
         self.assertEqual(overridden.layers, ["xml"])
         self.assertEqual(overridden.stale_after_minutes, 720)
         self.assertEqual(overridden.database_stale_after_minutes, 840)
+        self.assertEqual(overridden.recovery_max_runtime_minutes, 600)
+        self.assertEqual(overridden.recovery_pending_timeout_minutes, 720)
         self.assertEqual(overridden.database_accepted_stale_after_hours, 48)
         self.assertIsNone(overridden.limit)
 
         recovery = MODULE.parse_args(["--config", str(config), "recover"])
         self.assertEqual(recovery.layers, ["xml", "database", "polling"])
+
+        repair = MODULE.parse_args(
+            ["--config", str(config), "recover", "--repair-timestamps"]
+        )
+        self.assertTrue(repair.repair_recovery_timestamps)
 
         selected_layers = MODULE.parse_args([
             "--config",
@@ -997,6 +1013,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             ["monitor", "--min-poll-age-minutes", "5"],
             ["monitor", "--status-counts"],
             ["statistics"],
+            ["monitor", "--repair-timestamps"],
         ):
             with self.subTest(arguments=arguments), mock.patch(
                 "sys.stderr", new=io.StringIO()
@@ -1081,6 +1098,53 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
 
         self.assertEqual(calls, [("xml", 100), ("database", 100), ("polling", 20)])
+
+    def test_recovery_repairs_newly_recovered_database_timestamps(self):
+        settings = self.settings("recover", ["xml"])
+        settings.pywps_config = self.root / "pywps.cfg"
+        recovered = MODULE.LayerSummary(
+            "xml",
+            recovered=1,
+            recovered_jobs={JOB_UUID},
+        )
+        repaired = MODULE.LayerSummary("timestamps", checked=1, repaired=1)
+
+        with mock.patch.object(
+            MODULE,
+            "repair_database_recovery_timestamps",
+            return_value=repaired,
+        ) as repair:
+            summaries = MODULE.execute_layers(
+                settings,
+                self.now,
+                mock.Mock(),
+                runners={"xml": lambda *_args: recovered},
+            )
+
+        self.assertEqual(summaries, [recovered, repaired])
+        repair_settings, repair_now, _logger, job_uuids = repair.call_args.args
+        self.assertEqual(repair_settings.limit, settings.recovery_limit)
+        self.assertEqual(repair_now, self.now)
+        self.assertEqual(job_uuids, {JOB_UUID})
+
+    def test_repair_option_scans_all_prior_recovery_timestamps(self):
+        settings = self.settings("recover", ["database"])
+        settings.pywps_config = self.root / "pywps.cfg"
+        settings.repair_recovery_timestamps = True
+
+        with mock.patch.object(
+            MODULE,
+            "repair_database_recovery_timestamps",
+            return_value=MODULE.LayerSummary("timestamps"),
+        ) as repair:
+            MODULE.execute_layers(
+                settings,
+                self.now,
+                mock.Mock(),
+                runners={"database": lambda *_args: MODULE.LayerSummary("database")},
+            )
+
+        self.assertIsNone(repair.call_args.args[3])
 
     def test_failed_xml_recovery_excludes_same_job_from_database_recovery(self):
         settings = self.settings("recover", ["xml", "database"])
@@ -1389,6 +1453,56 @@ class RecoverStalledJobsTests(unittest.TestCase):
             )
         )
 
+    def test_database_recovery_end_is_capped_at_maximum_runtime(self):
+        record = argparse.Namespace(
+            time_start=self.now - timedelta(hours=8),
+            time_end=None,
+        )
+        self.assertEqual(
+            MODULE.database_recovery_end_time(
+                record,
+                self.now,
+                timedelta(minutes=90),
+            ),
+            self.now - timedelta(hours=6, minutes=30),
+        )
+
+        recent = argparse.Namespace(
+            time_start=self.now - timedelta(minutes=30),
+            time_end=None,
+        )
+        self.assertEqual(
+            MODULE.database_recovery_end_time(
+                recent,
+                self.now,
+                timedelta(minutes=90),
+            ),
+            self.now,
+        )
+
+    def test_database_recovery_timeout_distinguishes_running_and_pending(self):
+        settings = self.settings("recover", ["database"])
+        settings.recovery_max_runtime_minutes = 90
+        settings.recovery_pending_timeout_minutes = 360
+
+        running = argparse.Namespace(
+            message="Process failed: stalled-job recovery found no update."
+        )
+        pending = argparse.Namespace(
+            message=(
+                "Process failed: stalled-job recovery found an accepted "
+                "database request that did not advance."
+            )
+        )
+        self.assertEqual(
+            MODULE.database_recovery_timeout(running, settings),
+            timedelta(minutes=90),
+        )
+        self.assertEqual(
+            MODULE.database_recovery_timeout(pending, settings),
+            timedelta(minutes=360),
+        )
+
     @unittest.skipUnless(hasattr(time, "tzset"), "requires POSIX timezone control")
     def test_database_uuid_recovers_writer_timezone_when_monitor_uses_utc(self):
         previous_timezone = os.environ.get("TZ")
@@ -1586,7 +1700,9 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 pid=23456,
                 operation="execute",
                 version="1.0.0",
-                time_start=(self.now - timedelta(hours=1)).replace(tzinfo=None),
+                time_start=MODULE.database_naive_now(
+                    self.now - timedelta(hours=1)
+                ),
                 status=WPS_STATUS.STARTED,
                 percent_done=10,
             )
@@ -1600,7 +1716,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (2, 2, 2, 0),
+            (3, 2, 2, 0),
         )
         self.assertEqual(
             logger.warning.call_args_list,
@@ -1620,6 +1736,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         record = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()
         self.assertEqual(record.status, WPS_STATUS.FAILED)
         self.assertEqual(record.percent_done, 100)
+        self.assertEqual(record.time_end, old + timedelta(minutes=90))
         self.assertIsNone(
             session.query(dblog.RequestInstance).filter_by(uuid=JOB_UUID).first()
         )
@@ -1628,6 +1745,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(accepted.status, WPS_STATUS.FAILED)
         self.assertEqual(accepted.percent_done, 100)
+        self.assertEqual(accepted.time_end, very_old + timedelta(minutes=360))
         self.assertIsNone(
             session.query(dblog.RequestInstance)
             .filter_by(uuid=THIRD_JOB_UUID)
@@ -1655,6 +1773,30 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         recent = session.query(dblog.ProcessInstance).filter_by(uuid=OTHER_JOB_UUID).one()
         self.assertEqual(recent.status, WPS_STATUS.STARTED)
+        record.time_end = MODULE.database_naive_now(self.now)
+        accepted.time_end = MODULE.database_naive_now(self.now)
+        session.commit()
+        session.close()
+
+        repair_summary = MODULE.repair_database_recovery_timestamps(
+            settings,
+            self.now,
+            mock.Mock(),
+        )
+        self.assertEqual(
+            (repair_summary.checked, repair_summary.repaired, repair_summary.errors),
+            (2, 2, 0),
+        )
+        session = dblog.get_session()
+        repaired = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()
+        self.assertEqual(repaired.time_end, old + timedelta(minutes=90))
+        repaired_pending = (
+            session.query(dblog.ProcessInstance).filter_by(uuid=THIRD_JOB_UUID).one()
+        )
+        self.assertEqual(
+            repaired_pending.time_end,
+            very_old + timedelta(minutes=360),
+        )
         session.close()
 
 
