@@ -38,6 +38,8 @@ OTHER_JOB_UUID = "223e4567-e89b-42d3-a456-426614174000"
 THIRD_JOB_UUID = "323e4567-e89b-42d3-a456-426614174000"
 FOURTH_JOB_UUID = "423e4567-e89b-42d3-a456-426614174000"
 FIFTH_JOB_UUID = "523e4567-e89b-42d3-a456-426614174000"
+SIXTH_JOB_UUID = "623e4567-e89b-42d3-a456-426614174000"
+SEVENTH_JOB_UUID = "723e4567-e89b-42d3-a456-426614174000"
 OWSLIB_AVAILABLE = importlib.util.find_spec("owslib") is not None
 
 
@@ -1127,7 +1129,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(repair_now, self.now)
         self.assertEqual(job_uuids, {JOB_UUID})
 
-    def test_repair_option_scans_all_prior_recovery_timestamps(self):
+    def test_repair_option_scans_all_failed_timestamps(self):
         settings = self.settings("recover", ["database"])
         settings.pywps_config = self.root / "pywps.cfg"
         settings.repair_recovery_timestamps = True
@@ -1709,6 +1711,36 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 percent_done=10,
             )
         )
+        session.add(
+            dblog.ProcessInstance(
+                uuid=SIXTH_JOB_UUID,
+                pid=67890,
+                operation="execute",
+                version="1.0.0",
+                time_start=very_old,
+                time_end=MODULE.database_naive_now(self.now),
+                status=WPS_STATUS.FAILED,
+                percent_done=100,
+                message="An ordinary processing failure",
+            )
+        )
+        recent_crash_start = MODULE.database_naive_now(
+            self.now - timedelta(minutes=30)
+        )
+        recent_crash_end = MODULE.database_naive_now(self.now)
+        session.add(
+            dblog.ProcessInstance(
+                uuid=SEVENTH_JOB_UUID,
+                pid=78901,
+                operation="execute",
+                version="1.0.0",
+                time_start=recent_crash_start,
+                time_end=recent_crash_end,
+                status=WPS_STATUS.FAILED,
+                percent_done=100,
+                message="A recent ordinary processing failure",
+            )
+        )
         session.commit()
         session.close()
 
@@ -1787,7 +1819,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         )
         self.assertEqual(
             (repair_summary.checked, repair_summary.repaired, repair_summary.errors),
-            (2, 2, 0),
+            (4, 3, 0),
         )
         session = dblog.get_session()
         repaired = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()
@@ -1799,6 +1831,21 @@ class RecoverStalledJobsTests(unittest.TestCase):
             repaired_pending.time_end,
             very_old + timedelta(minutes=360),
         )
+        repaired_crash = (
+            session.query(dblog.ProcessInstance)
+            .filter_by(uuid=SIXTH_JOB_UUID)
+            .one()
+        )
+        self.assertEqual(
+            repaired_crash.time_end,
+            very_old + timedelta(minutes=90),
+        )
+        untouched_recent_crash = (
+            session.query(dblog.ProcessInstance)
+            .filter_by(uuid=SEVENTH_JOB_UUID)
+            .one()
+        )
+        self.assertEqual(untouched_recent_crash.time_end, recent_crash_end)
         session.close()
 
 

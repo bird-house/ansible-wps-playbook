@@ -325,7 +325,7 @@ wps_tools_job_control_recovery_schedule:
   day: "*"
   month: "*"
   weekday: "*"
-# Recheck recovery-generated database end times every week. This is idempotent
+# Recheck excessive failed-job database runtimes every week. This is idempotent
 # and catches timestamp repairs missed because of transient database failures.
 wps_tools_job_control_timestamp_repair_enabled: true
 wps_tools_job_control_timestamp_repair_schedule:
