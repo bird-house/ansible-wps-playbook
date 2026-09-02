@@ -391,8 +391,11 @@ wps_log_dir: /var/log/pywps
 wps_http_log_dir: /var/log/nginx
 wps_outputs_keep_hours: 6
 wps_outputs_keep_minutes: "{{ (wps_outputs_keep_hours | int) * 60 }}"
-wps_temp_keep_hours: 6
-wps_temp_keep_minutes: "{{ (wps_temp_keep_hours | int) * 60 }}"
+# Retain completed and orphaned temporary work beyond the maximum job runtime.
+# The default gives a three-hour cleanup window (90 + 90 minutes).
+wps_temp_keep_margin_minutes: 90
+wps_temp_keep_minutes: >-
+  {{ (job_timeout_minutes | int) + (wps_temp_keep_margin_minutes | int) }}
 wps_services: []
   # - name: emu
   #   repo: https://github.com/bird-house/emu.git

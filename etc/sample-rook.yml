@@ -26,7 +26,8 @@ slurm_enabled: true
 # cron_enabled: false
 # cron_mailto: root
 # wps_outputs_keep_hours: 6
-# wps_temp_keep_hours: 6
+# Temporary retention is job_timeout_minutes plus this margin.
+# wps_temp_keep_margin_minutes: 90
 
 wps_services:
   - name: rook

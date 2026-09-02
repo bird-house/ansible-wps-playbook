@@ -35,13 +35,15 @@
         quiet: true
         that:
           - wps_outputs_keep_hours | int == 6
-          - wps_temp_keep_hours | int == 6
+          - wps_temp_keep_margin_minutes | int == 90
           - >-
             (wps_outputs_keep_minutes | int) ==
             ((wps_outputs_keep_hours | int) * 60)
           - >-
             (wps_temp_keep_minutes | int) ==
-            ((wps_temp_keep_hours | int) * 60)
+            ((job_timeout_minutes | int) +
+             (wps_temp_keep_margin_minutes | int))
+          - wps_temp_keep_minutes | int == 180
           - wps_tools_restart_schedule in ['hourly', 'daily']
           - not wps_tools_restart_enabled
           - wps_logrotate_min_size == '10M'

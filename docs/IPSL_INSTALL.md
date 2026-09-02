@@ -117,11 +117,15 @@ The playbook also schedules this idempotent timestamp audit every Sunday at
 
 ### Temporary work disk
 
-IPSL's 500 GB temporary disk uses a three-hour retention period. Cleanup reads
+IPSL's 500 GB temporary disk uses a three-hour retention period, derived from
+the default 90-minute `job_timeout_minutes` plus the default 90-minute
+`wps_temp_keep_margin_minutes`. Changing the job timeout therefore moves the
+cleanup deadline automatically while preserving the safety margin. Sites that
+need a longer window can override the margin in their inventory. Cleanup reads
 the scheduler dump in each aged work directory and checks its PyWPS database
 row first. Requests in any non-final state are retained; only final jobs and
-orphaned dumps are removed. A directory without a trustworthy scheduler dump is
-left untouched and reported instead of risking an active job.
+orphaned dumps are removed. A directory without a trustworthy scheduler dump
+is left untouched and reported instead of risking an active job.
 
 ### Slurm
 

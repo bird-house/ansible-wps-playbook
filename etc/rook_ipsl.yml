@@ -15,11 +15,11 @@ service_gid: 399  # REPLACE
 cron_enabled: true
 cron_mailto: wps-admins@example.invalid  # REPLACE
 
-# Changed since v0.7.0: retention is configured in hours, not days.
+# Output retention is configured in hours.
 wps_outputs_keep_hours: 6  # REPLACE if needed
 # The 500 GB work disk needs a shorter window. Scheduler jobs are protected by
-# database-aware cleanup while they remain accepted, started, or paused.
-wps_temp_keep_hours: 3
+# database-aware cleanup while they remain accepted, started, or paused. The
+# default 90-minute job timeout plus its 90-minute margin gives three hours.
 
 # Changed since v0.7.0: the default explicit spec is linux-64.spec.
 conda_env_use_spec: true

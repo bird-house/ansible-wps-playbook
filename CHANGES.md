@@ -9,8 +9,9 @@
   allow earlier recovery timestamps to be repaired safely, and audit those
   timestamps automatically every week
 - protect accepted, started, paused, and unknown scheduler jobs during
-  temporary-directory cleanup, and reduce IPSL's completed-work retention to
-  three hours for its 500 GB work disk
+  temporary-directory cleanup, derive its retention from the shared job timeout
+  plus a configurable margin, and default to a three-hour window suitable for
+  IPSL's 500 GB work disk
 
 ## 0.10.0 (2026-08-26)
 
