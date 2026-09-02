@@ -486,7 +486,7 @@
           - "'recover)' in test_job_control_helper"
           - "'mode=recover' in test_job_control_helper"
           - >-
-            'repair recovered PyWPS timestamps for '
+            'repair excessive PyWPS failure timestamps for '
             in test_wps_tools_tasks
           - "'--repair-timestamps' in test_wps_tools_tasks"
           - "'--limit ' in test_wps_tools_tasks"

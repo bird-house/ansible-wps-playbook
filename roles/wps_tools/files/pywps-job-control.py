@@ -55,9 +55,7 @@ ACCESS_LOG_RE = re.compile(
 )
 ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
 JOB_ERROR_TAIL_BYTES = 256 * 1024
-RECOVERY_MESSAGE_MARKER = "stalled-job recovery"
 ACCEPTED_RECOVERY_MESSAGE_MARKER = "accepted database request"
-PYWPS_CRASH_MESSAGE = "Process crashed"
 SLURM_OOM_RE = re.compile(
     rb"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\) "
     rb"in StepId=\S+\."
@@ -1108,7 +1106,7 @@ def repair_database_recovery_timestamps(
     logger: logging.Logger,
     job_uuids: set[str] | None = None,
 ) -> LayerSummary:
-    """Shorten synthetic recovery and PyWPS crash-cleanup runtimes."""
+    """Shorten excessive runtimes recorded for failed database jobs."""
     summary = LayerSummary("timestamps")
     if settings.pywps_config is None:
         raise ValueError("timestamp repair requires pywps_config")
@@ -1119,7 +1117,7 @@ def repair_database_recovery_timestamps(
     try:
         from pywps import configuration, dblog
         from pywps.response.status import WPS_STATUS
-        from sqlalchemy import create_engine, inspect, or_
+        from sqlalchemy import create_engine, inspect
         from sqlalchemy.orm import sessionmaker
     except ImportError as error:
         raise RuntimeError(
@@ -1139,10 +1137,6 @@ def repair_database_recovery_timestamps(
             dblog.ProcessInstance.status == WPS_STATUS.FAILED,
             dblog.ProcessInstance.time_start.isnot(None),
             dblog.ProcessInstance.time_end.isnot(None),
-            or_(
-                dblog.ProcessInstance.message.contains(RECOVERY_MESSAGE_MARKER),
-                dblog.ProcessInstance.message == PYWPS_CRASH_MESSAGE,
-            ),
         )
         if job_uuids is not None:
             query = query.filter(dblog.ProcessInstance.uuid.in_(sorted(job_uuids)))
@@ -1600,8 +1594,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "--repair-timestamps",
         action="store_true",
         help=(
-            "repair oversized end times from earlier recoveries without "
-            "running recovery layers"
+            "repair excessive failed-job end times without running "
+            "recovery layers"
         ),
     )
     parser.add_argument(

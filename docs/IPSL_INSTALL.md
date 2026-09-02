@@ -100,21 +100,21 @@ This command processes all recovery layers. The limit caps the number of jobs
 handled per layer in one run. Use a lower value and repeat the command if the
 backlog should be processed in smaller batches.
 
-If the backlog was recovered with an earlier playbook version, its database
-end times may reflect the day recovery was run instead of the maximum possible
-job runtime. After deploying this version, repair only those recovery-generated
-timestamps with:
+If an old backlog was closed during recovery or service startup, its database
+end times may reflect the day it was closed instead of the maximum possible job
+runtime. After deploying this version, repair excessive failed-job timestamps
+with:
 
 ```sh
 /opt/wps-tools/sbin/recover rook --repair-timestamps --limit 10000
 ```
 
-The command recognizes rows by the recovery message as well as the exact
-`Process crashed` message produced by PyWPS startup cleanup, and only shortens
-excessive end times. Jobs that reached Slurm use the configured
-`job_timeout_minutes` (90 minutes by default). Requests that remained
-accepted/pending use the configured `wps_outputs_keep_minutes`, matching the
-six-hour status-document retention period by default.
+The command checks every failed row with start and end timestamps, and only
+shortens end times beyond the applicable cap. Rows whose recovery message says
+they remained accepted/pending use the configured `wps_outputs_keep_minutes`,
+matching the six-hour status-document retention period by default. All other
+failed rows use `job_timeout_minutes` (90 minutes by default). Successful and
+non-final rows are never changed.
 
 The playbook also schedules this idempotent timestamp audit every Sunday at
 03:17. It uses the same job-control lock as normal recovery, repairs at most

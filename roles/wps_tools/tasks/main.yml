@@ -626,9 +626,9 @@
     state: present
   loop: "{{ wps_services }}"
 
-- name: Schedule weekly repair of recovery-generated database timestamps
+- name: Schedule weekly repair of excessive failed-job database timestamps
   ansible.builtin.cron:
-    name: "repair recovered PyWPS timestamps for {{ item.name }}"
+    name: "repair excessive PyWPS failure timestamps for {{ item.name }}"
     minute: >-
       {{ wps_tools_job_control_timestamp_repair_schedule.minute | default('17') }}
     hour: >-

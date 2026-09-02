@@ -1129,7 +1129,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(repair_now, self.now)
         self.assertEqual(job_uuids, {JOB_UUID})
 
-    def test_repair_option_scans_all_prior_recovery_timestamps(self):
+    def test_repair_option_scans_all_failed_timestamps(self):
         settings = self.settings("recover", ["database"])
         settings.pywps_config = self.root / "pywps.cfg"
         settings.repair_recovery_timestamps = True
@@ -1721,7 +1721,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 time_end=MODULE.database_naive_now(self.now),
                 status=WPS_STATUS.FAILED,
                 percent_done=100,
-                message=MODULE.PYWPS_CRASH_MESSAGE,
+                message="An ordinary processing failure",
             )
         )
         recent_crash_start = MODULE.database_naive_now(
@@ -1738,7 +1738,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
                 time_end=recent_crash_end,
                 status=WPS_STATUS.FAILED,
                 percent_done=100,
-                message=MODULE.PYWPS_CRASH_MESSAGE,
+                message="A recent ordinary processing failure",
             )
         )
         session.commit()
