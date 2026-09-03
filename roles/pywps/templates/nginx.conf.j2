@@ -144,4 +144,22 @@ server {
         proxy_pass            http://{{ item.name }}/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=html;
     }
 
+    # JSON overview from the synchronous ROOK status process
+    location = /status/json
+    {
+        access_log off;
+        proxy_cache           {{ nginx_cache_zone }};
+        proxy_cache_key       $scheme$proxy_host$uri;
+        proxy_cache_valid     200 {{ wps_health_cache_valid }};
+        proxy_cache_lock      on;
+        proxy_cache_lock_age  {{ nginx_proxy_timeout }};
+        proxy_cache_lock_timeout {{ nginx_proxy_timeout }};
+        add_header            X-Proxy-Cache $upstream_cache_status;
+        proxy_connect_timeout {{ nginx_proxy_timeout }};
+        proxy_send_timeout    {{ nginx_proxy_timeout }};
+        proxy_read_timeout    {{ nginx_proxy_timeout }};
+        send_timeout          {{ nginx_proxy_timeout }};
+        proxy_pass            http://{{ item.name }}/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=json;
+    }
+
 }

@@ -588,17 +588,17 @@
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location = /health' in test_nginx_config"
           - >-
-            test_nginx_config.count('proxy_cache           pywps_alpha;') == 3
+            test_nginx_config.count('proxy_cache           pywps_alpha;') == 4
           - >-
-            test_nginx_config.count('proxy_cache_key       $scheme$proxy_host$uri;') == 3
+            test_nginx_config.count('proxy_cache_key       $scheme$proxy_host$uri;') == 4
           - >-
-            test_nginx_config.count('proxy_cache_valid     200 30s;') == 3
+            test_nginx_config.count('proxy_cache_valid     200 30s;') == 4
           - >-
-            test_nginx_config.count('proxy_cache_lock      on;') == 3
+            test_nginx_config.count('proxy_cache_lock      on;') == 4
           - >-
-            test_nginx_config.count('proxy_cache_lock_age  60s;') == 3
+            test_nginx_config.count('proxy_cache_lock_age  60s;') == 4
           - >-
-            test_nginx_config.count('proxy_cache_lock_timeout 60s;') == 3
+            test_nginx_config.count('proxy_cache_lock_timeout 60s;') == 4
           - "'proxy_cache_valid       200 10m;' in test_nginx_config"
           - >-
             'proxy_pass            http://alpha/wps?service=WPS&request=GetCapabilities;'
@@ -610,6 +610,10 @@
           - "'location = /status' in test_nginx_config"
           - >-
             'proxy_pass            http://alpha/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=html;'
+            in test_nginx_config
+          - "'location = /status/json' in test_nginx_config"
+          - >-
+            'proxy_pass            http://alpha/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=json;'
             in test_nginx_config
           - "'[job_control]' in test_pywps_config"
           - "'[stalled_jobs]' not in test_pywps_config"
@@ -723,7 +727,7 @@
           - "'proxy_cache             pywps_beta;' in test_secondary_nginx_config"
           - "'proxy_cache_valid       200 5m;' in test_secondary_nginx_config"
           - >-
-            test_secondary_nginx_config.count('proxy_cache_valid     200 15s;') == 2
+            test_secondary_nginx_config.count('proxy_cache_valid     200 15s;') == 4
           - "'listen                 5002 default_server;' in test_secondary_nginx_config"
           - "'listen 6000;' in test_fileserver_config"
           - "'server_name files.example.test;' in test_fileserver_config"
