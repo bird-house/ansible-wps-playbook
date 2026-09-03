@@ -141,7 +141,7 @@ server {
         proxy_send_timeout    {{ nginx_proxy_timeout }};
         proxy_read_timeout    {{ nginx_proxy_timeout }};
         send_timeout          {{ nginx_proxy_timeout }};
-        proxy_pass            http://{{ item.name }}/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=overview;
+        proxy_pass            http://{{ item.name }}/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=html;
     }
 
 }

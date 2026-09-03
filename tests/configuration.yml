@@ -609,7 +609,7 @@
             in test_nginx_config
           - "'location = /status' in test_nginx_config"
           - >-
-            'proxy_pass            http://alpha/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=overview;'
+            'proxy_pass            http://alpha/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=html;'
             in test_nginx_config
           - "'[job_control]' in test_pywps_config"
           - "'[stalled_jobs]' not in test_pywps_config"

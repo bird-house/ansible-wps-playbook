@@ -18,7 +18,7 @@ def application(environ, start_response):
         and query.get("version") == ["1.0.0"]
         and query.get("request") == ["Execute"]
         and query.get("identifier") == ["status"]
-        and query.get("RawDataOutput") == ["overview"]
+        and query.get("RawDataOutput") == ["html"]
     )
     if is_health_process:
         body = b"ROOK_HEALTH_OK"

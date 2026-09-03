@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- expose the synchronous ROOK `status` process as a cached `/status` HTML
-  endpoint using its `overview` output
+- expose the synchronous ROOK `status` process as a cached `/status` endpoint
+  using its `html` output
 - recover accepted synchronous health checks after the normal job timeout plus
   grace, while preserving the longer queue allowance for scheduler requests
 - extend the default failed-job and recovery-incident archive retention from
