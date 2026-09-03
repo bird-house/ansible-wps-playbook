@@ -588,17 +588,17 @@
           - "'allow 192.0.2.0/24;' in test_nginx_config"
           - "'location = /health' in test_nginx_config"
           - >-
-            test_nginx_config.count('proxy_cache           pywps_alpha;') == 2
+            test_nginx_config.count('proxy_cache           pywps_alpha;') == 3
           - >-
-            test_nginx_config.count('proxy_cache_key       $scheme$proxy_host$uri;') == 2
+            test_nginx_config.count('proxy_cache_key       $scheme$proxy_host$uri;') == 3
           - >-
-            test_nginx_config.count('proxy_cache_valid     200 30s;') == 2
+            test_nginx_config.count('proxy_cache_valid     200 30s;') == 3
           - >-
-            test_nginx_config.count('proxy_cache_lock      on;') == 2
+            test_nginx_config.count('proxy_cache_lock      on;') == 3
           - >-
-            test_nginx_config.count('proxy_cache_lock_age  60s;') == 2
+            test_nginx_config.count('proxy_cache_lock_age  60s;') == 3
           - >-
-            test_nginx_config.count('proxy_cache_lock_timeout 60s;') == 2
+            test_nginx_config.count('proxy_cache_lock_timeout 60s;') == 3
           - "'proxy_cache_valid       200 10m;' in test_nginx_config"
           - >-
             'proxy_pass            http://alpha/wps?service=WPS&request=GetCapabilities;'
@@ -606,6 +606,10 @@
           - "'location = /health2' in test_nginx_config"
           - >-
             'proxy_pass            http://alpha/wps?service=WPS&version=1.0.0&request=Execute&identifier=health&RawDataOutput=status;'
+            in test_nginx_config
+          - "'location = /status' in test_nginx_config"
+          - >-
+            'proxy_pass            http://alpha/wps?service=WPS&version=1.0.0&request=Execute&identifier=status&RawDataOutput=overview;'
             in test_nginx_config
           - "'[job_control]' in test_pywps_config"
           - "'[stalled_jobs]' not in test_pywps_config"

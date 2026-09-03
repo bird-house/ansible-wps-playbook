@@ -99,6 +99,14 @@ docker exec "$container_name" bash -c '
   curl --fail --silent --dump-header - --output /dev/null \
     http://localhost:8080/health2 \
     | grep --ignore-case --quiet '^X-Proxy-Cache: HIT'
+  curl --fail --silent http://localhost:8080/status \
+    | grep --quiet '<title>ROOK status</title>'
+  curl --fail --silent --dump-header - --output /dev/null \
+    http://localhost:8080/status \
+    | grep --ignore-case --quiet '^Content-Type: text/html'
+  curl --fail --silent --dump-header - --output /dev/null \
+    http://localhost:8080/status \
+    | grep --ignore-case --quiet '^X-Proxy-Cache: HIT'
   test "$(stat --format="%a:%U:%G" /etc/pywps/tiny.cfg)" = "640:root:wps"
   test "$(stat --format="%a:%U:%G" /var/lib/pywps/cache/tiny)" = "755:wps:wps"
   test "$(stat --format="%a:%U:%G" /etc/gunicorn/tiny.py)" = "640:root:wps"
@@ -144,6 +152,8 @@ docker exec "$container_name" bash -c '
   systemctl is-active --quiet postgresql
   wait_for_tiny_wps
   test "$(curl --fail --silent http://localhost:8080/health2)" = "ROOK_HEALTH_OK"
+  curl --fail --silent http://localhost:8080/status \
+    | grep --quiet '<title>ROOK status</title>'
   test "$(cat /var/lib/pywps/state/tiny-xml-inspect.json)" = \
     "{\"legacy\": true}"
   test ! -e /var/lib/pywps/.tiny-xml-inspect-state.json
