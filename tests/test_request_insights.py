@@ -82,6 +82,29 @@ class RequestInsightsTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(errors, [])
 
+    def test_replaces_invalid_utf8_in_plain_and_gzip_logs(self):
+        item = record("1", "failed", "invalid-byte-marker")
+        encoded = (json.dumps(item) + "\n").encode("utf-8").replace(
+            b"invalid-byte-marker", b"invalid-\xfd-byte"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plain = root / "requests.log"
+            compressed = root / "requests.log.1.gz"
+            plain.write_bytes(encoded)
+            with gzip.open(compressed, "wb") as stream:
+                stream.write(encoded)
+
+            for path in (plain, compressed):
+                with self.subTest(path=path.name):
+                    records, errors = MODULE.load_records([path])
+                    self.assertEqual(errors, [])
+                    self.assertEqual(len(records), 1)
+                    self.assertEqual(
+                        records[0]["failures"][0]["message"],
+                        "invalid-\ufffd-byte",
+                    )
+
     def test_unpacks_workflow_collections_and_step_parameters(self):
         workflow = {
             "inputs": {"tas": ["c3s-cordex.output.EUR-11.example.day.tas"]},

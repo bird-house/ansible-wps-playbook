@@ -89,8 +89,8 @@ def parse_time(
 
 def open_log(path: Path) -> TextIO:
     if path.suffix == ".gz":
-        return gzip.open(path, mode="rt", encoding="utf-8")
-    return path.open(encoding="utf-8")
+        return gzip.open(path, mode="rt", encoding="utf-8", errors="replace")
+    return path.open(encoding="utf-8", errors="replace")
 
 
 def load_records(paths: Iterable[Path]) -> tuple[list[dict[str, object]], list[str]]:
