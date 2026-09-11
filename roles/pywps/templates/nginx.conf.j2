@@ -130,6 +130,9 @@ server {
     location = /status
     {
         access_log off;
+        # Render the report in the browser instead of downloading PyWPS raw output.
+        proxy_hide_header     Content-Disposition;
+        add_header            Content-Disposition inline;
         proxy_cache           {{ nginx_cache_zone }};
         proxy_cache_key       $scheme$proxy_host$uri;
         proxy_cache_valid     200 {{ wps_health_cache_valid }};
