@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- remove aged temporary work directories without scheduler dumps after the
+  configured retention window, while protecting known non-final jobs and
+  retaining errors for malformed or unsafe dumps
 - expose the synchronous ROOK `status` process through cached `/status` and
   `/status/json` endpoints using its `html` and `json` outputs
 - recover accepted synchronous health checks after the normal job timeout plus

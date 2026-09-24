@@ -7,9 +7,10 @@ import os
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = (
@@ -99,7 +100,7 @@ class TempCleanupTests(unittest.TestCase):
             (3, 2, 1, 0, 0),
         )
 
-    def test_cleanup_keeps_unassociated_and_unsafe_directories(self):
+    def test_cleanup_removes_unassociated_but_keeps_unsafe_directories(self):
         unassociated = self.work_directory("unknown", None)
         target = self.root / "outside"
         target.mkdir()
@@ -112,11 +113,54 @@ class TempCleanupTests(unittest.TestCase):
                 self.now - timedelta(hours=3),
             )
 
-        self.assertEqual(jobs, [])
-        self.assertTrue(unassociated.exists())
+        MODULE.remove_safe_jobs(jobs, {}, summary)
+        self.assertFalse(unassociated.exists())
         self.assertTrue(linked.is_symlink())
         self.assertTrue(target.exists())
-        self.assertEqual((summary.skipped, summary.errors), (2, 2))
+        self.assertEqual((summary.deleted, summary.skipped, summary.errors), (1, 1, 1))
+
+    def test_missing_dump_is_removed_quietly_and_recent_directory_is_retained(self):
+        recent = self.work_directory("recent_unknown", None, timedelta(hours=1))
+        config = self.root / "pywps.cfg"
+        config.write_text(
+            f"[server]\nworkdir = {self.work_dir}\n"
+            f"[job_control]\nlock_file = {self.root / 'cleanup.lock'}\n",
+            encoding="utf-8",
+        )
+        for verbose in (False, True):
+            directory = self.work_directory("unknown", None)
+            stdout, stderr = io.StringIO(), io.StringIO()
+            args = ["--config", str(config), "--keep-minutes", "180"]
+            if verbose:
+                args.append("--verbose")
+            with (
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+                patch.object(MODULE, "datetime") as clock,
+            ):
+                clock.now.return_value = self.now
+                result = MODULE.main(args)
+            self.assertEqual(result, 0)
+            self.assertFalse(directory.exists())
+            self.assertTrue(recent.exists())
+            self.assertEqual(stderr.getvalue(), "")
+            if verbose:
+                self.assertIn("checked=1 deleted=1", stdout.getvalue())
+                self.assertIn("skipped=0 errors=0", stdout.getvalue())
+            else:
+                self.assertEqual(stdout.getvalue(), "")
+
+    def test_malformed_dump_remains_an_error(self):
+        directory = self.work_directory("invalid", "not-a-uuid")
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            jobs, summary = MODULE.discover_aged_jobs(
+                self.work_dir, self.now - timedelta(hours=3)
+            )
+        self.assertEqual(jobs, [])
+        self.assertTrue(directory.exists())
+        self.assertEqual((summary.skipped, summary.errors), (1, 1))
+        self.assertIn("invalid job UUID", stderr.getvalue())
 
     def test_cleanup_refuses_directory_changed_after_database_check(self):
         directory = self.work_directory("changed", FINAL_UUID)
@@ -129,6 +173,19 @@ class TempCleanupTests(unittest.TestCase):
         with redirect_stderr(io.StringIO()):
             MODULE.remove_safe_jobs(jobs, {FINAL_UUID: True}, summary)
 
+        self.assertTrue(directory.exists())
+        self.assertEqual((summary.deleted, summary.skipped, summary.errors), (0, 1, 1))
+
+    def test_cleanup_refuses_missing_dump_directory_changed_after_scan(self):
+        directory = self.work_directory("changed_unknown", None)
+        jobs, summary = MODULE.discover_aged_jobs(
+            self.work_dir, self.now - timedelta(hours=3)
+        )
+        (directory / "job_new.dump").write_text(
+            json.dumps({"process": {"uuid": ACTIVE_UUID}}), encoding="utf-8"
+        )
+        with redirect_stderr(io.StringIO()):
+            MODULE.remove_safe_jobs(jobs, {}, summary)
         self.assertTrue(directory.exists())
         self.assertEqual((summary.deleted, summary.skipped, summary.errors), (0, 1, 1))
 

@@ -136,9 +136,13 @@ the default 90-minute `job_timeout_minutes` plus the default 90-minute
 cleanup deadline automatically while preserving the safety margin. Sites that
 need a longer window can override the margin in their inventory. Cleanup reads
 the scheduler dump in each aged work directory and checks its PyWPS database
-row first. Requests in any non-final state are retained; only final jobs and
-orphaned dumps are removed. A directory without a trustworthy scheduler dump
-is left untouched and reported instead of risking an active job.
+row first. Requests in any non-final state are retained; final jobs and
+orphaned dumps are removed. Directories without scheduler dumps are also
+removed once their directory modification time exceeds the retention window.
+This fallback relies on retention exceeding the job runtime and allowing time
+for recovery. Malformed or unsafe dumps still report errors and are retained.
+All candidates are checked again before deletion; directories changed since
+the scan are retained. Use `--verbose` to report cleanup counts.
 
 ### Slurm
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove aged PyWPS scheduler work directories without deleting active jobs."""
+"""Remove aged PyWPS work directories while protecting known non-final jobs."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ def directory_identity(path: Path) -> tuple[int, int, int, int]:
 def discover_aged_jobs(
     work_dir: Path,
     cutoff: datetime,
-) -> tuple[list[tuple[Path, str, tuple[int, int, int, int]]], Summary]:
+) -> tuple[list[tuple[Path, str | None, tuple[int, int, int, int]]], Summary]:
     jobs = []
     summary = Summary()
     cutoff_timestamp = cutoff.timestamp()
@@ -79,14 +79,8 @@ def discover_aged_jobs(
                 continue
             summary.checked += 1
             job_uuid = job_uuid_from_dump(directory)
-            if job_uuid is None:
-                summary.skipped += 1
-                summary.errors += 1
-                print(
-                    f"cannot safely associate aged work directory: {directory}",
-                    file=sys.stderr,
-                )
-                continue
+            # Missing dumps use the retention window as their only job-age guard.
+            # Keep them subject to the same identity check before removal.
             jobs.append((directory, job_uuid, identity))
         except (OSError, ValueError, json.JSONDecodeError) as error:
             summary.skipped += 1
@@ -143,13 +137,13 @@ def database_job_states(config_path: Path, job_uuids: set[str]) -> dict[str, boo
 
 
 def remove_safe_jobs(
-    jobs: list[tuple[Path, str, tuple[int, int, int, int]]],
+    jobs: list[tuple[Path, str | None, tuple[int, int, int, int]]],
     states: dict[str, bool],
     summary: Summary,
     remover: Callable[[Path], None] = shutil.rmtree,
 ) -> Summary:
     for directory, job_uuid, original_identity in jobs:
-        if states.get(job_uuid) is False:
+        if job_uuid is not None and states.get(job_uuid) is False:
             summary.protected += 1
             continue
         try:
@@ -201,7 +195,10 @@ def main(argv: list[str] | None = None) -> int:
             jobs, summary = discover_aged_jobs(work_dir, cutoff)
             states = database_job_states(
                 args.config,
-                {job_uuid for _directory, job_uuid, _identity in jobs},
+                {
+                    job_uuid for _directory, job_uuid, _identity in jobs
+                    if job_uuid is not None
+                },
             )
             remove_safe_jobs(jobs, states, summary)
         if args.verbose:
