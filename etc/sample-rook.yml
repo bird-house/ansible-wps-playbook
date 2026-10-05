@@ -16,6 +16,13 @@ slurm_enabled: true
 # slurm_system_memory_reserve_percent: 20
 # slurm_min_job_memory_mb: 4096
 
+# Temporary mitigation for PyWPS database connection accumulation.
+# Non-negative integers; set gunicorn_max_requests to 0 to disable recycling.
+# gunicorn_max_requests: 100
+# gunicorn_max_requests_jitter: 20
+# Keep the daily service restart disabled.
+# wps_tools_restart_enabled: false
+
 # Host monitoring, including the filesystem holding WPS outputs.
 # collectd_enabled: true
 # collectd_disk_enabled: false

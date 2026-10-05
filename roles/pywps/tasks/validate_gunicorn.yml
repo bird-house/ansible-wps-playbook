@@ -1,0 +1,10 @@
+---
+- name: Validate Gunicorn worker recycling settings
+  ansible.builtin.assert:
+    that:
+      - (gunicorn_max_requests | string) is match('^[0-9]+$')
+      - (gunicorn_max_requests_jitter | string) is match('^[0-9]+$')
+    quiet: true
+    fail_msg: >-
+      gunicorn_max_requests and gunicorn_max_requests_jitter must be
+      non-negative integers. Set gunicorn_max_requests to 0 to disable recycling.

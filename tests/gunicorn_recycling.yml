@@ -1,0 +1,54 @@
+---
+- name: Reset recycling validation result
+  ansible.builtin.set_fact:
+    test_recycling_valid: true
+
+- name: Exercise deployment recycling validation
+  vars:
+    gunicorn_max_requests: "{{ recycling_case.requests }}"
+    gunicorn_max_requests_jitter: "{{ recycling_case.jitter }}"
+  block:
+    - name: Run the production assertion
+      ansible.builtin.include_tasks: ../roles/pywps/tasks/validate_gunicorn.yml
+  rescue:
+    - name: Record rejected recycling settings
+      ansible.builtin.set_fact:
+        test_recycling_valid: false
+
+- name: Check validation outcome
+  ansible.builtin.assert:
+    quiet: true
+    that:
+      - test_recycling_valid == recycling_case.valid
+
+- name: Verify rendered Python integer settings
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -c
+      - |
+        import ast
+        import sys
+        tree = ast.parse(sys.stdin.read())
+        values = {
+            node.targets[0].id: ast.literal_eval(node.value)
+            for node in tree.body if isinstance(node, ast.Assign)
+        }
+        for key, expected in zip(
+            ('max_requests', 'max_requests_jitter'), sys.argv[1:]
+        ):
+            assert type(values[key]) is int, (key, values[key])
+            assert values[key] == int(expected), (key, values[key], expected)
+        assert values['worker_class'] == 'gevent'
+        assert values['graceful_timeout'] == 30
+      - "{{ recycling_case.requests }}"
+      - "{{ recycling_case.jitter }}"
+    stdin: >-
+      {{ lookup('ansible.builtin.template',
+                playbook_dir + '/../roles/pywps/templates/gunicorn.py.j2') }}
+  vars:
+    item: "{{ test_primary_service }}"
+    gunicorn_max_requests: "{{ recycling_case.requests }}"
+    gunicorn_max_requests_jitter: "{{ recycling_case.jitter }}"
+  when: recycling_case.valid
+  changed_when: false
