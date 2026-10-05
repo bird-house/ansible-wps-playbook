@@ -263,8 +263,10 @@ gunicorn_worker_connections: 1000
 gunicorn_worker_class: 'gevent'  # "sync" or "gevent", needs gevent
 gunicorn_timeout: 30
 gunicorn_graceful_timeout: "{{ gunicorn_timeout }}"
-gunicorn_max_requests: 1000
-gunicorn_max_requests_jitter: 100
+# Temporary mitigation for PyWPS database session leaks; tune under traffic.
+# Non-negative integers; max_requests=0 disables recycling.
+gunicorn_max_requests: 100
+gunicorn_max_requests_jitter: 20
 gunicorn_cleanup_orphaned_processes: false
 
 # postgres

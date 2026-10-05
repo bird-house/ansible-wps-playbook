@@ -1,4 +1,10 @@
 ---
+- name: Validate Gunicorn recycling configuration
+  ansible.builtin.import_tasks: validate_gunicorn.yml
+  tags:
+    - pywps
+    - conf
+
 - name: Copy gunicorn config
   template:
     src: ./templates/gunicorn.py.j2

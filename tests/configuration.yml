@@ -208,6 +208,24 @@
             collectd_hourly_summary_output
             == '/var/log/collectd-hourly-summary.log'
 
+    - name: Check Gunicorn recycling validation and rendering
+      ansible.builtin.include_tasks: gunicorn_recycling.yml
+      loop:
+        - {requests: 100, jitter: 20, valid: true}
+        - {requests: 0, jitter: 20, valid: true}
+        - {requests: 250, jitter: 0, valid: true}
+        - {requests: "00100", jitter: "020", valid: true}
+        - {requests: -1, jitter: 20, valid: false}
+        - {requests: 100, jitter: -1, valid: false}
+        - {requests: 1.5, jitter: 20, valid: false}
+        - {requests: 100, jitter: 1.5, valid: false}
+        - {requests: true, jitter: 20, valid: false}
+        - {requests: 100, jitter: false, valid: false}
+        - {requests: "invalid", jitter: 20, valid: false}
+        - {requests: 100, jitter: "invalid", valid: false}
+      loop_control:
+        loop_var: recycling_case
+
     - name: Check explicit WPS CPU override
       ansible.builtin.assert:
         quiet: true
@@ -414,8 +432,8 @@
           - "'unix:///run/pywps/alpha.sock' in test_gunicorn_config"
           - "'workers = 9' in test_gunicorn_config"
           - "'graceful_timeout = 30' in test_gunicorn_config"
-          - "'max_requests = 1000' in test_gunicorn_config"
-          - "'max_requests_jitter = 100' in test_gunicorn_config"
+          - "'max_requests = 100' in test_gunicorn_config.splitlines()"
+          - "'max_requests_jitter = 20' in test_gunicorn_config.splitlines()"
           - "'TEST_MODE=true' in test_gunicorn_config"
           - "'[program:alpha]' in test_supervisor_config"
           - "'autorestart=unexpected' in test_supervisor_config"
