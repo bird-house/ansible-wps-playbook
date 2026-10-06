@@ -27,3 +27,11 @@
 
 - name: Include Munge tasks
   include_tasks: munge.yml
+
+- name: Include Slurm controller state directory protection
+  ansible.builtin.include_tasks: controller_state.yml
+  when:
+    - ansible_os_family == 'RedHat'
+    - ansible_service_mgr == 'systemd'
+    - slurm_create_dirs | default(true) | bool
+    - "'slurmservers' in group_names or 'controller' in slurm_roles"

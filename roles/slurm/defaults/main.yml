@@ -1,0 +1,10 @@
+---
+# Match the Red Hat defaults in galaxyproject.slurm and honor site overrides.
+slurm_controller_state_directory: >-
+  {{ (slurm_config | default({})).StateSaveLocation
+     | default('/var/spool/slurm/ctld') }}
+slurm_controller_state_user: >-
+  {{ (slurm_config | default({})).SlurmUser
+     | default((slurm_user | default({})).name | default('slurm')) }}
+# An empty group makes chown use the controller user's primary group.
+slurm_controller_state_group: "{{ (slurm_user | default({})).group | default('') }}"

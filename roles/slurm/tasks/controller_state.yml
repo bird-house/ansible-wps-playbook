@@ -1,0 +1,23 @@
+---
+- name: Create Slurm controller service override directory
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ slurmctld_service_name | default('slurmctld') }}.service.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Slurm controller state directory repair before startup
+  ansible.builtin.template:
+    src: controller-state.conf.j2
+    dest: "/etc/systemd/system/{{ slurmctld_service_name | default('slurmctld') }}.service.d/10-state-directory.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  register: slurm_controller_state_override
+
+# Load this before galaxyproject.slurm starts the controller on a fresh install.
+- name: Load Slurm controller service override
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: slurm_controller_state_override.changed

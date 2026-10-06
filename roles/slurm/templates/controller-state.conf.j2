@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+# RPM updates can restore root ownership on the controller state directory.
+# Repair only the directory itself; preserve state files and worker spool data.
+{% set directory = slurm_controller_state_directory | replace('%', '%%') | replace('$', '$$') | to_json %}
+{% set owner = (slurm_controller_state_user ~ ':' ~ slurm_controller_state_group) | replace('%', '%%') | replace('$', '$$') | to_json %}
+[Service]
+ExecStartPre=+/usr/bin/mkdir -p -- {{ directory }}
+ExecStartPre=+/usr/bin/chown -- {{ owner }} {{ directory }}
+ExecStartPre=+/usr/bin/chmod 0700 -- {{ directory }}
