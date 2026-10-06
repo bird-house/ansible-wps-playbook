@@ -201,6 +201,21 @@ More advanced deployments can configure, among other things:
 
 See `group_vars/all.yml` for the complete configuration reference.
 
+On AlmaLinux and other Red Hat hosts using systemd, the local Slurm role installs
+`10-state-directory.conf` in the controller service's override directory. Before
+each controller start it creates the state directory if missing, restores its
+owner and group, and sets mode `0700`. This protects against RPM updates resetting
+the directory to `root:root`. It uses `slurm_config.StateSaveLocation` and
+`slurm_config.SlurmUser`, falling back to `/var/spool/slurm/ctld` and
+`slurm_user.name` (or `slurm`). The group comes from `slurm_user.group`, or the
+controller user's primary group. State files and worker spool directories are
+not changed recursively.
+
+Deploy this protection with the normal full playbook run (`make play`); the quick
+and live update paths do not install it. Installing the override reloads systemd
+without restarting the controller. The repair runs on its next start. Hosts with
+`slurm_create_dirs: false` retain responsibility for their own state directories.
+
 ## Development and testing
 
 The Makefile is also the entry point for development and validation:

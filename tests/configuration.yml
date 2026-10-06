@@ -7,6 +7,7 @@
   vars_files:
     - ../group_vars/all.yml
     - ../roles/roocs/defaults/main.yml
+    - ../roles/slurm/defaults/main.yml
 
   vars:
     ansible_fqdn: localhost
@@ -371,6 +372,34 @@
         collectd_memory_enabled: true
         collectd_interface_enabled: true
         collectd_interface: ens3
+
+    - name: Check default Slurm controller state directory protection
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - "'ExecStartPre=+/usr/bin/chown -- \"slurm:\" \"/var/spool/slurm/ctld\"' in test_slurm_state_override"
+          - "'ExecStartPre=+/usr/bin/chmod 0700 -- \"/var/spool/slurm/ctld\"' in test_slurm_state_override"
+      vars:
+        test_slurm_state_override: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/slurm/templates/controller-state.conf.j2') }}
+
+    - name: Check custom Slurm controller state directory protection
+      ansible.builtin.assert:
+        quiet: true
+        that:
+          - "'ExecStartPre=+/usr/bin/mkdir -p -- \"/srv/slurm state/%%ctld$$\"' in test_slurm_state_override"
+          - "'ExecStartPre=+/usr/bin/chown -- \"controller:batch\"' in test_slurm_state_override"
+      vars:
+        slurm_config:
+          StateSaveLocation: /srv/slurm state/%ctld$
+          SlurmUser: controller
+        slurm_user:
+          name: fallback
+          group: batch
+        test_slurm_state_override: >-
+          {{ lookup('ansible.builtin.template',
+                    playbook_dir + '/../roles/slurm/templates/controller-state.conf.j2') }}
 
     - name: Render Slurm service launcher
       ansible.builtin.set_fact:

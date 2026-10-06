@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- restore Slurm controller state directory ownership and permissions before
+  each systemd start on Red Hat hosts, protecting against RPM ownership resets
 - remove aged temporary work directories without scheduler dumps after the
   configured retention window, while protecting known non-final jobs and
   retaining errors for malformed or unsafe dumps
