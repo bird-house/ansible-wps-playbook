@@ -78,7 +78,7 @@ fs_port: 6000
 
 # Shared hard job timeout and recovery grace period. Slurm enforces the timeout;
 # XML, database, and missing-status recovery settings below derive from both.
-job_timeout_minutes: 90
+job_timeout_minutes: 150
 job_timeout_grace_minutes: 5
 # Shared long-running warning. WPS and Slurm inherit this value but remain
 # independently overridable in deployment inventories.
@@ -395,7 +395,7 @@ wps_http_log_dir: /var/log/nginx
 wps_outputs_keep_hours: 6
 wps_outputs_keep_minutes: "{{ (wps_outputs_keep_hours | int) * 60 }}"
 # Retain completed and orphaned temporary work beyond the maximum job runtime.
-# The default gives a three-hour cleanup window (90 + 90 minutes).
+# The default gives a four-hour cleanup window (150 + 90 minutes).
 wps_temp_keep_margin_minutes: 90
 wps_temp_keep_minutes: >-
   {{ (job_timeout_minutes | int) + (wps_temp_keep_margin_minutes | int) }}
