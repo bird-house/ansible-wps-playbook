@@ -60,7 +60,7 @@ such as:
 
 The health process runs synchronously rather than waiting in Slurm. If a web
 worker disappears after accepting it, database recovery therefore applies the
-normal job timeout plus grace (95 minutes by default), rather than the 24-hour
+normal job timeout plus grace (155 minutes by default), rather than the 24-hour
 allowance used for accepted scheduler requests.
 
 ## Operations and maintenance
@@ -118,7 +118,7 @@ The command checks every failed row with start and end timestamps, and only
 shortens end times beyond the applicable cap. Rows whose recovery message says
 they remained accepted/pending use the configured `wps_outputs_keep_minutes`,
 matching the six-hour status-document retention period by default. All other
-failed rows use `job_timeout_minutes` (90 minutes by default). Successful and
+failed rows use `job_timeout_minutes` (150 minutes by default). Successful and
 non-final rows are never changed. Repairs are written in one bulk transaction
 instead of committing each row separately, so large historical backlogs can be
 processed efficiently.
@@ -130,8 +130,8 @@ The playbook also schedules this idempotent timestamp audit every Sunday at
 
 ### Temporary work disk
 
-IPSL's 500 GB temporary disk uses a three-hour retention period, derived from
-the default 90-minute `job_timeout_minutes` plus the default 90-minute
+IPSL's 500 GB temporary disk uses a four-hour retention period, derived from
+the default 150-minute `job_timeout_minutes` plus the default 90-minute
 `wps_temp_keep_margin_minutes`. Changing the job timeout therefore moves the
 cleanup deadline automatically while preserving the safety margin. Sites that
 need a longer window can override the margin in their inventory. Cleanup reads

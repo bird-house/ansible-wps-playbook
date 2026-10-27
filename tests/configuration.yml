@@ -44,7 +44,7 @@
             (wps_temp_keep_minutes | int) ==
             ((job_timeout_minutes | int) +
              (wps_temp_keep_margin_minutes | int))
-          - wps_temp_keep_minutes | int == 180
+          - wps_temp_keep_minutes | int == 240
           - wps_tools_restart_schedule in ['hourly', 'daily']
           - not wps_tools_restart_enabled
           - wps_logrotate_min_size == '10M'
@@ -69,7 +69,7 @@
           - wps_tools_job_control_timestamp_repair_limit == 10000
           - wps_tools_job_control_schedule.hour == '*'
           - job_long_running_minutes | float == 10
-          - job_timeout_minutes | float == 90
+          - job_timeout_minutes | float == 150
           - job_timeout_grace_minutes | float == 5
           - wps_cpus == 'auto'
           - wps_cpus_resolved | int == 4
@@ -78,8 +78,8 @@
           - slurm_cpus | int == 3
           - gunicorn_workers | int == 9
           - wps_tools_job_control_long_running_minutes | float == 10
-          - wps_tools_job_control_stale_after_minutes | float == 95
-          - wps_tools_job_control_database_stale_after_minutes | float == 95
+          - wps_tools_job_control_stale_after_minutes | float == 155
+          - wps_tools_job_control_database_stale_after_minutes | float == 155
           - >-
             wps_tools_job_control_database_accepted_stale_after_hours | float
             == 24
@@ -115,9 +115,9 @@
           - wps_tools_job_control_monitor_enabled
           - wps_tools_job_control_recovery_enabled
           - wps_tools_missing_status_recovery_enabled
-          - wps_tools_missing_status_poll_window_minutes | int == 190
+          - wps_tools_missing_status_poll_window_minutes | int == 310
           - wps_tools_missing_status_min_poll_count == 3
-          - wps_tools_missing_status_min_poll_duration_minutes | int == 100
+          - wps_tools_missing_status_min_poll_duration_minutes | int == 160
           - wps_tools_missing_status_recovery_limit == 20
           - wps_tools_missing_status_database_guard
           - conda_env_spec_file == 'linux-64.spec'
@@ -160,9 +160,9 @@
           - slurm_nodes[0].RealMemory | int == 51200
           - slurm_partitions[0].DefMemPerNode | int == 17066
           - slurm_partitions[0].MaxMemPerNode | int == 51200
-          - slurm_job_timeout_minutes | int == 90
-          - slurm_partitions[0].DefaultTime | int == 90
-          - slurm_partitions[0].MaxTime | int == 90
+          - slurm_job_timeout_minutes | int == 150
+          - slurm_partitions[0].DefaultTime | int == 150
+          - slurm_partitions[0].MaxTime | int == 150
           - >-
             slurm_job_timeout_minutes | int
             < wps_tools_job_control_stale_after_minutes | float
@@ -475,8 +475,8 @@
             'export DRMAA_LIBRARY_PATH=/usr/local/anaconda/envs/alpha/lib/libdrmaa.so'
             in test_slurm_run_script
           - >-
-            'PartitionName=fast Default=YES DefaultTime=90 DefMemPerNode=17066 '
-            'MaxMemPerNode=51200 MaxTime=90 Nodes=localhost'
+            'PartitionName=fast Default=YES DefaultTime=150 DefMemPerNode=17066 '
+            'MaxMemPerNode=51200 MaxTime=150 Nodes=localhost'
             in test_slurm_config
           - >-
             'NodeName=localhost CPUs=3 RealMemory=51200'
@@ -674,9 +674,9 @@
             in test_pywps_config
           - "'layers =' not in test_pywps_config"
           - "'long_running_minutes = 10' in test_pywps_config"
-          - "'stale_after_minutes = 95' in test_pywps_config"
-          - "'database_stale_after_minutes = 95' in test_pywps_config"
-          - "'recovery_max_runtime_minutes = 90' in test_pywps_config"
+          - "'stale_after_minutes = 155' in test_pywps_config"
+          - "'database_stale_after_minutes = 155' in test_pywps_config"
+          - "'recovery_max_runtime_minutes = 150' in test_pywps_config"
           - "'recovery_pending_timeout_minutes = 360' in test_pywps_config"
           - >-
             'database_accepted_stale_after_hours = 24'
@@ -756,9 +756,9 @@
             'OnCalendar=*-*-* *:05:00' in test_collectd_hourly_summary_timer
           - "'Persistent=true' in test_collectd_hourly_summary_timer"
           - "'access_log = /var/log/nginx/access.log' in test_pywps_config"
-          - "'poll_window_minutes = 190' in test_pywps_config"
+          - "'poll_window_minutes = 310' in test_pywps_config"
           - "'min_poll_count = 3' in test_pywps_config"
-          - "'min_poll_duration_minutes = 100' in test_pywps_config"
+          - "'min_poll_duration_minutes = 160' in test_pywps_config"
           - "'missing_status_database_guard = true' in test_pywps_config"
 
     - name: Check rendered alternate configuration
