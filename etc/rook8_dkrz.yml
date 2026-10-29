@@ -14,6 +14,8 @@ cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
 # conda
 conda_env_use_spec: true
+# job control
+job_timeout_minutes: 240
 # slurm
 slurm_enabled: true
 slurm_cpus: 8
@@ -35,7 +37,7 @@ collectd_disk_mount: /mnt/rook_disk8
 wps_services:
   - name: rook
     repo: https://github.com/roocs/rook.git
-    version: v1.4.0
+    version: v1.4.1
     # version: main
     hostname: "{{ wps_external_hostname }}"
     fs_hostname: "{{ wps_internal_hostname }}"
