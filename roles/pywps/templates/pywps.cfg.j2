@@ -77,6 +77,7 @@ lock_file = /run/lock/pywps-job-control-{{ item.name }}.lock
 access_log = {{ wps_tools_missing_status_access_log }}
 poll_window_minutes = {{ wps_tools_missing_status_poll_window_minutes }}
 min_poll_count = {{ wps_tools_missing_status_min_poll_count }}
+# Duration includes successful status polls; min_poll_count counts only 404s.
 min_poll_duration_minutes = {{ wps_tools_missing_status_min_poll_duration_minutes }}
 missing_status_recovery_limit = {{ wps_tools_missing_status_recovery_limit }}
 missing_status_database_guard = {{ wps_tools_missing_status_database_guard | bool | lower }}

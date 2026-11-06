@@ -344,6 +344,8 @@ wps_tools_job_control_stale_after_minutes: >-
 wps_tools_job_control_database_stale_after_minutes: >-
   {{ (job_timeout_minutes | int) + (job_timeout_grace_minutes | int) }}
 # Accepted rows may represent queue wait, so use a separate conservative age.
+# A known submitted Slurm job absent from the queue uses the normal stale
+# threshold; jobs still present in Slurm are retained regardless of age.
 wps_tools_job_control_database_accepted_stale_after_hours: 24
 # Report the status mix for jobs started in this recent window.
 wps_tools_job_control_database_status_window_hours: 24
@@ -361,6 +363,8 @@ wps_tools_missing_status_poll_window_minutes: >-
   {{ ((job_timeout_minutes | int) * 2)
      + ((job_timeout_grace_minutes | int) * 2) }}
 wps_tools_missing_status_min_poll_count: 3
+# Include successful status polls in the duration; require the 404 count above
+# separately so output cleanup does not start another full timeout wait.
 wps_tools_missing_status_min_poll_duration_minutes: >-
   {{ (job_timeout_minutes | int)
      + ((job_timeout_grace_minutes | int) * 2) }}

@@ -784,7 +784,7 @@ def find_missing_status_polls(settings: Settings, now: datetime) -> list[Missing
         consecutive_old_lines = 0
         if timestamp > future_limit:
             continue
-        if method not in {"GET", "HEAD"} or status != 404:
+        if method not in {"GET", "HEAD"} or status not in {200, 404}:
             continue
         request_path = unquote(urlsplit(target).path)
         match = status_path_re.fullmatch(request_path)
@@ -800,13 +800,16 @@ def find_missing_status_polls(settings: Settings, now: datetime) -> list[Missing
                 request_path=request_path,
                 first_seen=timestamp,
                 last_seen=timestamp,
-                count=1,
+                count=int(status == 404),
             )
         else:
             candidate.first_seen = min(candidate.first_seen, timestamp)
             candidate.last_seen = max(candidate.last_seen, timestamp)
-            candidate.count += 1
+            candidate.count += int(status == 404)
 
+    # Successful status polls establish how long the client has been waiting.
+    # Starting the duration at the first 404 would add another full timeout
+    # after output cleanup, even when the client has already waited for hours.
     minimum_duration = timedelta(minutes=settings.min_poll_duration_minutes)
     return sorted(
         (
@@ -854,7 +857,7 @@ def missing_status_xml(candidate: MissingStatusPolls, output_url: str, now: date
     )
     ET.SubElement(exception, qualified("ExceptionText", ows_uri)).text = (
         "Process failed: repeated polling found that this PyWPS status document "
-        "was not created. The request can no longer be monitored."
+        "is no longer available. The request can no longer be monitored."
     )
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
@@ -1291,6 +1294,47 @@ def summarize_recent_database_statuses(
     return summarize_database_statuses(counts.items(), wps_status)
 
 
+def submitted_slurm_job_id(record: object) -> str | None:
+    message = str(getattr(record, "message", "") or "")
+    match = re.fullmatch(r"Your job has been submitted with ID ([0-9]+)", message)
+    return match.group(1) if match else None
+
+
+def active_submitted_slurm_jobs(
+    settings: Settings,
+    records: list[object],
+    logger: logging.Logger,
+) -> set[str] | None:
+    """Snapshot all active jobs; unavailable evidence keeps the age-only policy."""
+    if not any(submitted_slurm_job_id(record) for record in records):
+        return None
+    try:
+        config = read_config(settings.pywps_config)
+        if config.get("processing", "mode", fallback="") != "scheduler":
+            return None
+        result = subprocess.run(
+            [
+                "squeue", "--noheader", "--all", "--states", "all",
+                "--user", settings.recovery_user, "--format", "%i",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+        identifiers = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+        if any(re.fullmatch(r"[0-9]+", value) is None for value in identifiers):
+            raise ValueError("unexpected Slurm job ID in squeue output")
+        return identifiers
+    except (OSError, subprocess.SubprocessError, ValueError, configparser.Error) as error:
+        logger.warning(
+            "layer=database decision=retain-accepted-age-policy reason=slurm-check-failed "
+            "error=%s", error,
+        )
+        return None
+
+
 def run_database_layer(
     settings: Settings,
     now: datetime,
@@ -1345,9 +1389,9 @@ def run_database_layer(
             )
             summary.status_counts = status_counts
             summary.checked = status_counts["total"]
-        # Queue wait is not execution time. STARTED rows and synchronous health
-        # checks use the normal runtime threshold. Other ACCEPTED rows use a
-        # much longer threshold so genuine scheduler queue waits are retained.
+        # Queue wait is not execution time. ACCEPTED rows use a longer age
+        # threshold unless Slurm confirms their submitted job is absent.
+        # A known job still present in Slurm is retained regardless of age.
         # PAUSED and unknown rows are visible in status aggregates but are never
         # recovered automatically.
         query = session.query(dblog.ProcessInstance)
@@ -1384,7 +1428,7 @@ def run_database_layer(
         )
         accepted_candidate = and_(
             dblog.ProcessInstance.status == WPS_STATUS.ACCEPTED,
-            accepted_stale_filter,
+            or_(accepted_stale_filter, stale_filter),
         )
         health_accepted_candidate = and_(
             dblog.ProcessInstance.status == WPS_STATUS.ACCEPTED,
@@ -1398,6 +1442,7 @@ def run_database_layer(
         if settings.mode != "recover" and settings.limit is not None:
             query = query.limit(settings.limit)
         records = query.all()
+        active_slurm_ids = active_submitted_slurm_jobs(settings, records, logger)
         for record in records:
             if settings.mode != "monitor":
                 summary.checked += 1
@@ -1418,9 +1463,30 @@ def run_database_layer(
                     continue
                 last_update = database_last_update(record)
                 started = database_start_time(record)
+                submitted_id = submitted_slurm_job_id(record)
+                scheduler_abandoned = (
+                    is_accepted
+                    and not is_health_accepted
+                    and submitted_id is not None
+                    and active_slurm_ids is not None
+                    and submitted_id not in active_slurm_ids
+                )
                 if is_accepted:
+                    if (
+                        submitted_id is not None
+                        and active_slurm_ids is not None
+                        and submitted_id in active_slurm_ids
+                    ):
+                        logger.debug(
+                            "layer=database job=%s decision=skip-timeout "
+                            "reason=submitted-slurm-job-present slurm_job=%s",
+                            record.uuid, submitted_id,
+                        )
+                        continue
                     record_threshold = (
-                        threshold if is_health_accepted else accepted_threshold
+                        threshold
+                        if is_health_accepted or scheduler_abandoned
+                        else accepted_threshold
                     )
                     finding = (
                         "stalled"
@@ -1466,6 +1532,13 @@ def run_database_layer(
                         record.message = (
                             "Process failed: stalled-job recovery found a health "
                             "database request that did not advance for at least "
+                            f"{settings.database_stale_after_minutes:g} minutes."
+                        )
+                    elif scheduler_abandoned:
+                        record.message = (
+                            "Process failed: stalled-job recovery found an accepted "
+                            f"database request whose submitted Slurm job {submitted_id} "
+                            "is no longer active, with no database update for at least "
                             f"{settings.database_stale_after_minutes:g} minutes."
                         )
                     elif is_accepted:
