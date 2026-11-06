@@ -699,6 +699,42 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual((summary.stalled, summary.recovered), (1, 0))
         self.assertFalse(self.status.exists())
 
+    def test_access_log_recovers_after_cleanup_using_earlier_successful_polls(self):
+        settings = self.polling_settings()
+        settings.poll_window_minutes = 490
+        settings.min_poll_duration_minutes = 250
+        # The status existed for hours, then cleanup removed it. Recent 404s
+        # must not start another 250-minute wait before returning a failure.
+        settings.access_log.write_text(
+            self.access_log_line(self.now - timedelta(minutes=480), status=200)
+            + self.access_log_line(self.now - timedelta(minutes=300), status=200)
+            + "".join(
+                self.access_log_line(self.now - timedelta(seconds=seconds))
+                for seconds in (30, 20, 10)
+            ),
+            encoding="utf-8",
+        )
+
+        summary = MODULE.run_polling_layer(settings, self.now, mock.Mock())
+
+        self.assertEqual((summary.stalled, summary.recovered, summary.errors), (1, 1, 0))
+        document, _ = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessFailed")
+        self.assertEqual(document.job_uuid, JOB_UUID)
+
+    def test_successful_polls_do_not_count_towards_required_404s(self):
+        settings = self.polling_settings()
+        settings.access_log.write_text(
+            "".join(
+                self.access_log_line(self.now - timedelta(minutes=minutes), status=200)
+                for minutes in (30, 20, 10)
+            )
+            + self.access_log_line(self.now - timedelta(minutes=2)),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(MODULE.find_missing_status_polls(settings, self.now), [])
+
     def test_access_log_database_veto_protects_an_active_request(self):
         settings = self.polling_settings()
         settings.database_guard = True
@@ -811,6 +847,69 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_polling_layer(settings, self.now, mock.Mock())
         self.assertEqual(summary.checked, 0)
         self.assertEqual(summary.recovered, 0)
+
+    def test_slurm_snapshot_fails_closed_on_unavailable_or_invalid_queue(self):
+        settings = self.settings("recover")
+        settings.pywps_config = self.root / "pywps.cfg"
+        settings.pywps_config.write_text("[job_control]\n[processing]\nmode = scheduler\n")
+        records = [types.SimpleNamespace(message="Your job has been submitted with ID 123")]
+        for outcome in (FileNotFoundError("squeue"), types.SimpleNamespace(stdout="bad-id\n")):
+            with self.subTest(outcome=outcome):
+                kwargs = {"side_effect": outcome} if isinstance(outcome, Exception) else {"return_value": outcome}
+                with mock.patch.object(MODULE.subprocess, "run", **kwargs):
+                    self.assertIsNone(MODULE.active_submitted_slurm_jobs(settings, records, mock.Mock()))
+
+    def test_slurm_recovery_preserves_active_accepted_jobs_and_recovers_absent_job(self):
+        try:
+            from pywps import configuration, dblog
+            from pywps.response.status import WPS_STATUS
+        except ImportError:
+            self.skipTest("PyWPS database dependencies unavailable")
+        settings = self.settings("recover", ["database"])
+        settings.pywps_config = self.root / "scheduler.cfg"
+        settings.pywps_config.write_text(
+            f"[server]\nworkdir = {self.root}\noutputpath = {self.outputs}\n"
+            f"[logging]\ndatabase = sqlite:///{self.root / 'scheduler.sqlite'}\n"
+            "level = INFO\n[job_control]\n[processing]\nmode = scheduler\n"
+        )
+        configuration.load_configuration([str(settings.pywps_config)])
+        session = dblog.get_session()
+        for job_uuid, hours, message in (
+            (JOB_UUID, 8.5, "Your job has been submitted with ID 123"),
+            (OTHER_JOB_UUID, 30, "Your job has been submitted with ID 456"),
+            (THIRD_JOB_UUID, 8.5, "Submitting job ..."),
+            (FOURTH_JOB_UUID, 0.5, "Your job has been submitted with ID 789"),
+        ):
+            started = (self.now - timedelta(hours=hours)).replace(tzinfo=None)
+            session.add(dblog.ProcessInstance(
+                uuid=job_uuid, pid=123, operation="execute", version="1.0.0",
+                time_start=started, time_end=started, status=WPS_STATUS.ACCEPTED,
+                percent_done=0, message=message,
+            ))
+        session.commit()
+        settings.database_stale_after_minutes = 245
+        settings.recovery_max_runtime_minutes = 240
+        with mock.patch.object(MODULE.subprocess, "run", return_value=types.SimpleNamespace(stdout="456\n")):
+            summary = MODULE.run_database_layer(settings, self.now, mock.Mock())
+        session.expire_all()
+        states = {row.uuid: row.status for row in session.query(dblog.ProcessInstance).all()}
+        self.assertEqual(summary.recovered, 1)
+        self.assertEqual(states[JOB_UUID], WPS_STATUS.FAILED)
+        for job_uuid in (OTHER_JOB_UUID, THIRD_JOB_UUID, FOURTH_JOB_UUID):
+            self.assertEqual(states[job_uuid], WPS_STATUS.ACCEPTED)
+        session.close()
+        settings.output_url = "https://example.test/outputs/alpha"
+        settings.access_log = self.root / "access.log"
+        settings.poll_window_minutes = 490
+        settings.min_poll_duration_minutes = 250
+        settings.access_log.write_text(
+            self.access_log_line(self.now - timedelta(minutes=480), status=200)
+            + self.access_log_line(self.now - timedelta(minutes=1)) * 3
+        )
+        summary = MODULE.run_polling_layer(settings, self.now, mock.Mock())
+        self.assertEqual((summary.recovered, summary.errors), (1, 0))
+        document, _ = MODULE.read_xml_status(self.status)
+        self.assertEqual(document.state, "ProcessFailed")
 
     def test_access_log_does_not_replace_status_created_concurrently(self):
         candidate = MODULE.MissingStatusPolls(
@@ -1783,7 +1882,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
         summary = MODULE.run_database_layer(settings, self.now, logger)
         self.assertEqual(
             (summary.checked, summary.stalled, summary.recovered, summary.errors),
-            (5, 3, 3, 0),
+            (6, 3, 3, 0),
         )
         self.assertEqual(
             logger.warning.call_args_list,

@@ -105,6 +105,21 @@ This command processes all recovery layers. The limit caps the number of jobs
 handled per layer in one run. Use a lower value and repeat the command if the
 backlog should be processed in smaller batches.
 
+For missing status XML, recovery requires at least three 404 responses and a
+polling history spanning the job timeout plus twice the grace period. Successful
+HTTP 200 status polls count towards that duration, so removing old output files
+does not start another full timeout wait. Only the configured recent access-log
+window is inspected. The database guard still blocks requests in a non-final
+state; database recovery runs before missing-status recovery.
+
+For accepted scheduler requests, recovery reads the Slurm job ID from PyWPS's
+submission message and checks the service user's queue, including suspended
+jobs and hidden partitions. If that ID is absent, the normal job timeout plus
+grace applies (245 minutes for a 240-minute timeout). Jobs still present in Slurm
+are retained regardless of age. If the ID is missing or the queue check fails,
+the conservative 24-hour accepted-request threshold still applies. Queue absence
+does not establish whether the job timed out or ended for another reason.
+
 If an old backlog was closed during recovery or service startup, its database
 end times may reflect the day it was closed instead of the maximum possible job
 runtime. After deploying this version, repair excessive failed-job timestamps
