@@ -65,7 +65,7 @@ allowance used for accepted scheduler requests.
 
 ## Operations and maintenance
 
-The installed read-only operator commands help inspect and maintain the node:
+The installed operator commands help inspect and maintain the node:
 
 * `qtop` shows active and pending Slurm jobs and their peak memory use.
 * `itop` shows a compact snapshot of host infrastructure health.
@@ -73,6 +73,13 @@ The installed read-only operator commands help inspect and maintain the node:
 * `insights rook` summarizes request coverage, performance, and failures from
   the ROOK logs. Use `insights rook --failures` to include grouped failure
   messages and example job IDs.
+
+After confirming an `accepted` request has stopped, run
+`sudo ptop kill rook JOB`. Recovery writes `ProcessFailed` to the
+request's status URL, creating the XML if needed, then marks the database row
+failed. `JOB` can be the full UUID or the eight-character ID displayed by
+`ptop` if it matches exactly one execute request. A known Slurm job still
+present in the queue blocks this action.
 
 ## Migrating `custom.yml` from v0.7.0
 

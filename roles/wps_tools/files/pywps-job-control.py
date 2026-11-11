@@ -11,6 +11,7 @@ import logging
 import os
 import pwd
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,9 @@ ACCESS_LOG_OLD_LINE_STOP_COUNT = 100
 JOB_ERROR_TAIL_BYTES = 256 * 1024
 ACCEPTED_RECOVERY_MESSAGE_MARKER = "accepted database request"
 HEALTH_PROCESS_IDENTIFIER = "health"
+WPS_URI = "http://www.opengis.net/wps/1.0.0"
+OWS_URI = "http://www.opengis.net/ows/1.1"
+OPERATOR_FAILURE_MESSAGE = "Process failed: marked failed by an operator."
 SLURM_OOM_RE = re.compile(
     rb"slurmstepd: error: Detected [1-9][0-9]* oom-kill event\(s\) "
     rb"in StepId=\S+\."
@@ -103,6 +107,7 @@ class Settings:
     python_executable: Path | None = None
     recovery_working_dir: Path | None = None
     database_recovery_excluded_jobs: set[str] = field(default_factory=set)
+    mark_failed_job: str | None = None
 
 
 @dataclass
@@ -289,7 +294,9 @@ def failure_incident_kind(tree: ET.ElementTree) -> str:
         for element in tree.getroot().iter()
         if local_name(element.tag) == "ExceptionText"
     )
-    if "stalled-job recovery" in messages or "repeated polling" in messages:
+    if any(text in messages for text in (
+        "stalled-job recovery", "repeated polling", OPERATOR_FAILURE_MESSAGE,
+    )):
         return "recovered"
     return "error"
 
@@ -822,14 +829,24 @@ def find_missing_status_polls(settings: Settings, now: datetime) -> list[Missing
     )
 
 
-def missing_status_xml(candidate: MissingStatusPolls, output_url: str, now: datetime) -> bytes:
-    ET.register_namespace("wps", "http://www.opengis.net/wps/1.0.0")
-    ET.register_namespace("ows", "http://www.opengis.net/ows/1.1")
-    wps_uri = "http://www.opengis.net/wps/1.0.0"
-    ows_uri = "http://www.opengis.net/ows/1.1"
-    status_location = f"{output_url.rstrip('/')}/{candidate.job_uuid}.xml"
+def append_failed_status(status: ET.Element, message: str) -> None:
+    failed = ET.SubElement(status, qualified("ProcessFailed", WPS_URI))
+    report = ET.SubElement(failed, qualified("ExceptionReport", WPS_URI))
+    exception = ET.SubElement(
+        report,
+        qualified("Exception", OWS_URI),
+        {"exceptionCode": "NoApplicableCode", "locator": "None"},
+    )
+    ET.SubElement(exception, qualified("ExceptionText", OWS_URI)).text = message
+
+
+def failed_status_xml(
+    status_location: str, identifier: str, title: str, created: datetime, message: str
+) -> bytes:
+    ET.register_namespace("wps", WPS_URI)
+    ET.register_namespace("ows", OWS_URI)
     root = ET.Element(
-        qualified("ExecuteResponse", wps_uri),
+        qualified("ExecuteResponse", WPS_URI),
         {
             "service": "WPS",
             "version": "1.0.0",
@@ -838,42 +855,49 @@ def missing_status_xml(candidate: MissingStatusPolls, output_url: str, now: date
     )
     process = ET.SubElement(
         root,
-        qualified("Process", wps_uri),
-        {qualified("processVersion", wps_uri): "unknown"},
+        qualified("Process", WPS_URI),
+        {qualified("processVersion", WPS_URI): "unknown"},
     )
-    ET.SubElement(process, qualified("Identifier", ows_uri)).text = "unknown"
-    ET.SubElement(process, qualified("Title", ows_uri)).text = "Recovered missing status document"
+    ET.SubElement(process, qualified("Identifier", OWS_URI)).text = identifier
+    ET.SubElement(process, qualified("Title", OWS_URI)).text = title
     status = ET.SubElement(
         root,
-        qualified("Status", wps_uri),
-        {"creationTime": now.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")},
+        qualified("Status", WPS_URI),
+        {"creationTime": created.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")},
     )
-    failed = ET.SubElement(status, qualified("ProcessFailed", wps_uri))
-    report = ET.SubElement(failed, qualified("ExceptionReport", wps_uri))
-    exception = ET.SubElement(
-        report,
-        qualified("Exception", ows_uri),
-        {"exceptionCode": "NoApplicableCode", "locator": "None"},
-    )
-    ET.SubElement(exception, qualified("ExceptionText", ows_uri)).text = (
-        "Process failed: repeated polling found that this PyWPS status document "
-        "is no longer available. The request can no longer be monitored."
-    )
+    append_failed_status(status, message)
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
-def create_missing_status_file(path: Path, contents: bytes) -> bool:
-    """Atomically create a status file, without replacing a concurrent writer."""
-    directory_stat = path.parent.stat()
+def missing_status_xml(candidate: MissingStatusPolls, output_url: str, now: datetime) -> bytes:
+    return failed_status_xml(
+        f"{output_url.rstrip('/')}/{candidate.job_uuid}.xml",
+        "unknown", "Recovered missing status document", now,
+        "Process failed: repeated polling found that this PyWPS status document "
+        "is no longer available. The request can no longer be monitored.",
+    )
+
+
+def write_status_file(
+    path: Path, contents: bytes, previous: XmlStatus | None = None
+) -> bool:
+    """Atomically publish a new file or replace the status that was read."""
+    owner = path.parent.stat() if previous is None else path.lstat()
+    mode = 0o644 if previous is None else stat.S_IMODE(owner.st_mode)
     fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "wb") as stream:
             stream.write(contents)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(temporary_name, 0o644)
+        os.chmod(temporary_name, mode)
         if os.geteuid() == 0:
-            os.chown(temporary_name, directory_stat.st_uid, directory_stat.st_gid)
+            os.chown(temporary_name, owner.st_uid, owner.st_gid)
+        if previous is not None:
+            if stat_identity(path.lstat()) != previous.source_identity:
+                raise RuntimeError("status file changed before recovery")
+            os.replace(temporary_name, path)
+            return True
         try:
             os.link(temporary_name, path)
         except FileExistsError:
@@ -982,7 +1006,7 @@ def run_polling_layer(
             )
             if settings.mode == "recover":
                 contents = missing_status_xml(candidate, settings.output_url or "", now)
-                if create_missing_status_file(status_path, contents):
+                if write_status_file(status_path, contents):
                     recovered_document, recovered_tree = read_xml_status(status_path)
                     archive_failed_xml(recovered_document, recovered_tree, settings, logger)
                     summary.recovered += 1
@@ -1082,15 +1106,15 @@ def database_naive_now(now: datetime) -> datetime:
 def database_recovery_end_time(
     record: object,
     now: datetime,
-    max_runtime: timedelta,
+    max_runtime: timedelta | None = None,
 ) -> datetime:
-    """Return a bounded end time in the database writer's time convention."""
+    """Return the end time in the database writer's time convention."""
     raw_start = getattr(record, "time_start", None)
     started = database_start_time(record)
     if raw_start is None or started is None:
         raise ValueError("database record has no start time")
-    bounded_end = min(now, started + max_runtime)
-    return raw_start + (bounded_end - started)
+    end = min(now, started + max_runtime) if max_runtime is not None else now
+    return raw_start + (end - started)
 
 
 def database_recovery_timeout(record: object, settings: Settings) -> timedelta:
@@ -1335,6 +1359,100 @@ def active_submitted_slurm_jobs(
         return None
 
 
+def fail_database_request(
+    session, dblog, wps_status, record, message: str, end_time: datetime
+) -> None:
+    record.message = message
+    record.status = wps_status.FAILED
+    record.percent_done = 100
+    record.time_end = end_time
+    session.query(dblog.RequestInstance).filter_by(uuid=record.uuid).delete()
+    session.commit()
+
+
+def recover_accepted_status(settings: Settings, record, now: datetime, logger: logging.Logger) -> None:
+    if settings.output_dir is None:
+        raise ValueError("accepted-job recovery requires the configured PyWPS output directory")
+    path = settings.output_dir / f"{record.uuid}.xml"
+    if path.is_symlink():
+        raise ValueError("status file must not be a symlink")
+    try:
+        previous, tree = read_xml_status(path)
+    except FileNotFoundError:
+        if not settings.output_url:
+            raise ValueError("accepted-job recovery requires the configured PyWPS output URL")
+        identifier = record.identifier or "unknown"
+        contents = failed_status_xml(
+            f"{settings.output_url.rstrip('/')}/{path.name}",
+            identifier, identifier, database_start_time(record) or now,
+            OPERATOR_FAILURE_MESSAGE,
+        )
+        if not write_status_file(path, contents):
+            raise RuntimeError("status file appeared during recovery; check the job and retry")
+    else:
+        if previous.state == "ProcessAccepted":
+            status = next(element for element in tree.iter() if local_name(element.tag) == "Status")
+            accepted = next(child for child in status if local_name(child.tag) == "ProcessAccepted")
+            status.remove(accepted)
+            append_failed_status(status, OPERATOR_FAILURE_MESSAGE)
+            contents = ET.tostring(tree.getroot(), encoding="utf-8", xml_declaration=True)
+            write_status_file(path, contents, previous)
+        elif previous.state != "ProcessFailed":
+            raise ValueError(f"job {record.uuid} has status XML state {previous.state}")
+
+    document, tree = read_xml_status(path)
+    if document.state != "ProcessFailed":
+        raise RuntimeError("accepted-job recovery did not produce ProcessFailed XML")
+    archive_failed_xml(document, tree, settings, logger)
+
+
+def mark_database_request_failed(
+    session, dblog, wps_status, settings: Settings, job_id: str, now: datetime,
+    logger: logging.Logger,
+) -> LayerSummary:
+    job_uuid = dblog.ProcessInstance.uuid
+    matches = job_uuid.startswith(job_id) if len(job_id) == 8 else job_uuid == job_id
+    records = (
+        session.query(dblog.ProcessInstance)
+        .filter(dblog.ProcessInstance.operation == "execute", matches)
+        .limit(2)
+        .with_for_update()
+        .all()
+    )
+    if not records:
+        raise ValueError(f"no execute request matches {job_id}")
+    if len(records) > 1:
+        raise ValueError(f"{job_id} matches multiple requests; use the full UUID")
+
+    record = records[0]
+    if UUID_RE.fullmatch(str(record.uuid)) is None:
+        raise ValueError(f"request matched by {job_id} has an invalid UUID")
+    summary = LayerSummary("database", checked=1)
+    status = database_job_status(record.status, wps_status)
+    if status == "failed":
+        return summary
+    if status != "accepted":
+        raise ValueError(f"job {record.uuid} has status {status or 'unknown'}")
+
+    submitted_id = submitted_slurm_job_id(record)
+    if submitted_id is not None and submitted_id in (
+        active_submitted_slurm_jobs(settings, [record], logger) or set()
+    ):
+        raise ValueError(f"job {record.uuid} is still in Slurm as job {submitted_id}")
+
+    end_time = database_recovery_end_time(record, now)
+    recover_accepted_status(settings, record, now, logger)
+    fail_database_request(
+        session, dblog, wps_status, record, OPERATOR_FAILURE_MESSAGE, end_time,
+    )
+    summary.recovered = 1
+    logger.warning(
+        "layer=database job=%s status=failed action=recovered reason=operator-marked-failed",
+        record.uuid,
+    )
+    return summary
+
+
 def run_database_layer(
     settings: Settings,
     now: datetime,
@@ -1370,6 +1488,10 @@ def run_database_layer(
         )
     session = sessionmaker(bind=engine)()
     try:
+        if settings.mark_failed_job is not None:
+            return mark_database_request_failed(
+                session, dblog, WPS_STATUS, settings, settings.mark_failed_job, now, logger
+            )
         if settings.mode == "monitor":
             # Fetch a timezone-safe superset, then apply the exact UTC window
             # after normalizing each PyWPS timestamp.
@@ -1529,47 +1651,41 @@ def run_database_layer(
                 )
                 if settings.mode == "recover":
                     if is_health_accepted:
-                        record.message = (
+                        message = (
                             "Process failed: stalled-job recovery found a health "
                             "database request that did not advance for at least "
                             f"{settings.database_stale_after_minutes:g} minutes."
                         )
                     elif scheduler_abandoned:
-                        record.message = (
+                        message = (
                             "Process failed: stalled-job recovery found an accepted "
                             f"database request whose submitted Slurm job {submitted_id} "
                             "is no longer active, with no database update for at least "
                             f"{settings.database_stale_after_minutes:g} minutes."
                         )
                     elif is_accepted:
-                        record.message = (
+                        message = (
                             "Process failed: stalled-job recovery found an accepted "
                             "database request that did not advance for at least "
                             f"{settings.database_accepted_stale_after_hours:g} hours."
                         )
                     else:
-                        record.message = (
+                        message = (
                             "Process failed: stalled-job recovery found no database "
                             "update for at least "
                             f"{settings.database_stale_after_minutes:g} minutes."
                         )
-                    record.status = WPS_STATUS.FAILED
-                    record.percent_done = 100
-                    record.time_end = database_recovery_end_time(
-                        record,
-                        now,
-                        timedelta(
-                            minutes=(
-                                settings.recovery_pending_timeout_minutes
-                                if is_accepted and not is_health_accepted
-                                else settings.recovery_max_runtime_minutes
-                            )
-                        ),
+                    max_runtime = timedelta(
+                        minutes=(
+                            settings.recovery_pending_timeout_minutes
+                            if is_accepted and not is_health_accepted
+                            else settings.recovery_max_runtime_minutes
+                        )
                     )
-                    session.query(dblog.RequestInstance).filter_by(
-                        uuid=record.uuid
-                    ).delete()
-                    session.commit()
+                    fail_database_request(
+                        session, dblog, WPS_STATUS, record, message,
+                        database_recovery_end_time(record, now, max_runtime),
+                    )
                     summary.recovered += 1
                     summary.recovered_jobs.add(str(record.uuid))
                     logger.warning(
@@ -1723,6 +1839,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         ),
     )
     parser.add_argument(
+        "--mark-failed",
+        metavar="JOB",
+        help="recover one confirmed dead accepted request and publish its failure XML",
+    )
+    parser.add_argument(
         "--recovery-pending-timeout-minutes",
         type=float,
         default=float(control_config.get("recovery_pending_timeout_minutes", "360")),
@@ -1810,6 +1931,23 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="allow polling recovery without checking active database requests",
     )
     args = parser.parse_args(argv)
+    if args.mark_failed is not None:
+        if (
+            args.mode != "recover" or args.layer or args.repair_timestamps
+            or args.limit is not None
+        ):
+            parser.error(
+                "--mark-failed requires recover mode without --layer, "
+                "--repair-timestamps, or --limit"
+            )
+        args.mark_failed = args.mark_failed.lower()
+        if not (
+            re.fullmatch(r"[0-9a-f]{8}", args.mark_failed)
+            or UUID_RE.fullmatch(args.mark_failed)
+        ):
+            parser.error(
+                "--mark-failed requires a UUID or the eight-character ID shown by ptop"
+            )
     limit = args.limit
     recovery_limit = int(control_config.get("recovery_limit", "100"))
     missing_status_recovery_limit = int(
@@ -1819,7 +1957,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         "incident_archive_enabled", fallback=False
     )
     incident_archive_dir = optional_path(control_config.get("incident_archive_dir"))
-    layers = args.layer or DEFAULT_LAYERS[args.mode]
+    layers = ["database"] if args.mark_failed else args.layer or DEFAULT_LAYERS[args.mode]
     invalid = sorted(set(layers) - set(SUPPORTED_LAYERS))
     if invalid:
         parser.error(f"unsupported layers: {', '.join(invalid)}")
@@ -1929,6 +2067,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         recovery_working_dir=optional_path(
             control_config.get("recovery_working_dir")
         ),
+        mark_failed_job=args.mark_failed,
     )
 
 
@@ -2246,6 +2385,9 @@ def main(argv: list[str] | None = None) -> int:
                 settings.mode,
                 ",".join(settings.layers),
             )
+            if settings.mark_failed_job is not None:
+                print("ptop kill: recovery is disabled", file=sys.stderr)
+                return 1
             if settings.human_readable:
                 print(f"{operator_title(settings)}\nResult: disabled")
             return 0
@@ -2255,12 +2397,30 @@ def main(argv: list[str] | None = None) -> int:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 logger.info("decision=skip reason=another-run-is-active")
+                if settings.mark_failed_job is not None:
+                    print("ptop kill: another recovery or monitor run is active", file=sys.stderr)
+                    return 1
                 if settings.human_readable:
                     print(f"{operator_title(settings)}\nResult: another run is active")
                 return 0
             lock.write(f"{os.getpid()}\n")
             lock.flush()
-            summaries = execute_layers(settings, datetime.now(UTC), logger)
+            now = datetime.now(UTC)
+            job_id = settings.mark_failed_job
+            if job_id is not None:
+                try:
+                    summary = run_database_layer(settings, now, logger)
+                except Exception as error:
+                    logger.error("layer=database job=%s decision=error reason=%s", job_id, error, exc_info=True)
+                    message = str(error).partition("\n")[0] or type(error).__name__
+                    print(f"ptop kill: {message}", file=sys.stderr)
+                    return 1
+                if summary.recovered:
+                    print(f"{job_id}: marked failed and published status XML.")
+                else:
+                    print(f"{job_id}: already marked failed.")
+                return 0
+            summaries = execute_layers(settings, now, logger)
             if settings.human_readable:
                 print_operator_report(settings, summaries)
             return 1 if any(summary.errors for summary in summaries) else 0
