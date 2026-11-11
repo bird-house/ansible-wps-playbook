@@ -81,6 +81,12 @@ failed. `JOB` can be the full UUID or the eight-character ID displayed by
 `ptop` if it matches exactly one execute request. A known Slurm job still
 present in the queue blocks this action.
 
+For a request that `ptop` shows as `running`, first confirm that execution has
+stopped, then run `sudo ptop kill rook JOB --force`. This applies to PyWPS
+`STARTED` and `PAUSED` requests and skips the wait for the recovery timeout.
+If the stored message includes a Slurm submission ID and that job is still
+visible in the Slurm queue, the command refuses recovery.
+
 ## Migrating `custom.yml` from v0.7.0
 
 When updating an existing installation, keep only settings that are specific to the node.
