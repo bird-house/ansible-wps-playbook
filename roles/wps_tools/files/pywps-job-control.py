@@ -108,6 +108,7 @@ class Settings:
     recovery_working_dir: Path | None = None
     database_recovery_excluded_jobs: set[str] = field(default_factory=set)
     mark_failed_job: str | None = None
+    force_mark_failed: bool = False
 
 
 @dataclass
@@ -1370,9 +1371,9 @@ def fail_database_request(
     session.commit()
 
 
-def recover_accepted_status(settings: Settings, record, now: datetime, logger: logging.Logger) -> None:
+def recover_operator_status(settings: Settings, record, now: datetime, logger: logging.Logger) -> None:
     if settings.output_dir is None:
-        raise ValueError("accepted-job recovery requires the configured PyWPS output directory")
+        raise ValueError("operator recovery requires the configured PyWPS output directory")
     path = settings.output_dir / f"{record.uuid}.xml"
     if path.is_symlink():
         raise ValueError("status file must not be a symlink")
@@ -1380,7 +1381,7 @@ def recover_accepted_status(settings: Settings, record, now: datetime, logger: l
         previous, tree = read_xml_status(path)
     except FileNotFoundError:
         if not settings.output_url:
-            raise ValueError("accepted-job recovery requires the configured PyWPS output URL")
+            raise ValueError("operator recovery requires the configured PyWPS output URL")
         identifier = record.identifier or "unknown"
         contents = failed_status_xml(
             f"{settings.output_url.rstrip('/')}/{path.name}",
@@ -1390,10 +1391,11 @@ def recover_accepted_status(settings: Settings, record, now: datetime, logger: l
         if not write_status_file(path, contents):
             raise RuntimeError("status file appeared during recovery; check the job and retry")
     else:
-        if previous.state == "ProcessAccepted":
+        xml_status = XML_JOB_STATUSES.get(previous.state)
+        if xml_status == "accepted" or (settings.force_mark_failed and xml_status == "running"):
             status = next(element for element in tree.iter() if local_name(element.tag) == "Status")
-            accepted = next(child for child in status if local_name(child.tag) == "ProcessAccepted")
-            status.remove(accepted)
+            state = next(child for child in status if local_name(child.tag) == previous.state)
+            status.remove(state)
             append_failed_status(status, OPERATOR_FAILURE_MESSAGE)
             contents = ET.tostring(tree.getroot(), encoding="utf-8", xml_declaration=True)
             write_status_file(path, contents, previous)
@@ -1402,7 +1404,7 @@ def recover_accepted_status(settings: Settings, record, now: datetime, logger: l
 
     document, tree = read_xml_status(path)
     if document.state != "ProcessFailed":
-        raise RuntimeError("accepted-job recovery did not produce ProcessFailed XML")
+        raise RuntimeError("operator recovery did not produce ProcessFailed XML")
     archive_failed_xml(document, tree, settings, logger)
 
 
@@ -1431,7 +1433,11 @@ def mark_database_request_failed(
     status = database_job_status(record.status, wps_status)
     if status == "failed":
         return summary
-    if status != "accepted":
+    if status == "running" and not settings.force_mark_failed:
+        raise ValueError(
+            f"job {record.uuid} has status running; use --force after confirming it stopped"
+        )
+    if status not in {"accepted", "running"}:
         raise ValueError(f"job {record.uuid} has status {status or 'unknown'}")
 
     submitted_id = submitted_slurm_job_id(record)
@@ -1441,7 +1447,7 @@ def mark_database_request_failed(
         raise ValueError(f"job {record.uuid} is still in Slurm as job {submitted_id}")
 
     end_time = database_recovery_end_time(record, now)
-    recover_accepted_status(settings, record, now, logger)
+    recover_operator_status(settings, record, now, logger)
     fail_database_request(
         session, dblog, wps_status, record, OPERATOR_FAILURE_MESSAGE, end_time,
     )
@@ -1844,6 +1850,11 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="recover one confirmed dead accepted request and publish its failure XML",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help="allow --mark-failed for a running request after confirming execution has stopped",
+    )
+    parser.add_argument(
         "--recovery-pending-timeout-minutes",
         type=float,
         default=float(control_config.get("recovery_pending_timeout_minutes", "360")),
@@ -1931,6 +1942,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
         help="allow polling recovery without checking active database requests",
     )
     args = parser.parse_args(argv)
+    if args.force and args.mark_failed is None:
+        parser.error("--force requires --mark-failed")
     if args.mark_failed is not None:
         if (
             args.mode != "recover" or args.layer or args.repair_timestamps
@@ -2068,6 +2081,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
             control_config.get("recovery_working_dir")
         ),
         mark_failed_job=args.mark_failed,
+        force_mark_failed=args.force,
     )
 
 
