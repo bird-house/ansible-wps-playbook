@@ -12,7 +12,7 @@ fail() {
 usage() {
     local exit_code=${1:-2}
     echo "Usage: ptop SERVICE_NAME [--window 1h|24h] [--top N]" >&2
-    echo "       ptop SERVICE_NAME --mark-failed JOB" >&2
+    echo "       ptop kill SERVICE_NAME JOB" >&2
     echo "Recover a confirmed dead accepted job using its UUID or displayed ID." >&2
     echo "Set PTOP_INTERVAL to change the refresh interval (default: 2 seconds)." >&2
     exit "$exit_code"
@@ -21,6 +21,15 @@ usage() {
 main() {
     if [[ ${1:-} == -h || ${1:-} == --help ]]; then
         usage 0
+    fi
+    local kill_job=false
+    if [[ ${1:-} == kill ]]; then
+        shift
+        if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+            usage 0
+        fi
+        [[ $# -eq 2 ]] || usage
+        kill_job=true
     fi
     [[ $# -ge 1 ]] || usage
     [[ $1 =~ ^[A-Za-z0-9_.-]+$ ]] || usage
@@ -37,10 +46,9 @@ main() {
     [[ -x $python ]] || fail "Python not found or not executable: $python"
     [[ -f $config_file ]] || fail "PyWPS configuration not found: $config_file"
 
-    if [[ ${1:-} == --mark-failed ]]; then
-        [[ $# -eq 2 ]] || usage
+    if [[ $kill_job == true ]]; then
         exec "$python" "{{ wps_tools_script_dir }}/pywps-job-control.py" \
-            --config "$config_file" recover --human-readable --mark-failed "$2"
+            --config "$config_file" recover --mark-failed "$1"
     fi
 
     local interval=${PTOP_INTERVAL:-2}

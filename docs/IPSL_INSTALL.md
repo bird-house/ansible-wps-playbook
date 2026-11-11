@@ -75,7 +75,7 @@ The installed operator commands help inspect and maintain the node:
   messages and example job IDs.
 
 After confirming an `accepted` request has stopped, run
-`sudo ptop rook --mark-failed JOB`. Recovery writes `ProcessFailed` to the
+`sudo ptop kill rook JOB`. Recovery writes `ProcessFailed` to the
 request's status URL, creating the XML if needed, then marks the database row
 failed. `JOB` can be the full UUID or the eight-character ID displayed by
 `ptop` if it matches exactly one execute request. A known Slurm job still

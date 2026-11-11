@@ -2385,21 +2385,42 @@ def main(argv: list[str] | None = None) -> int:
                 settings.mode,
                 ",".join(settings.layers),
             )
+            if settings.mark_failed_job is not None:
+                print("ptop kill: recovery is disabled", file=sys.stderr)
+                return 1
             if settings.human_readable:
                 print(f"{operator_title(settings)}\nResult: disabled")
-            return int(settings.mark_failed_job is not None)
+            return 0
         settings.lock_file.parent.mkdir(parents=True, exist_ok=True)
         with settings.lock_file.open("w") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 logger.info("decision=skip reason=another-run-is-active")
+                if settings.mark_failed_job is not None:
+                    print("ptop kill: another recovery or monitor run is active", file=sys.stderr)
+                    return 1
                 if settings.human_readable:
                     print(f"{operator_title(settings)}\nResult: another run is active")
-                return int(settings.mark_failed_job is not None)
+                return 0
             lock.write(f"{os.getpid()}\n")
             lock.flush()
-            summaries = execute_layers(settings, datetime.now(UTC), logger)
+            now = datetime.now(UTC)
+            job_id = settings.mark_failed_job
+            if job_id is not None:
+                try:
+                    summary = run_database_layer(settings, now, logger)
+                except Exception as error:
+                    logger.error("layer=database job=%s decision=error reason=%s", job_id, error, exc_info=True)
+                    message = str(error).partition("\n")[0] or type(error).__name__
+                    print(f"ptop kill: {message}", file=sys.stderr)
+                    return 1
+                if summary.recovered:
+                    print(f"{job_id}: marked failed and published status XML.")
+                else:
+                    print(f"{job_id}: already marked failed.")
+                return 0
+            summaries = execute_layers(settings, now, logger)
             if settings.human_readable:
                 print_operator_report(settings, summaries)
             return 1 if any(summary.errors for summary in summaries) else 0
