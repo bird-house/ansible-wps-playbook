@@ -923,7 +923,7 @@ class RecoverStalledJobsTests(unittest.TestCase):
             candidate, "https://example.test/outputs/alpha", self.now
         )
         self.status.write_bytes(b"created by pywps")
-        self.assertFalse(MODULE.create_missing_status_file(self.status, contents))
+        self.assertFalse(MODULE.write_status_file(self.status, contents))
         self.assertEqual(self.status.read_bytes(), b"created by pywps")
 
     @unittest.skipUnless(OWSLIB_AVAILABLE, "OWSLib is not installed")
@@ -1724,6 +1724,108 @@ class RecoverStalledJobsTests(unittest.TestCase):
         self.assertEqual(
             MODULE.database_recovery_vetoes(settings, [JOB_UUID]),
             {},
+        )
+
+    @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
+    def test_mark_failed_recovers_only_the_requested_accepted_job(self):
+        from pywps import configuration, dblog
+        from pywps.response.status import WPS_STATUS
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        database_url = f"sqlite:///{self.root / 'operator.sqlite'}"
+        engine = create_engine(database_url)
+        self.addCleanup(engine.dispose)
+        dblog.ProcessInstance.metadata.create_all(engine)
+        colliding_uuid = JOB_UUID[:-1] + "1"
+        start = MODULE.database_naive_now(self.now - timedelta(minutes=1))
+        with Session(engine) as session:
+            for job_id, status in (
+                (JOB_UUID, WPS_STATUS.ACCEPTED),
+                (colliding_uuid, WPS_STATUS.ACCEPTED),
+                (OTHER_JOB_UUID, WPS_STATUS.SUCCEEDED),
+                (THIRD_JOB_UUID, WPS_STATUS.ACCEPTED),
+                (FOURTH_JOB_UUID, WPS_STATUS.STARTED),
+                (FIFTH_JOB_UUID, WPS_STATUS.ACCEPTED),
+            ):
+                session.add(dblog.ProcessInstance(
+                    uuid=job_id, pid=1, operation="execute", version="1.0.0",
+                    time_start=start, status=status, percent_done=0, identifier="orchestrate",
+                    message="Your job has been submitted with ID 123" if job_id == FIFTH_JOB_UUID else "",
+                ))
+            session.add(dblog.RequestInstance(uuid=JOB_UUID, request=b"{}"))
+            session.commit()
+
+        config = self.root / "operator.cfg"
+        config.write_text(
+            "[server]\n"
+            f"outputpath = {self.outputs}\n"
+            "outputurl = https://example.test/outputs\n"
+            "[job_control]\nrecovery_enabled = true\n"
+        )
+        self.write_status("ProcessAccepted", self.now - timedelta(minutes=1))
+        conflicting_status = self.outputs / f"{FIFTH_JOB_UUID}.xml"
+        conflicting_status.write_text(status_xml("ProcessSucceeded", self.now))
+        settings = MODULE.parse_args([
+            "--config", str(config), "recover", "--mark-failed", JOB_UUID,
+        ])
+        self.assertEqual(settings.layers, ["database"])
+        with mock.patch.object(configuration, "get_config_value", return_value=database_url):
+            logger = mock.Mock()
+            for job_id, message in (
+                (JOB_UUID[:8], "matches multiple requests"),
+                (OTHER_JOB_UUID, "has status successful"),
+                (FOURTH_JOB_UUID, "has status running"),
+                ("deadbeef", "no execute request matches"),
+            ):
+                with self.subTest(job_id=job_id), self.assertRaisesRegex(ValueError, message):
+                    MODULE.run_database_layer(
+                        MODULE.replace(settings, mark_failed_job=job_id), self.now, logger
+                    )
+            queued = MODULE.replace(settings, mark_failed_job=FIFTH_JOB_UUID)
+            with mock.patch.object(MODULE, "active_submitted_slurm_jobs", return_value={"123"}):
+                with self.assertRaisesRegex(ValueError, "still in Slurm"):
+                    MODULE.run_database_layer(queued, self.now, logger)
+            with self.assertRaisesRegex(ValueError, "XML state ProcessSucceeded"):
+                MODULE.run_database_layer(queued, self.now, logger)
+            with mock.patch.object(MODULE, "write_status_file", side_effect=OSError("write failed")):
+                with self.assertRaisesRegex(OSError, "write failed"):
+                    MODULE.run_database_layer(settings, self.now, logger)
+            with mock.patch.object(MODULE, "fail_database_request", side_effect=RuntimeError("commit failed")):
+                with self.assertRaisesRegex(RuntimeError, "commit failed"):
+                    MODULE.run_database_layer(settings, self.now, logger)
+            recovered_xml = self.status.read_bytes()
+            self.assertEqual(MODULE.read_xml_status(self.status)[0].state, "ProcessFailed")
+            with Session(engine) as session:
+                row = session.query(dblog.ProcessInstance).filter_by(uuid=JOB_UUID).one()
+                self.assertEqual(row.status, WPS_STATUS.ACCEPTED)
+            self.assertEqual(MODULE.run_database_layer(settings, self.now, logger).recovered, 1)
+            self.assertEqual(self.status.read_bytes(), recovered_xml)
+            self.assertEqual(MODULE.run_database_layer(settings, self.now, logger).recovered, 0)
+            summary = MODULE.run_database_layer(
+                MODULE.replace(settings, mark_failed_job=THIRD_JOB_UUID[:8]),
+                self.now, logger,
+            )
+            self.assertEqual(summary.recovered, 1)
+
+        with Session(engine) as session:
+            rows = {row.uuid: row for row in session.query(dblog.ProcessInstance)}
+            self.assertEqual(rows[JOB_UUID].status, WPS_STATUS.FAILED)
+            self.assertEqual(rows[JOB_UUID].time_end, MODULE.database_naive_now(self.now))
+            self.assertEqual(rows[JOB_UUID].percent_done, 100)
+            self.assertIn("marked failed by an operator", rows[JOB_UUID].message)
+            self.assertEqual(rows[colliding_uuid].status, WPS_STATUS.ACCEPTED)
+            self.assertEqual(rows[OTHER_JOB_UUID].status, WPS_STATUS.SUCCEEDED)
+            self.assertEqual(rows[THIRD_JOB_UUID].status, WPS_STATUS.FAILED)
+            self.assertEqual(rows[FOURTH_JOB_UUID].status, WPS_STATUS.STARTED)
+            self.assertEqual(rows[FIFTH_JOB_UUID].status, WPS_STATUS.ACCEPTED)
+            self.assertEqual(session.query(dblog.RequestInstance).count(), 0)
+        existing, _ = MODULE.read_xml_status(self.status)
+        self.assertEqual((existing.state, existing.process_identifier), ("ProcessFailed", "test-process"))
+        created, tree = MODULE.read_xml_status(self.outputs / f"{THIRD_JOB_UUID}.xml")
+        self.assertEqual((created.state, created.process_identifier), ("ProcessFailed", "orchestrate"))
+        self.assertEqual(
+            tree.getroot().get("statusLocation"), f"https://example.test/outputs/{THIRD_JOB_UUID}.xml"
         )
 
     @unittest.skipUnless(importlib.util.find_spec("pywps"), "PyWPS is not installed")
