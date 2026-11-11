@@ -63,6 +63,7 @@ db_install_postgresql: true
 db_install_sqlite: false
 db_host: localhost
 db_port: 5432
+db_max_connections: 250
 db_user: pywps
 db_password: pywps
 
@@ -274,6 +275,13 @@ gunicorn_cleanup_orphaned_processes: false
 postgresql_restarted_state: "restarted"
 postgresql_service_state: "started"
 postgresql_service_enabled: true
+postgresql_global_config_options:
+  - option: unix_socket_directories
+    value: '{{ postgresql_unix_socket_directories | join(",") }}'
+  - option: log_directory
+    value: 'log'
+  - option: max_connections
+    value: "{{ db_max_connections }}"
 postgresql_locales:
   - 'en_US.utf8'
 postgresql_databases:

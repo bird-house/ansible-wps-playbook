@@ -14,6 +14,8 @@ cron_mailto: ehbrecht@dkrz.de
 cron_enabled: yes
 # conda
 conda_env_use_spec: true
+# postgres
+db_max_connections: 500
 # job control
 job_timeout_minutes: 240
 # slurm
